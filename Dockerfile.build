@@ -54,14 +54,14 @@ RUN swag init -g ./cmd/server/main.go
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-s -w \
-      -X github.com/denniskoch/tlsentinel-server/internal/version.Version=${VERSION} \
-      -X github.com/denniskoch/tlsentinel-server/internal/version.Commit=${COMMIT} \
-      -X github.com/denniskoch/tlsentinel-server/internal/version.BuildTime=${BUILD_TIME}" \
+      -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${VERSION} \
+      -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${COMMIT} \
+      -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${BUILD_TIME}" \
     -o /out/server ./cmd/server
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-s -w \
-      -X github.com/denniskoch/tlsentinel-server/internal/version.Version=${VERSION} \
-      -X github.com/denniskoch/tlsentinel-server/internal/version.Commit=${COMMIT} \
-      -X github.com/denniskoch/tlsentinel-server/internal/version.BuildTime=${BUILD_TIME}" \
+      -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${VERSION} \
+      -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${COMMIT} \
+      -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${BUILD_TIME}" \
     -o /out/scanner ./cmd/scanner

@@ -127,17 +127,17 @@ export default function AboutPage() {
       <div className="rounded-lg border p-5 space-y-3">
         <h2 className="text-sm font-semibold">License &amp; Source</h2>
         <a
-          href="https://github.com/tlsentinel/tlsentinel"
+          href="https://github.com/tlsentinel/tlsentinel-server"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
         >
-          github.com/tlsentinel/tlsentinel
+          github.com/tlsentinel/tlsentinel-server
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
         <pre className="rounded-md bg-muted px-4 py-3 text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">{`MIT License
 
-Copyright (c) 2026 Dennis Koch
+Copyright (c) 2026 TLSentinel Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
