@@ -1,0 +1,191 @@
+package scanners
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/pkg/response"
+
+	"github.com/go-chi/chi/v5"
+)
+
+type Handler struct {
+	store *db.Store
+}
+
+func NewHandler(store *db.Store) *Handler {
+	return &Handler{store: store}
+}
+
+// createScannerTokenRequest is the payload for creating a new scanner token.
+type createScannerTokenRequest struct {
+	Name string `json:"name"`
+}
+
+// updateScannerTokenRequest is the payload for updating a scanner token.
+type updateScannerTokenRequest struct {
+	Name                string `json:"name"`
+	ScanIntervalSeconds int    `json:"scanIntervalSeconds"`
+	ScanConcurrency     int    `json:"scanConcurrency"`
+}
+
+// createScannerTokenResponse is returned once on creation and includes the raw token.
+type createScannerTokenResponse struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	CreatedAt  string `json:"createdAt"`
+	LastUsedAt any    `json:"lastUsedAt"`
+	// Token is the raw bearer token. Shown exactly once — not stored.
+	Token string `json:"token"`
+}
+
+// @Summary      List scanner tokens
+// @Description  Returns all registered scanner tokens (without the raw token value)
+// @Tags         scanners
+// @Produce      json
+// @Success      200  {array}   models.ScannerTokenResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /scanners [get]
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	tokens, err := h.store.ListScannerTokens(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list scanner tokens", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, tokens)
+}
+
+// @Summary      Create a scanner token
+// @Description  Generates a new scanner token. The raw token is returned once and cannot be retrieved again.
+// @Tags         scanners
+// @Accept       json
+// @Produce      json
+// @Param        request  body      createScannerTokenRequest  true  "Scanner token payload"
+// @Success      201      {object}  createScannerTokenResponse
+// @Failure      400      {string}  string  "invalid request"
+// @Failure      500      {string}  string  "internal server error"
+// @Router       /scanners [post]
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	var req createScannerTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	raw, hash, err := auth.GenerateScannerToken()
+	if err != nil {
+		http.Error(w, "failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	token, err := h.store.InsertScannerToken(r.Context(), req.Name, hash)
+	if err != nil {
+		http.Error(w, "failed to create scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusCreated, createScannerTokenResponse{
+		ID:         token.ID,
+		Name:       token.Name,
+		CreatedAt:  token.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		LastUsedAt: token.LastUsedAt,
+		Token:      raw,
+	})
+}
+
+// @Summary      Rename a scanner token
+// @Description  Updates the display name of a scanner token
+// @Tags         scanners
+// @Accept       json
+// @Produce      json
+// @Param        scannerID  path      string                     true  "Scanner token ID"
+// @Param        request    body      updateScannerTokenRequest  true  "Rename payload"
+// @Success      200        {object}  models.ScannerTokenResponse
+// @Failure      400        {string}  string  "invalid request"
+// @Failure      404        {string}  string  "scanner token not found"
+// @Failure      500        {string}  string  "internal server error"
+// @Router       /scanners/{scannerID} [put]
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+
+	var req updateScannerTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if req.ScanIntervalSeconds <= 0 {
+		req.ScanIntervalSeconds = 3600
+	}
+	if req.ScanConcurrency <= 0 {
+		req.ScanConcurrency = 5
+	}
+
+	token, err := h.store.UpdateScannerToken(r.Context(), scannerID, req.Name, req.ScanIntervalSeconds, req.ScanConcurrency)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to update scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, token)
+}
+
+// @Summary      Set default scanner token
+// @Description  Marks the specified scanner as the default; clears the flag on all others
+// @Tags         scanners
+// @Param        scannerID  path  string  true  "Scanner token ID"
+// @Success      204
+// @Failure      404  {string}  string  "scanner token not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /scanners/{scannerID}/default [post]
+func (h *Handler) SetDefault(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+
+	if err := h.store.SetDefaultScannerToken(r.Context(), scannerID); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to set default scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary      Delete a scanner token
+// @Description  Revokes a scanner token by ID
+// @Tags         scanners
+// @Param        scannerID  path  string  true  "Scanner token ID"
+// @Success      204
+// @Failure      404  {string}  string  "scanner token not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /scanners/{scannerID} [delete]
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+
+	if err := h.store.DeleteScannerToken(r.Context(), scannerID); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to delete scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -30,3 +30,14 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Build outputs
+/bin
+
+# Generated swagger docs
+/docs
+
+# Frontend build artifacts
+web/.build_stamp
+web/node_modules/
+web/dist/

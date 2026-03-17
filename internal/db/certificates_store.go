@@ -1,0 +1,152 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
+)
+
+func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, commonName string, expiringBefore *time.Time) (models.CertificateList, error) {
+	var rows []Certificate
+	q := s.db.NewSelect().
+		Model(&rows).
+		OrderExpr("created_at DESC").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize)
+	if commonName != "" {
+		q = q.Where("common_name ILIKE ?", "%"+commonName+"%")
+	}
+	if expiringBefore != nil {
+		q = q.Where("not_after < ?", expiringBefore)
+	}
+	total, err := q.ScanAndCount(ctx)
+	if err != nil {
+		return models.CertificateList{}, fmt.Errorf("failed to list certificates: %w", err)
+	}
+
+	items := make([]models.CertificateListItem, len(rows))
+	for i, r := range rows {
+		items[i] = models.CertificateListItem{
+			Fingerprint:       r.Fingerprint,
+			CommonName:        r.CommonName,
+			SANs:              r.SANs,
+			NotBefore:         r.NotBefore,
+			NotAfter:          r.NotAfter,
+			IssuerFingerprint: r.IssuerFingerprint,
+			CreatedAt:         r.CreatedAt,
+		}
+	}
+	return models.CertificateList{
+		Items:      items,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: total,
+	}, nil
+}
+
+func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.CertificateDetail, error) {
+	var c Certificate
+	err := s.db.NewSelect().Model(&c).Where("fingerprint = ?", fingerprint).Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.CertificateDetail{}, ErrNotFound
+		}
+		return models.CertificateDetail{}, fmt.Errorf("failed to get certificate: %w", err)
+	}
+	return models.CertificateDetail{
+		Fingerprint:       c.Fingerprint,
+		PEM:               c.PEM,
+		CommonName:        c.CommonName,
+		SANs:              c.SANs,
+		NotBefore:         c.NotBefore,
+		NotAfter:          c.NotAfter,
+		SerialNumber:      c.SerialNumber,
+		SubjectKeyID:      c.SubjectKeyID,
+		AuthorityKeyID:    c.AuthorityKeyID,
+		IssuerFingerprint: c.IssuerFingerprint,
+		CreatedAt:         c.CreatedAt,
+	}, nil
+}
+
+func (s *Store) GetCertificateHosts(ctx context.Context, fingerprint string) ([]models.HostListItem, error) {
+	var rows []hostWithScanner
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.hosts AS h").
+		ColumnExpr("h.*").
+		ColumnExpr("at.name AS scanner_name").
+		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
+		Where("h.active_fingerprint = ?", fingerprint).
+		OrderExpr("h.dns_name").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query certificate hosts: %w", err)
+	}
+
+	hosts := make([]models.HostListItem, len(rows))
+	for i, r := range rows {
+		hosts[i] = hostRowToListItem(r)
+	}
+	return hosts, nil
+}
+
+func (s *Store) InsertCertificate(ctx context.Context, rec models.CertificateRecord) (inserted bool, err error) {
+	c := &Certificate{
+		Fingerprint:    rec.Fingerprint,
+		PEM:            rec.PEM,
+		CommonName:     rec.CommonName,
+		SANs:           rec.SANs,
+		NotBefore:      rec.NotBefore,
+		NotAfter:       rec.NotAfter,
+		SerialNumber:   rec.SerialNumber,
+		SubjectKeyID:   rec.SubjectKeyID,
+		AuthorityKeyID: rec.AuthorityKeyID,
+	}
+	res, err := s.db.NewInsert().Model(c).On("CONFLICT (fingerprint) DO NOTHING").Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to insert certificate: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+// ReconcileCertificateChains sets issuer_fingerprint for every certificate whose
+// issuer is already present in the database but the link has not yet been established
+// (authority_key_id matches another certificate's subject_key_id).
+//
+// The INSERT trigger handles this automatically for new rows, but this function is
+// needed for rows that pre-date the trigger or were inserted before their issuer arrived
+// via a code path where ON CONFLICT DO NOTHING silenced the trigger.
+//
+// It is safe to call repeatedly — only NULL issuer_fingerprints are touched.
+// Returns the number of rows updated.
+func (s *Store) ReconcileCertificateChains(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE tlsentinel.certificates c
+		SET issuer_fingerprint = i.fingerprint
+		FROM tlsentinel.certificates i
+		WHERE c.authority_key_id  = i.subject_key_id
+		  AND c.fingerprint      != i.fingerprint
+		  AND c.issuer_fingerprint IS NULL
+		  AND c.authority_key_id  IS NOT NULL`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reconcile certificate chains: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error {
+	res, err := s.db.NewDelete().Model((*Certificate)(nil)).Where("fingerprint = ?", fingerprint).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete certificate: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

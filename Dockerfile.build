@@ -1,0 +1,67 @@
+# Dockerfile.build — produces local binaries via docker cp (no buildx needed).
+#
+# Pins exact Node and Go versions so builds are identical regardless of
+# what is installed on the host machine.
+#
+# TARGETOS / TARGETARCH default to linux/amd64 (CI/deployment). Override to
+# build for the host platform, e.g. darwin/arm64 for local dev on Apple Silicon.
+#
+# Usage (manual):
+#   docker build -f Dockerfile.build --target builder -t tlsentinel-build-tmp \
+#     --build-arg VERSION=$(git describe --tags --always --dirty) \
+#     --build-arg COMMIT=$(git rev-parse --short HEAD) \
+#     --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+#     --build-arg TARGETOS=darwin --build-arg TARGETARCH=arm64 \
+#     .
+#   docker create --name tlsentinel-extract tlsentinel-build-tmp
+#   docker cp tlsentinel-extract:/out/server  ./bin/server
+#   docker cp tlsentinel-extract:/out/scanner ./bin/scanner
+#   docker rm tlsentinel-extract && docker rmi tlsentinel-build-tmp
+#
+# Or via: make docker-build
+
+# ─── Stage 1: frontend ────────────────────────────────────────────────────────
+FROM node:22-alpine AS web
+
+WORKDIR /app/web
+COPY web/package*.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+# ─── Stage 2: Go binaries ─────────────────────────────────────────────────────
+FROM golang:1.25-alpine AS builder
+
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Install swag at the exact version used by the module.
+RUN go install github.com/swaggo/swag/cmd/swag@v1.16.6
+
+COPY . .
+COPY --from=web /app/web/dist ./web/dist
+
+# Generate Swagger docs (produces docs/docs.go required by the server build).
+RUN swag init -g ./cmd/server/main.go
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w \
+      -X github.com/denniskoch/tlsentinel-server/internal/version.Version=${VERSION} \
+      -X github.com/denniskoch/tlsentinel-server/internal/version.Commit=${COMMIT} \
+      -X github.com/denniskoch/tlsentinel-server/internal/version.BuildTime=${BUILD_TIME}" \
+    -o /out/server ./cmd/server
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w \
+      -X github.com/denniskoch/tlsentinel-server/internal/version.Version=${VERSION} \
+      -X github.com/denniskoch/tlsentinel-server/internal/version.Commit=${COMMIT} \
+      -X github.com/denniskoch/tlsentinel-server/internal/version.BuildTime=${BUILD_TIME}" \
+    -o /out/scanner ./cmd/scanner
