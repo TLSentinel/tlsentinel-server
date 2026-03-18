@@ -12,7 +12,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
-	"github.com/tlsentinel/tlsentinel-server/internal/dashboard"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/hosts"
@@ -34,7 +33,6 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 	userHandler := users.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	scannerHandler := probe.NewHandler(store)
-	dashboardHandler := dashboard.NewHandler(store)
 	mailHandler := mail.NewHandler(store, encryptionKey)
 
 	r.Use(middleware.RequestID)
@@ -67,13 +65,11 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 				// TODO IGNORE FOR NOW
 			})
 
-			r.Route("/dashboard", func(r chi.Router) {
-				r.Get("/expiring", dashboardHandler.Expiring)
-			})
-
 			r.Route("/certificates", func(r chi.Router) {
 				r.Get("/", certHandler.List)
 				r.Post("/", certHandler.Create)
+				r.Get("/active", certHandler.Active)
+				r.Get("/expiring", certHandler.Expiring)
 				r.Route("/{fingerprint}", func(r chi.Router) {
 					r.Get("/", certHandler.Get)
 					r.Delete("/", certHandler.Delete)

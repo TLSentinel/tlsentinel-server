@@ -4,7 +4,6 @@ import { Plus, Trash2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -40,25 +39,25 @@ function fmtDate(iso: string) {
   })
 }
 
-function ExpiryBadge({ notAfter }: { notAfter: string }) {
-  // useState lazy initializer: passes Date.now as a function ref so React
-  // calls it once on mount — avoids calling an impure fn directly in render.
+type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
+
+const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
+  expired:  { label: 'Expired',  className: 'bg-red-100 text-red-800 border border-red-200' },
+  critical: { label: 'Critical', className: 'bg-orange-100 text-orange-800 border border-orange-200' },
+  warning:  { label: 'Warning',  className: 'bg-amber-100 text-amber-800 border border-amber-200' },
+  ok:       { label: 'OK',       className: 'bg-green-100 text-green-800 border border-green-200' },
+}
+
+function StatusBadge({ notAfter }: { notAfter: string }) {
   const [now] = useState(Date.now)
   const days = Math.floor((new Date(notAfter).getTime() - now) / 86_400_000)
-  if (days < 0) {
-    return <Badge variant="destructive">Expired</Badge>
-  }
-  if (days <= 30) {
-    return (
-      <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-700">
-        Expiring in {days}d
-      </Badge>
-    )
-  }
+  const status: CertStatus =
+    days < 0 ? 'expired' : days <= 7 ? 'critical' : days <= 30 ? 'warning' : 'ok'
+  const { label, className } = STATUS_META[status]
   return (
-    <Badge variant="outline" className="border-green-500 bg-green-50 text-green-700">
-      Valid
-    </Badge>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>
+      {label}
+    </span>
   )
 }
 
@@ -291,9 +290,9 @@ export default function CertificatesPage() {
             <TableRow>
               <TableHead>Common Name</TableHead>
               <TableHead>SANs</TableHead>
+              <TableHead className="w-28">Status</TableHead>
               <TableHead>Issued</TableHead>
               <TableHead>Expires</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -328,11 +327,11 @@ export default function CertificatesPage() {
                       : cert.sans.slice(0, 3).join(', ') +
                         (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
                   </TableCell>
+                  <TableCell>
+                    <StatusBadge notAfter={cert.notAfter} />
+                  </TableCell>
                   <TableCell>{fmtDate(cert.notBefore)}</TableCell>
                   <TableCell>{fmtDate(cert.notAfter)}</TableCell>
-                  <TableCell>
-                    <ExpiryBadge notAfter={cert.notAfter} />
-                  </TableCell>
                   <TableCell>
                     <Button
                       variant="ghost"

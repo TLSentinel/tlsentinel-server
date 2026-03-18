@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,51 @@ func NewHandler(store *db.Store) *Handler {
 type IngestCertificateRequest struct {
 	CertificatePEM       string `json:"certificatePem,omitempty"`
 	CertificateDERBase64 string `json:"certificateDerBase64,omitempty"`
+}
+
+// @Summary      List expiring certificates
+// @Description  Returns active host-certificate pairs where the certificate expires within the given number of days. Includes already-expired certificates (negative days_remaining).
+// @Tags         certificates
+// @Produce      json
+// @Param        days  query  int  false  "Expiry window in days (default 30)"
+// @Success      200  {object}  models.ExpiringCertList
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /certificates/expiring [get]
+func (h *Handler) Expiring(w http.ResponseWriter, r *http.Request) {
+	days := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 {
+			days = n
+		}
+	}
+
+	items, err := h.store.ListExpiringCerts(r.Context(), days)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, models.ExpiringCertList{Items: items})
+}
+
+// @Summary      List active certificates
+// @Description  Returns all active host-certificate pairs ordered by days remaining ascending. Already-expired entries have negative days_remaining.
+// @Tags         certificates
+// @Produce      json
+// @Success      200  {object}  models.ExpiringCertList
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /certificates/active [get]
+func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
+	items, err := h.store.ListAllActiveCerts(r.Context())
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if items == nil {
+		items = []models.ExpiringCertItem{}
+	}
+	response.JSON(w, http.StatusOK, models.ExpiringCertList{Items: items})
 }
 
 // @Summary      List certificates

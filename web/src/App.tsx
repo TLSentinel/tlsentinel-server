@@ -12,6 +12,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/SettingsPage'
 import MailConfigPage from '@/pages/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
+import ActivePage from '@/pages/ActivePage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -41,6 +42,7 @@ export default function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="active" element={<ActivePage />} />
           <Route path="hosts" element={<HostsPage />} />
           <Route path="hosts/:id" element={<HostDetailPage />} />
           <Route path="certificates" element={<CertificatesPage />} />

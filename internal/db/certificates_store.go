@@ -10,6 +10,64 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
+// ListAllActiveCerts returns every host that has an active certificate, ordered by days_remaining
+// ascending (most urgent / already-expired first). No threshold filter — the frontend handles
+// status bucketing.
+func (s *Store) ListAllActiveCerts(ctx context.Context) ([]models.ExpiringCertItem, error) {
+	var rows []VActiveCertificate
+	err := s.db.NewSelect().
+		Model(&rows).
+		OrderExpr("days_remaining ASC").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active certs: %w", err)
+	}
+
+	items := make([]models.ExpiringCertItem, len(rows))
+	for i, r := range rows {
+		items[i] = models.ExpiringCertItem{
+			HostID:        r.HostID,
+			HostName:      r.HostName,
+			DNSName:       r.DNSName,
+			Port:          r.Port,
+			Fingerprint:   r.Fingerprint,
+			CommonName:    r.CommonName,
+			NotAfter:      r.NotAfter,
+			DaysRemaining: r.DaysRemaining,
+		}
+	}
+	return items, nil
+}
+
+// ListExpiringCerts returns all active certificates whose days_remaining is at or below the given
+// threshold, ordered by days remaining ascending (most urgent first).
+func (s *Store) ListExpiringCerts(ctx context.Context, daysRemaining int) ([]models.ExpiringCertItem, error) {
+	var rows []VActiveCertificate
+	err := s.db.NewSelect().
+		Model(&rows).
+		Where("days_remaining <= ?", daysRemaining).
+		OrderExpr("days_remaining ASC").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expiring certs: %w", err)
+	}
+
+	items := make([]models.ExpiringCertItem, len(rows))
+	for i, r := range rows {
+		items[i] = models.ExpiringCertItem{
+			HostID:        r.HostID,
+			HostName:      r.HostName,
+			DNSName:       r.DNSName,
+			Port:          r.Port,
+			Fingerprint:   r.Fingerprint,
+			CommonName:    r.CommonName,
+			NotAfter:      r.NotAfter,
+			DaysRemaining: r.DaysRemaining,
+		}
+	}
+	return items, nil
+}
+
 func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, commonName string, expiringBefore *time.Time) (models.CertificateList, error) {
 	var rows []Certificate
 	q := s.db.NewSelect().

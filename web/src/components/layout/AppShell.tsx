@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Shield, Server, LogOut, LayoutDashboard, Settings, BookOpen } from 'lucide-react'
+import { Shield, Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock } from 'lucide-react'
 import { clearToken } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
@@ -68,6 +68,7 @@ export default function AppShell() {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-3">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
+          <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
           <NavItem to="/certificates" icon={<Shield className="h-4 w-4" />} label="Certificates" />
           <NavItem to="/hosts" icon={<Server className="h-4 w-4" />} label="Hosts" />
         </nav>

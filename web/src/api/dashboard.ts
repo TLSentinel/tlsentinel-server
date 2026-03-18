@@ -16,5 +16,9 @@ export interface ExpiringCertList {
 }
 
 export function getExpiringCerts(days = 30): Promise<ExpiringCertList> {
-  return api.get<ExpiringCertList>(`/dashboard/expiring?days=${days}`)
+  return api.get<ExpiringCertList>(`/certificates/expiring?days=${days}`)
+}
+
+export function listExpiry(): Promise<ExpiringCertList> {
+  return api.get<ExpiringCertList>('/certificates/active')
 }
