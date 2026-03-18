@@ -410,9 +410,10 @@ export default function ScannersPage() {
   async function handleSetDefault(scanner: ScannerToken) {
     try {
       await setDefaultScanner(scanner.id)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to set default scanner.')
+    } finally {
       load()
-    } catch {
-      // error is transient — list will be unchanged
     }
   }
 

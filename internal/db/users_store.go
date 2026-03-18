@@ -123,7 +123,10 @@ func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role str
 		LastName:     lastName,
 		Email:        email,
 	}
-	if _, err := s.db.NewInsert().Model(row).ExcludeColumn("id").Returning("*").Exec(ctx); err != nil {
+	if _, err := s.db.NewInsert().Model(row).
+		ExcludeColumn("id", "created_at", "updated_at").
+		Returning("*").
+		Exec(ctx); err != nil {
 		return models.User{}, fmt.Errorf("failed to insert user: %w", err)
 	}
 	return userToModel(*row), nil

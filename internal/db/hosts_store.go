@@ -111,7 +111,10 @@ func (s *Store) InsertHost(ctx context.Context, rec models.HostRecord) (models.H
 		Enabled:   rec.Enabled,
 		ScannerID: rec.ScannerID,
 	}
-	if _, err := s.db.NewInsert().Model(h).ExcludeColumn("id").Returning("*").Exec(ctx); err != nil {
+	if _, err := s.db.NewInsert().Model(h).
+		ExcludeColumn("id", "created_at", "updated_at").
+		Returning("*").
+		Exec(ctx); err != nil {
 		return models.Host{}, fmt.Errorf("failed to insert host: %w", err)
 	}
 	return s.GetHost(ctx, h.ID)
