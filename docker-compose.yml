@@ -1,0 +1,54 @@
+# Local development stack.
+#
+# Reads credentials from .env — copy .env.example and fill in values before
+# running for the first time.
+#
+# Usage:
+#   docker compose up -d            # start everything
+#   docker compose up -d db         # database only (use make run for server/scanner)
+#   docker compose logs -f server   # tail server logs
+#   docker compose down             # stop and remove containers (data volume kept)
+#   docker compose down -v          # also wipe the database volume
+
+services:
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB:       ${TLSENTINEL_DB_NAME:-tlsentinel}
+      POSTGRES_USER:     ${TLSENTINEL_DB_USER:-tlsentinel}
+      POSTGRES_PASSWORD: ${TLSENTINEL_DB_PASSWORD:-tlsentinel}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Migrations run once on first volume creation, in filename order.
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tlsentinel -d tlsentinel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      TLSENTINEL_DB_HOST:     ${TLSENTINEL_DB_HOST:-db}
+      TLSENTINEL_DB_PORT:     ${TLSENTINEL_DB_PORT:-5432}  
+      TLSENTINEL_DB_SSLMODE:  ${TLSENTINEL_DB_SSLMODE:-disable}
+      TLSENTINEL_DB_NAME:     ${TLSENTINEL_DB_NAME:-tlsentinel}
+      TLSENTINEL_DB_USER:     ${TLSENTINEL_DB_USER:-tlsentinel}
+      TLSENTINEL_DB_PASSWORD: ${TLSENTINEL_DB_PASSWORD:-tlsentinel}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
