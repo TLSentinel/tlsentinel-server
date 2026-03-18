@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,11 +14,13 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 	"github.com/tlsentinel/tlsentinel-server/internal/version"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 // @title           TLSentinel API
@@ -29,13 +30,26 @@ import (
 // @host      localhost:8080
 // @BasePath  /api/v1
 func main() {
-	log.Printf("TLSentinel %s (commit %s, built %s)", version.Version, version.Commit, version.BuildTime)
-
+	// Load .env before anything else so TLSENTINEL_LOG_* vars are available.
 	_ = godotenv.Load()
+
+	log, err := logger.Build()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialise logger: %v\n", err)
+		os.Exit(1)
+	}
+	zap.ReplaceGlobals(log)
+	defer log.Sync() //nolint:errcheck
+
+	log.Info("starting",
+		zap.String("version", version.Version),
+		zap.String("commit", version.Commit),
+		zap.String("built", version.BuildTime),
+	)
 
 	connString, err := dbConnString()
 	if err != nil {
-		log.Fatalf("database configuration: %v", err)
+		log.Fatal("database configuration", zap.Error(err))
 	}
 
 	jwtSecret := os.Getenv("TLSENTINEL_JWT_SECRET")
@@ -45,7 +59,7 @@ func main() {
 
 	bunDB, err := db.NewDB(connString)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		log.Fatal("failed to connect to database", zap.Error(err))
 	}
 	defer bunDB.Close()
 
@@ -57,14 +71,14 @@ func main() {
 		os.Getenv("TLSENTINEL_ADMIN_USERNAME"),
 		os.Getenv("TLSENTINEL_ADMIN_PASSWORD"),
 	); err != nil {
-		log.Fatalf("bootstrap failed: %v", err)
+		log.Fatal("bootstrap failed", zap.Error(err))
 	}
 
 	n, err := store.ReconcileCertificateChains(context.Background())
 	if err != nil {
-		log.Printf("warning: certificate chain reconciliation failed: %v", err)
+		log.Warn("certificate chain reconciliation failed", zap.Error(err))
 	} else if n > 0 {
-		log.Printf("reconciled %d certificate chain link(s)", n)
+		log.Info("reconciled certificate chain links", zap.Int64("count", n))
 	}
 
 	jwtCfg := &auth.JWTConfig{
@@ -75,7 +89,7 @@ func main() {
 	// Encryption key is optional — if absent, SMTP passwords cannot be stored.
 	encryptionKey, keyErr := crypto.LoadEncryptionKey()
 	if keyErr != nil {
-		log.Printf("warning: %v — SMTP authentication with passwords will be unavailable", keyErr)
+		log.Warn("SMTP authentication with passwords will be unavailable", zap.Error(keyErr))
 	}
 
 	sched := scheduler.New()
@@ -89,9 +103,9 @@ func main() {
 	}
 
 	go func() {
-		log.Println("server running on :8080")
+		log.Info("server listening", zap.String("addr", ":8080"))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server error: %v", err)
+			log.Fatal("server error", zap.Error(err))
 		}
 	}()
 
@@ -105,14 +119,14 @@ func main() {
 	<-quit
 	schedCancel() // stop scheduler before HTTP shutdown
 
-	log.Println("shutting down server...")
+	log.Info("shutting down server")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("server forced to shutdown: %v", err)
+		log.Fatal("server forced to shutdown", zap.Error(err))
 	}
-	log.Println("server stopped")
+	log.Info("server stopped")
 }
 
 // dbConnString returns the Postgres connection string.

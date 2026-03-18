@@ -10,6 +10,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/dashboard"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -37,7 +38,7 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 	mailHandler := mail.NewHandler(store, encryptionKey)
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
+	r.Use(logger.RequestLogger)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/api-docs/*", httpSwagger.WrapHandler)

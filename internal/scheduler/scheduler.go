@@ -4,7 +4,8 @@ package scheduler
 
 import (
 	"context"
-	"log"
+
+	"go.uber.org/zap"
 
 	"github.com/netresearch/go-cron"
 )
@@ -40,18 +41,25 @@ func (s *Scheduler) Start(ctx context.Context) {
 	for _, j := range s.jobs {
 		j := j // capture
 		if _, err := s.c.AddFunc(j.Spec, func() {
-			log.Printf("[scheduler] starting job: %s", j.Name)
+			zap.L().Info("job starting", zap.String("job", j.Name))
 			j.Fn()
-			log.Printf("[scheduler] completed job: %s", j.Name)
+			zap.L().Info("job completed", zap.String("job", j.Name))
 		}); err != nil {
-			log.Printf("[scheduler] failed to register job %q (%s): %v", j.Name, j.Spec, err)
+			zap.L().Error("failed to register job",
+				zap.String("job", j.Name),
+				zap.String("spec", j.Spec),
+				zap.Error(err),
+			)
 		} else {
-			log.Printf("[scheduler] registered job: %s (%s)", j.Name, j.Spec)
+			zap.L().Info("job registered",
+				zap.String("job", j.Name),
+				zap.String("spec", j.Spec),
+			)
 		}
 	}
 
 	s.c.Start()
-	log.Printf("[scheduler] started with %d job(s)", len(s.jobs))
+	zap.L().Info("scheduler started", zap.Int("jobs", len(s.jobs)))
 
 	go func() {
 		<-ctx.Done()
@@ -61,8 +69,8 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 // stop halts the cron runner and waits for any running job to finish.
 func (s *Scheduler) stop() {
-	log.Println("[scheduler] stopping...")
+	zap.L().Info("scheduler stopping")
 	ctx := s.c.Stop()
 	<-ctx.Done()
-	log.Println("[scheduler] stopped")
+	zap.L().Info("scheduler stopped")
 }

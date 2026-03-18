@@ -3,8 +3,9 @@ package probe
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
+
+	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -112,7 +113,7 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.RecordScanResult(r.Context(), hostID, req); err != nil {
-		slog.Error("failed to record scan result", "host_id", hostID, "error", err)
+		zap.L().Error("failed to record scan result", zap.String("host_id", hostID), zap.Error(err))
 		http.Error(w, "failed to record scan result", http.StatusInternalServerError)
 		return
 	}

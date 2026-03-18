@@ -12,6 +12,7 @@ LDFLAGS    := -ldflags "-X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) 
 
 # Directories / commands
 BIN_DIR     := bin
+WEB_DIR     := web
 CMD := ./cmd/server
 
 # Source file lists (used for incremental generation)

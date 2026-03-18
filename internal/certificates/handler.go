@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
@@ -104,14 +105,20 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	inserted, err := h.store.InsertCertificate(r.Context(), rec)
 	if err != nil {
-		slog.Error("failed to store certificate", "fingerprint", rec.Fingerprint, "error", err)
+		zap.L().Error("failed to store certificate",
+			zap.String("fingerprint", rec.Fingerprint),
+			zap.Error(err),
+		)
 		http.Error(w, "failed to store certificate", http.StatusInternalServerError)
 		return
 	}
 
 	stored, err := h.store.GetCertificate(r.Context(), rec.Fingerprint)
 	if err != nil {
-		slog.Error("failed to retrieve stored certificate", "fingerprint", rec.Fingerprint, "error", err)
+		zap.L().Error("failed to retrieve stored certificate",
+			zap.String("fingerprint", rec.Fingerprint),
+			zap.Error(err),
+		)
 		http.Error(w, "failed to retrieve stored certificate", http.StatusInternalServerError)
 		return
 	}
