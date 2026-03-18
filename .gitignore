@@ -41,3 +41,10 @@ go.work.sum
 web/.build_stamp
 web/node_modules/
 web/dist/
+
+# TLSentinel Test PKI ---
+testdata/certs/*.crt
+testdata/certs/*.key
+testdata/certs/*.csr
+testdata/certs/*.srl
+testdata/certs/*.pem
