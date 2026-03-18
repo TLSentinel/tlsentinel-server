@@ -48,3 +48,6 @@ testdata/certs/*.key
 testdata/certs/*.csr
 testdata/certs/*.srl
 testdata/certs/*.pem
+testdata/certs/*.der
+testdata/certs/*.pfx
+testdata/certs/*.attr
