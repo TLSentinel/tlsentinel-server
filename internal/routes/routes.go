@@ -10,21 +10,22 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
-	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
+	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/hosts"
+	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
 	"github.com/tlsentinel/tlsentinel-server/internal/utils"
-	certmonweb "github.com/tlsentinel/tlsentinel-server/web"
+	tlsetinelWeb "github.com/tlsentinel/tlsentinel-server/web"
 )
 
-func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byte) http.Handler {
+func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, enc *crypto.Encryptor) http.Handler {
 	r := chi.NewRouter()
 
 	tokenHandler := scanners.NewHandler(store)
@@ -35,7 +36,7 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 	userHandler := users.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	scannerHandler := probe.NewHandler(store)
-	mailHandler := mail.NewHandler(store, encryptionKey)
+	mailHandler := mail.NewHandler(store, enc)
 
 	r.Use(middleware.RequestID)
 	r.Use(logger.RequestLogger)
@@ -129,7 +130,7 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 
 	// Serve embedded frontend with SPA fallback — any path that isn't a real
 	// static asset gets index.html so React Router handles it client-side.
-	distFS, _ := fs.Sub(certmonweb.FS, "dist")
+	distFS, _ := fs.Sub(tlsetinelWeb.FS, "dist")
 	fileServer := http.FileServer(http.FS(distFS))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f, err := distFS.Open(r.URL.Path[1:]) // strip leading /

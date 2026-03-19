@@ -20,6 +20,40 @@ import (
 	"os"
 )
 
+// ErrNoKey is returned by Encryptor when no encryption key has been configured.
+var ErrNoKey = errors.New("TLSENTINEL_ENCRYPTION_KEY is not set")
+
+// Encryptor wraps an AES-256-GCM key and exposes Encrypt/Decrypt methods.
+// An Encryptor created with a nil key returns ErrNoKey on every operation,
+// so callers never need to nil-check the key themselves.
+type Encryptor struct {
+	key []byte
+}
+
+// NewEncryptor returns an Encryptor for key. If key is nil (e.g. the env var
+// was not set) every Encrypt/Decrypt call will return ErrNoKey.
+func NewEncryptor(key []byte) *Encryptor {
+	return &Encryptor{key: key}
+}
+
+// Encrypt encrypts plaintext and returns a base64-encoded ciphertext.
+// Returns ErrNoKey if no encryption key was provided at construction time.
+func (e *Encryptor) Encrypt(plaintext string) (string, error) {
+	if len(e.key) == 0 {
+		return "", ErrNoKey
+	}
+	return Encrypt(e.key, plaintext)
+}
+
+// Decrypt decrypts a base64-encoded ciphertext produced by Encrypt.
+// Returns ErrNoKey if no encryption key was provided at construction time.
+func (e *Encryptor) Decrypt(encoded string) (string, error) {
+	if len(e.key) == 0 {
+		return "", ErrNoKey
+	}
+	return Decrypt(e.key, encoded)
+}
+
 // LoadEncryptionKey reads TLSENTINEL_ENCRYPTION_KEY, base64-decodes it, and
 // validates that it is exactly 32 bytes (required for AES-256).
 // Returns a non-nil error if the variable is absent or malformed.

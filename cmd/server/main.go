@@ -86,16 +86,18 @@ func main() {
 		TTL:       24 * time.Hour,
 	}
 
-	// Encryption key is optional — if absent, SMTP passwords cannot be stored.
+	// Encryption key is optional — if absent, operations that require storing
+	// sensitive values (e.g. SMTP passwords) will return a clear error.
 	encryptionKey, keyErr := crypto.LoadEncryptionKey()
 	if keyErr != nil {
-		log.Warn("SMTP authentication with passwords will be unavailable", zap.Error(keyErr))
+		log.Warn("sensitive value storage will be unavailable", zap.Error(keyErr))
 	}
+	enc := crypto.NewEncryptor(encryptionKey)
 
 	sched := scheduler.New()
 	// Jobs are registered here as they are implemented — none yet.
 
-	r := routes.RegisterRoutes(store, jwtCfg, encryptionKey)
+	r := routes.RegisterRoutes(store, jwtCfg, enc)
 
 	srv := &http.Server{
 		Addr:    ":8080",

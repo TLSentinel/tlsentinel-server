@@ -11,19 +11,21 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
+
 var validAuthTypes = map[string]bool{"none": true, "plain": true, "login": true}
 var validTLSModes = map[string]bool{"none": true, "starttls": true, "tls": true}
 
 // Handler handles HTTP requests for the mail configuration endpoints.
 type Handler struct {
-	store         *db.Store
-	encryptionKey []byte // nil when TLSENTINEL_ENCRYPTION_KEY is not set
+	store *db.Store
+	enc   *crypto.Encryptor
 }
 
-// NewHandler creates a new Handler. encryptionKey may be nil if the key is not
-// configured; in that case any attempt to store an SMTP password will be rejected.
-func NewHandler(store *db.Store, encryptionKey []byte) *Handler {
-	return &Handler{store: store, encryptionKey: encryptionKey}
+// NewHandler creates a new Handler. enc may wrap a nil key if
+// TLSENTINEL_ENCRYPTION_KEY is not set; in that case any attempt to store an
+// SMTP password will be rejected with a clear error.
+func NewHandler(store *db.Store, enc *crypto.Encryptor) *Handler {
+	return &Handler{store: store, enc: enc}
 }
 
 // @Summary      Get mail config
@@ -103,12 +105,12 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 	if req.AuthType != "none" {
 		if req.SMTPPassword != "" {
 			// New password provided — encrypt it.
-			if h.encryptionKey == nil {
+			var err error
+			encryptedPassword, err = h.enc.Encrypt(req.SMTPPassword)
+			if errors.Is(err, crypto.ErrNoKey) {
 				http.Error(w, "TLSENTINEL_ENCRYPTION_KEY is not set; cannot store SMTP password", http.StatusUnprocessableEntity)
 				return
 			}
-			var err error
-			encryptedPassword, err = crypto.Encrypt(h.encryptionKey, req.SMTPPassword)
 			if err != nil {
 				http.Error(w, "failed to encrypt password", http.StatusInternalServerError)
 				return
@@ -185,11 +187,11 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 	// Decrypt the stored password if auth is required.
 	plainPassword := ""
 	if cfg.AuthType != "none" && cfg.SMTPPassword != "" {
-		if h.encryptionKey == nil {
+		plainPassword, err = h.enc.Decrypt(cfg.SMTPPassword)
+		if errors.Is(err, crypto.ErrNoKey) {
 			http.Error(w, "TLSENTINEL_ENCRYPTION_KEY is not set; cannot decrypt SMTP password", http.StatusUnprocessableEntity)
 			return
 		}
-		plainPassword, err = crypto.Decrypt(h.encryptionKey, cfg.SMTPPassword)
 		if err != nil {
 			http.Error(w, "failed to decrypt SMTP password", http.StatusInternalServerError)
 			return
