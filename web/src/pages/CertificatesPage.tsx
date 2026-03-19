@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, ChevronRight, Search, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,11 +73,14 @@ interface IngestDialogProps {
 
 function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
   const [pem, setPem] = useState('')
+  const [fileName, setFileName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function reset() {
     setPem('')
+    setFileName(null)
     setError(null)
   }
 
@@ -86,11 +89,26 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
     onClose()
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setPem((ev.target?.result as string) ?? '')
+      setError(null)
+    }
+    reader.onerror = () => setError('Failed to read file.')
+    reader.readAsText(file)
+    // reset so the same file can be re-selected if needed
+    e.target.value = ''
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = pem.trim()
     if (!trimmed) {
-      setError('Paste a PEM or base64 DER certificate.')
+      setError('Paste a PEM / Base64 DER certificate, or browse for a file.')
       return
     }
 
@@ -115,7 +133,7 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Ingest Certificate</DialogTitle>
         </DialogHeader>
@@ -125,11 +143,28 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
             <Label htmlFor="cert-pem">PEM or Base64 DER</Label>
             <textarea
               id="cert-pem"
-              className="min-h-[160px] w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="min-h-[200px] w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
               value={pem}
-              onChange={(e) => setPem(e.target.value)}
+              onChange={(e) => { setPem(e.target.value); setFileName(null) }}
             />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pem,.crt,.cer,.cert,.der"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              {fileName ?? 'Browse file…'}
+            </Button>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

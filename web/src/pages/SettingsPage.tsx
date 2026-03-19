@@ -87,10 +87,10 @@ export default function SettingsPage() {
           soon
         />
         <SettingCard
+          to="/settings/general"
           icon={<SlidersHorizontal className="h-4 w-4" />}
           title="General"
           description="Global scan intervals, expiry alert thresholds, and application preferences."
-          soon
         />
         <SettingCard
           to="/settings/about"

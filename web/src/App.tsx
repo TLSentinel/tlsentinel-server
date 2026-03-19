@@ -13,6 +13,7 @@ import SettingsPage from '@/pages/SettingsPage'
 import MailConfigPage from '@/pages/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
 import ActivePage from '@/pages/ActivePage'
+import GeneralSettingsPage from '@/pages/GeneralSettingsPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="scanners" element={<ScannersPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="mail" element={<MailConfigPage />} />
+            <Route path="general" element={<GeneralSettingsPage />} />
             <Route path="about" element={<AboutPage />} />
           </Route>
 

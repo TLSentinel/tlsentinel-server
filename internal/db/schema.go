@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -116,6 +117,27 @@ type HostTLSProfile struct {
 	CipherSuites   []string  `bun:"cipher_suites,array"`
 	SelectedCipher *string   `bun:"selected_cipher"`
 	ScanError      *string   `bun:"scan_error"`
+}
+
+// Setting maps to tlsentinel.settings. Value is raw JSONB — callers decode it
+// into the appropriate concrete type (e.g. []int for alert thresholds).
+type Setting struct {
+	bun.BaseModel `bun:"table:tlsentinel.settings"`
+
+	Key       string          `bun:"key,pk"`
+	Value     json.RawMessage `bun:"value,type:jsonb"`
+	UpdatedAt time.Time       `bun:"updated_at"`
+}
+
+// CertificateExpiryAlert maps to tlsentinel.certificate_expiry_alerts.
+// The composite PK (fingerprint, threshold_days) acts as the dedup key —
+// inserting a duplicate means the alert has already been sent.
+type CertificateExpiryAlert struct {
+	bun.BaseModel `bun:"table:tlsentinel.certificate_expiry_alerts"`
+
+	Fingerprint   string    `bun:"fingerprint,pk"`
+	ThresholdDays int       `bun:"threshold_days,pk"`
+	AlertedAt     time.Time `bun:"alerted_at"`
 }
 
 // VActiveCertificate maps to the read-only tlsentinel.v_active_certificates view.

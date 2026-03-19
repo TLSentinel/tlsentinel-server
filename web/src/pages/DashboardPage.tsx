@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { listHosts, listErrorHosts } from '@/api/hosts'
 import { listCertificates } from '@/api/certificates'
-import { getExpiringCerts, type ExpiringCertItem } from '@/api/dashboard'
+import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import type { HostListItem } from '@/types/api'
 
 // ---------------------------------------------------------------------------

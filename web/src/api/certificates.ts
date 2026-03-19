@@ -6,6 +6,21 @@ import type {
   IngestCertificateRequest,
 } from '@/types/api'
 
+export interface ExpiringCertItem {
+  hostId: string
+  hostName: string
+  dnsName: string
+  port: number
+  fingerprint: string
+  commonName: string
+  notAfter: string
+  daysRemaining: number
+}
+
+export interface ExpiringCertList {
+  items: ExpiringCertItem[]
+}
+
 export function listCertificates(
   page = 1,
   pageSize = 20,
@@ -33,4 +48,12 @@ export function deleteCertificate(fingerprint: string): Promise<void> {
 
 export function getCertificateHosts(fingerprint: string): Promise<HostListItem[]> {
   return api.get<HostListItem[]>(`/certificates/${fingerprint}/hosts`)
+}
+
+export function listActive(): Promise<ExpiringCertList> {
+  return api.get<ExpiringCertList>('/certificates/active')
+}
+
+export function getExpiringCerts(days = 30): Promise<ExpiringCertList> {
+  return api.get<ExpiringCertList>(`/certificates/expiring?days=${days}`)
 }

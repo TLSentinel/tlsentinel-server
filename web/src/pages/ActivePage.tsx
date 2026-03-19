@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { listExpiry, type ExpiringCertItem } from '@/api/dashboard'
+import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { ApiError } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ export default function ActivePage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await listExpiry()
+      const data = await listActive()
       setItems(data.items ?? [])
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load active certificates.')

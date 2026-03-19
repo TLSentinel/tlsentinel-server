@@ -21,6 +21,7 @@ const BACKEND_LIBS: LibEntry[] = [
   { name: 'swaggo/swag',         license: 'MIT',          url: 'https://github.com/swaggo/swag' },
   { name: 'swaggo/http-swagger', license: 'MIT',          url: 'https://github.com/swaggo/http-swagger' },
   { name: 'netresearch/go-cron', license: 'MIT',          url: 'https://github.com/netresearch/go-cron' },
+  { name: 'uber-go/zap',         license: 'MIT',          url: 'https://github.com/uber-go/zap' },
   { name: 'golang.org/x/crypto', license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/crypto' },
 ]
 

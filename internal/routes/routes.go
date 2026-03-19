@@ -18,6 +18,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
+	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
 	"github.com/tlsentinel/tlsentinel-server/internal/utils"
 	certmonweb "github.com/tlsentinel/tlsentinel-server/web"
@@ -28,6 +29,7 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 
 	tokenHandler := scanners.NewHandler(store)
 	certHandler := certificates.NewHandler(store)
+	settingsHandler := settings.NewHandler(store)
 	hostHandler := hosts.NewHandler(store)
 	authHandler := auth.NewHandler(store, jwtCfg)
 	userHandler := users.NewHandler(store)
@@ -100,10 +102,14 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, encryptionKey []byt
 				})
 			})
 
-			r.Route("/settings/mail", func(r chi.Router) {
-				r.Get("/", mailHandler.Get)
-				r.Put("/", mailHandler.Save)
-				r.Post("/test", mailHandler.Test)
+			r.Route("/settings", func(r chi.Router) {
+				r.Route("/mail", func(r chi.Router) {
+					r.Get("/", mailHandler.Get)
+					r.Put("/", mailHandler.Save)
+					r.Post("/test", mailHandler.Test)
+				})
+				r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
+				r.Put("/alert-thresholds", settingsHandler.SetAlertThresholds)
 			})
 
 			r.Route("/utils", func(r chi.Router) {

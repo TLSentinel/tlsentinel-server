@@ -28,7 +28,7 @@ func NewHandler(store *db.Store, encryptionKey []byte) *Handler {
 
 // @Summary      Get mail config
 // @Description  Returns the current SMTP / mail configuration. The password is never returned; passwordSet indicates whether one is stored.
-// @Tags         mail
+// @Tags         settings,mail
 // @Produce      json
 // @Success      200  {object}  models.MailConfigResponse
 // @Failure      500  {string}  string  "internal server error"
@@ -66,7 +66,7 @@ type saveRequest struct {
 
 // @Summary      Save mail config
 // @Description  Creates or replaces the SMTP / mail configuration. Pass an empty smtpPassword to keep the existing password.
-// @Tags         mail
+// @Tags         settings,mail
 // @Accept       json
 // @Produce      json
 // @Param        request  body      saveRequest  true  "Mail config payload"
@@ -151,7 +151,7 @@ type testRequest struct {
 
 // @Summary      Send test email
 // @Description  Sends a test email using the current saved SMTP configuration. The optional `to` field sets the recipient; when omitted the from_address is used.
-// @Tags         mail
+// @Tags         settings,mail
 // @Accept       json
 // @Param        request  body  testRequest  false  "Optional recipient override"
 // @Success      204

@@ -73,3 +73,21 @@ type CertificateList struct {
 	PageSize   int                   `json:"pageSize"`
 	TotalCount int                   `json:"totalCount"`
 }
+
+// ExpiringCertItem represents a certificate that is active on a host,
+// used by the /certificates/active and /certificates/expiring endpoints.
+type ExpiringCertItem struct {
+	HostID        string    `json:"hostId"`
+	HostName      string    `json:"hostName"`
+	DNSName       string    `json:"dnsName"`
+	Port          int       `json:"port"`
+	Fingerprint   string    `json:"fingerprint"`
+	CommonName    string    `json:"commonName"`
+	NotAfter      time.Time `json:"notAfter"`
+	DaysRemaining int       `json:"daysRemaining"`
+}
+
+// ExpiringCertList is the response envelope for the active/expiring certs endpoints.
+type ExpiringCertList struct {
+	Items []ExpiringCertItem `json:"items"`
+}
