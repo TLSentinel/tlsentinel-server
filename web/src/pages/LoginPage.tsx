@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import { login } from '@/api/auth'
 import { setToken } from '@/api/client'
 import { ApiError } from '@/types/api'
@@ -51,10 +50,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mb-2 flex justify-center">
-            <Shield className="h-8 w-8 text-primary" />
+          <div className="mb-4 flex justify-center">
+            <img src="/logo_light_vertical.png" alt="TLSentinel" className="h-64 w-auto" />
           </div>
-          <CardTitle className="text-2xl">TLSentinel</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
 

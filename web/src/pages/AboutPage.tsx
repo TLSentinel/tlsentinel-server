@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Shield, ChevronRight, ExternalLink } from 'lucide-react'
+import { ChevronRight, ExternalLink } from 'lucide-react'
 import { getVersion } from '@/api/version'
 import type { BuildInfo } from '@/types/api'
 
@@ -97,19 +97,6 @@ export default function AboutPage() {
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground">About</span>
       </nav>
-
-      {/* Identity */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg border bg-sidebar">
-          <Shield className="h-6 w-6 text-sidebar-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold">TLSentinel</h1>
-          <p className="text-sm text-muted-foreground">
-            TLS certificate monitoring and alerting
-          </p>
-        </div>
-      </div>
 
       {/* Version info */}
       <div className="rounded-lg border p-5 space-y-3">
