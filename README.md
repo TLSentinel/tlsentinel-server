@@ -1,3 +1,5 @@
+![TLSentinel](https://tlsentinel.github.io/assets/tlsentinel_logo_light_horizontal.png)
+
 # TLSentinel — Server
 
 A self-hosted TLS certificate and host monitoring platform. TLSentinel tracks certificate expiry, TLS version support, and cipher suite hygiene across your infrastructure via lightweight distributed scanners.
