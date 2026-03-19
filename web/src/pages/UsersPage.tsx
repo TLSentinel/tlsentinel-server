@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, ArrowLeft, Search, ChevronDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +20,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { listUsers, createUser, updateUser, changePassword, deleteUser } from '@/api/users'
 import { isAdmin } from '@/api/client'
 import type { User } from '@/types/api'
@@ -395,6 +401,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -459,6 +466,96 @@ export default function UsersPage() {
           </Button>
         )}
       </div>
+
+      {/* Search + filters */}
+      <div className="flex items-center gap-2">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search username or name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Role
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              All
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Admin
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Viewer
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Provider
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              All
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Local
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              OIDC
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Sort
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              Newest first
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Username
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Name
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Active filter context line */}
+      <p className="text-sm text-muted-foreground">
+        Showing results for <span className="font-semibold text-foreground">all</span>
+        {search && (
+          <> matching <span className="font-semibold text-foreground">"{search}"</span></>
+        )}
+      </p>
 
       {/* Error */}
       {error && <p className="text-sm text-destructive">{error}</p>}

@@ -1,12 +1,22 @@
 import { api } from './client'
 import type { Host, HostList, HostTLSProfile, HostScanHistoryList, CreateHostRequest, UpdateHostRequest } from '@/types/api'
 
-export function listHosts(page = 1, pageSize = 20): Promise<HostList> {
-  return api.get<HostList>(`/hosts?page=${page}&page_size=${pageSize}`)
+export function listHosts(page = 1, pageSize = 20, name = ''): Promise<HostList> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  if (name) params.set('name', name)
+  return api.get<HostList>(`/hosts?${params}`)
 }
 
 export function listErrorHosts(page = 1, pageSize = 20): Promise<HostList> {
-  return api.get<HostList>(`/hosts?page=${page}&page_size=${pageSize}&has_error=true`)
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    has_error: 'true',
+  })
+  return api.get<HostList>(`/hosts?${params}`)
 }
 
 export function getHost(id: string): Promise<Host> {

@@ -19,6 +19,9 @@ export interface ExpiringCertItem {
 
 export interface ExpiringCertList {
   items: ExpiringCertItem[]
+  page: number
+  pageSize: number
+  totalCount: number
 }
 
 export function listCertificates(
@@ -50,8 +53,14 @@ export function getCertificateHosts(fingerprint: string): Promise<HostListItem[]
   return api.get<HostListItem[]>(`/certificates/${fingerprint}/hosts`)
 }
 
-export function listActive(): Promise<ExpiringCertList> {
-  return api.get<ExpiringCertList>('/certificates/active')
+export function listActive(page = 1, pageSize = 20, name = '', status = ''): Promise<ExpiringCertList> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  if (name) params.set('name', name)
+  if (status) params.set('status', status)
+  return api.get<ExpiringCertList>(`/certificates/active?${params}`)
 }
 
 export function getExpiringCerts(days = 30): Promise<ExpiringCertList> {

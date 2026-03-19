@@ -59,23 +59,43 @@ func (h *Handler) Expiring(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      List active certificates
-// @Description  Returns all active host-certificate pairs ordered by days remaining ascending. Already-expired entries have negative days_remaining.
+// @Description  Returns a paginated list of active host-certificate pairs ordered by days remaining ascending. Supports optional search and status filter.
 // @Tags         certificates
 // @Produce      json
+// @Param        page       query  int     false  "Page number (default 1)"
+// @Param        page_size  query  int     false  "Page size (default 20, max 100)"
+// @Param        name       query  string  false  "Search host name, DNS name, or common name (partial match)"
+// @Param        status     query  string  false  "Filter by status: expired, critical, warning, ok"
 // @Success      200  {object}  models.ExpiringCertList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/active [get]
 func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
-	items, err := h.store.ListAllActiveCerts(r.Context())
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
+	if err != nil || pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	name := r.URL.Query().Get("name")
+	status := r.URL.Query().Get("status")
+
+	result, err := h.store.ListAllActiveCerts(r.Context(), page, pageSize, name, status)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if items == nil {
-		items = []models.ExpiringCertItem{}
+	if result.Items == nil {
+		result.Items = []models.ExpiringCertItem{}
 	}
-	response.JSON(w, http.StatusOK, models.ExpiringCertList{Items: items})
+	response.JSON(w, http.StatusOK, result)
 }
 
 // @Summary      List certificates

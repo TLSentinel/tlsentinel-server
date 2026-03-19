@@ -88,6 +88,11 @@ type ExpiringCertItem struct {
 }
 
 // ExpiringCertList is the response envelope for the active/expiring certs endpoints.
+// Page, PageSize, and TotalCount are populated for the paginated /certificates/active endpoint.
+// The /certificates/expiring endpoint leaves them at zero.
 type ExpiringCertList struct {
-	Items []ExpiringCertItem `json:"items"`
+	Items      []ExpiringCertItem `json:"items"`
+	Page       int                `json:"page,omitempty"`
+	PageSize   int                `json:"pageSize,omitempty"`
+	TotalCount int                `json:"totalCount,omitempty"`
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Globe, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Globe, Loader2, Search, ChevronDown, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { listHosts, getHost, createHost, updateHost, deleteHost } from '@/api/hosts'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
@@ -363,6 +369,8 @@ export default function HostsPage() {
   const [hosts, setHosts] = useState<HostListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -374,11 +382,20 @@ export default function HostsPage() {
   const [editTarget, setEditTarget] = useState<HostListItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<HostListItem | null>(null)
 
+  // Debounce search — reset to page 1 when query changes.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [search])
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await listHosts(page, PAGE_SIZE)
+      const result = await listHosts(page, PAGE_SIZE, debouncedSearch)
       setHosts(result.items ?? [])
       setTotalCount(result.totalCount)
     } catch (err) {
@@ -386,7 +403,7 @@ export default function HostsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page])
+  }, [page, debouncedSearch])
 
   useEffect(() => {
     load()
@@ -427,6 +444,73 @@ export default function HostsPage() {
         )}
       </div>
 
+      {/* Search + filters */}
+      <div className="flex items-center gap-2">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search name or DNS…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Status
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              All
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Enabled
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Disabled
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Sort
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              Newest first
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Name
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Last scanned
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Active filter context line */}
+      <p className="text-sm text-muted-foreground">
+        Showing results for <span className="font-semibold text-foreground">all</span>
+        {debouncedSearch && (
+          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
+        )}
+      </p>
+
       {/* Error */}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -462,7 +546,7 @@ export default function HostsPage() {
                   colSpan={7}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
-                  No hosts yet. Click <strong>Add Host</strong> to get started.
+                  {debouncedSearch ? 'No hosts match your search.' : 'No hosts yet. Click Add Host to get started.'}
                 </TableCell>
               </TableRow>
             )}
@@ -487,7 +571,7 @@ export default function HostsPage() {
                     {host.enabled ? (
                       <Badge
                         variant="outline"
-                        className="border-green-500 bg-green-50 text-green-700"
+                        className="border-blue-500 bg-blue-50 text-blue-700"
                       >
                         Enabled
                       </Badge>

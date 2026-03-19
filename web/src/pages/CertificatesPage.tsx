@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ChevronLeft, ChevronRight, Search, FolderOpen } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, ChevronRight, Search, FolderOpen, ChevronDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   listCertificates,
   createCertificate,
@@ -308,16 +314,80 @@ export default function CertificatesPage() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-8"
-          placeholder="Search common name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Search + filters */}
+      <div className="flex items-center gap-2">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search common name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Status
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              All
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Expired
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Critical (≤7d)
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Warning (≤30d)
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              OK
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Sort
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              Newest first
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Expiry date
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Common name
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      {/* Active filter context line */}
+      <p className="text-sm text-muted-foreground">
+        Showing results for <span className="font-semibold text-foreground">all</span>
+        {debouncedSearch && (
+          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
+        )}
+      </p>
 
       {/* Error */}
       {error && <p className="text-sm text-destructive">{error}</p>}

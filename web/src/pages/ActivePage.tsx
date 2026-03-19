@@ -1,5 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronDown, ChevronLeft, ChevronRight, Check, Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { ApiError } from '@/types/api'
@@ -9,6 +18,7 @@ import { ApiError } from '@/types/api'
 // ---------------------------------------------------------------------------
 
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
+type StatusFilter = '' | CertStatus
 
 function getStatus(daysRemaining: number): CertStatus {
   if (daysRemaining < 0) return 'expired'
@@ -23,6 +33,14 @@ const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
   warning:  { label: 'Warning',  className: 'bg-amber-50  text-amber-700  border border-amber-500' },
   ok:       { label: 'OK',       className: 'bg-green-50  text-green-700  border border-green-500' },
 }
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: '',         label: 'All' },
+  { value: 'expired',  label: 'Expired' },
+  { value: 'critical', label: 'Critical (≤7d)' },
+  { value: 'warning',  label: 'Warning (≤30d)' },
+  { value: 'ok',       label: 'OK' },
+]
 
 function StatusBadge({ daysRemaining }: { daysRemaining: number }) {
   const status = getStatus(daysRemaining)
@@ -49,107 +67,56 @@ function fmtDays(days: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Filter bar
-// ---------------------------------------------------------------------------
-
-type FilterTab = 'all' | CertStatus
-
-interface FilterCounts {
-  all: number
-  expired: number
-  critical: number
-  warning: number
-  ok: number
-}
-
-function computeCounts(items: ExpiringCertItem[]): FilterCounts {
-  const counts: FilterCounts = { all: items.length, expired: 0, critical: 0, warning: 0, ok: 0 }
-  for (const item of items) {
-    counts[getStatus(item.daysRemaining)]++
-  }
-  return counts
-}
-
-interface FilterBarProps {
-  active: FilterTab
-  counts: FilterCounts
-  onChange: (tab: FilterTab) => void
-}
-
-const TABS: { key: FilterTab; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'expired',  label: 'Expired' },
-  { key: 'critical', label: 'Critical' },
-  { key: 'warning',  label: 'Warning' },
-  { key: 'ok',       label: 'OK' },
-]
-
-function FilterBar({ active, counts, onChange }: FilterBarProps) {
-  return (
-    <div className="flex gap-1 flex-wrap">
-      {TABS.map(({ key, label }) => {
-        const count = counts[key]
-        const isActive = active === key
-        return (
-          <button
-            key={key}
-            onClick={() => onChange(key)}
-            className={[
-              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground',
-            ].join(' ')}
-          >
-            {label}
-            <span
-              className={[
-                'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-xs font-semibold',
-                isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-background text-foreground',
-              ].join(' ')}
-            >
-              {count}
-            </span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
+const PAGE_SIZE = 20
+
 export default function ActivePage() {
   const [items, setItems] = useState<ExpiringCertItem[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<FilterTab>('all')
+
+  // Debounce search — reset to page 1 when query changes.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [search])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await listActive()
+      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter)
       setItems(data.items ?? [])
+      setTotalCount(data.totalCount)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load active certificates.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, debouncedSearch, statusFilter])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const counts = useMemo(() => computeCounts(items), [items])
+  function handleStatusChange(value: StatusFilter) {
+    setStatusFilter(value)
+    setPage(1)
+  }
 
-  const visible = useMemo(
-    () => (filter === 'all' ? items : items.filter(i => getStatus(i.daysRemaining) === filter)),
-    [items, filter],
-  )
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+
+  const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
 
   return (
     <div className="space-y-4">
@@ -161,8 +128,71 @@ export default function ActivePage() {
         </p>
       </div>
 
-      {/* Filter bar */}
-      <FilterBar active={filter} counts={counts} onChange={setFilter} />
+      {/* Search + filter */}
+      <div className="flex items-center gap-2">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search host or cert name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Status
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {STATUS_OPTIONS.map(({ value, label }) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => handleStatusChange(value)}
+                className="gap-2"
+              >
+                <Check className={`h-4 w-4 ${statusFilter === value ? 'opacity-100' : 'opacity-0'}`} />
+                {label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              Sort
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-100" />
+              Days remaining
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Expiry date
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" disabled>
+              <Check className="h-4 w-4 opacity-0" />
+              Host name
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Active filter context line */}
+      <p className="text-sm text-muted-foreground">
+        Showing results for{' '}
+        <span className="font-semibold text-foreground">{activeStatusLabel.toLowerCase()}</span>
+        {debouncedSearch && (
+          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
+        )}
+      </p>
 
       {/* Error */}
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -189,24 +219,21 @@ export default function ActivePage() {
               </TableRow>
             )}
 
-            {!loading && visible.length === 0 && (
+            {!loading && items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  {filter === 'all'
-                    ? 'No hosts with active certificates yet.'
-                    : `No ${filter} certificates.`}
+                  {debouncedSearch || statusFilter
+                    ? 'No certificates match your filters.'
+                    : 'No hosts with active certificates yet.'}
                 </TableCell>
               </TableRow>
             )}
 
             {!loading &&
-              visible.map((item) => (
+              items.map((item) => (
                 <TableRow key={`${item.hostId}-${item.fingerprint}`}>
                   <TableCell className="font-medium">
-                    <Link
-                      to={`/hosts/${item.hostId}`}
-                      className="hover:underline"
-                    >
+                    <Link to={`/hosts/${item.hostId}`} className="hover:underline">
                       {item.hostName}
                     </Link>
                   </TableCell>
@@ -247,6 +274,33 @@ export default function ActivePage() {
               ))}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          {totalCount === 0 ? 'No results' : `Page ${page} of ${totalPages} · ${totalCount} total`}
+        </span>
+        <div className="flex gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="sr-only">Previous page</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+            <span className="sr-only">Next page</span>
+          </Button>
+        </div>
       </div>
     </div>
   )

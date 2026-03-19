@@ -10,17 +10,39 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// ListAllActiveCerts returns every host that has an active certificate, ordered by days_remaining
-// ascending (most urgent / already-expired first). No threshold filter — the frontend handles
-// status bucketing.
-func (s *Store) ListAllActiveCerts(ctx context.Context) ([]models.ExpiringCertItem, error) {
+// ListAllActiveCerts returns a paginated list of active host-certificate pairs, ordered by
+// days_remaining ascending (most urgent / already-expired first).
+//
+// search filters on host_name, dns_name, or common_name (case-insensitive contains).
+// status restricts results by expiry bucket: "expired" (<0), "critical" (0–7), "warning" (8–30), "ok" (>30).
+// An empty status returns all entries.
+func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, search, status string) (models.ExpiringCertList, error) {
 	var rows []VActiveCertificate
-	err := s.db.NewSelect().
+	q := s.db.NewSelect().
 		Model(&rows).
 		OrderExpr("days_remaining ASC").
-		Scan(ctx)
+		Limit(pageSize).
+		Offset((page - 1) * pageSize)
+
+	if search != "" {
+		pattern := "%" + search + "%"
+		q = q.Where("(host_name ILIKE ? OR dns_name ILIKE ? OR common_name ILIKE ?)", pattern, pattern, pattern)
+	}
+
+	switch status {
+	case "expired":
+		q = q.Where("days_remaining < 0")
+	case "critical":
+		q = q.Where("days_remaining >= 0 AND days_remaining <= 7")
+	case "warning":
+		q = q.Where("days_remaining >= 8 AND days_remaining <= 30")
+	case "ok":
+		q = q.Where("days_remaining > 30")
+	}
+
+	total, err := q.ScanAndCount(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list active certs: %w", err)
+		return models.ExpiringCertList{}, fmt.Errorf("failed to list active certs: %w", err)
 	}
 
 	items := make([]models.ExpiringCertItem, len(rows))
@@ -36,7 +58,12 @@ func (s *Store) ListAllActiveCerts(ctx context.Context) ([]models.ExpiringCertIt
 			DaysRemaining: r.DaysRemaining,
 		}
 	}
-	return items, nil
+	return models.ExpiringCertList{
+		Items:      items,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: total,
+	}, nil
 }
 
 // ListExpiringCerts returns all active certificates whose days_remaining is at or below the given

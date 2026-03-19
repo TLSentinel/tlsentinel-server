@@ -62,7 +62,8 @@ func (s *Store) selectHostWithScanner() *bun.SelectQuery {
 }
 
 // ListHosts: when hasError is true, only hosts with a non-nil last_scan_error are returned.
-func (s *Store) ListHosts(ctx context.Context, page, pageSize int, hasError bool) (models.HostList, error) {
+// When search is non-empty, results are filtered by name or dns_name (case-insensitive contains).
+func (s *Store) ListHosts(ctx context.Context, page, pageSize int, hasError bool, search string) (models.HostList, error) {
 	var rows []hostWithScanner
 	q := s.selectHostWithScanner().
 		OrderExpr("h.created_at DESC").
@@ -70,6 +71,10 @@ func (s *Store) ListHosts(ctx context.Context, page, pageSize int, hasError bool
 		Offset((page - 1) * pageSize)
 	if hasError {
 		q = q.Where("h.last_scan_error IS NOT NULL")
+	}
+	if search != "" {
+		pattern := "%" + search + "%"
+		q = q.Where("(h.name ILIKE ? OR h.dns_name ILIKE ?)", pattern, pattern)
 	}
 	total, err := q.ScanAndCount(ctx, &rows)
 	if err != nil {
