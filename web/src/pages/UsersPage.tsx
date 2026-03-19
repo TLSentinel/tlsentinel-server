@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { listUsers, createUser, updateUser, changePassword, deleteUser } from '@/api/users'
+import { isAdmin } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -390,6 +391,7 @@ function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
 const PAGE_SIZE = 20
 
 export default function UsersPage() {
+  const admin = isAdmin()
   const [users, setUsers] = useState<User[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -445,15 +447,17 @@ export default function UsersPage() {
             {totalCount} user{totalCount !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setAddSeq((s) => s + 1)
-            setAddOpen(true)
-          }}
-        >
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add User
-        </Button>
+        {admin && (
+          <Button
+            onClick={() => {
+              setAddSeq((s) => s + 1)
+              setAddOpen(true)
+            }}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add User
+          </Button>
+        )}
       </div>
 
       {/* Error */}
@@ -525,7 +529,7 @@ export default function UsersPage() {
                         Admin
                       </Badge>
                     ) : (
-                      <Badge variant="secondary">Viewer</Badge>
+                      <Badge variant="outline" className="border-gray-400 text-gray-600">Viewer</Badge>
                     )}
                   </TableCell>
 
@@ -539,37 +543,39 @@ export default function UsersPage() {
                     {fmtDate(user.createdAt)}
                   </TableCell>
 
-                  {/* Row actions */}
+                  {/* Row actions — admin only */}
                   <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => setEditTarget(user)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit {user.username}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => setPasswordTarget(user)}
-                      >
-                        <KeyRound className="h-4 w-4" />
-                        <span className="sr-only">Change password for {user.username}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteTarget(user)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete {user.username}</span>
-                      </Button>
-                    </div>
+                    {admin && (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground"
+                          onClick={() => setEditTarget(user)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Edit {user.username}</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground"
+                          onClick={() => setPasswordTarget(user)}
+                        >
+                          <KeyRound className="h-4 w-4" />
+                          <span className="sr-only">Change password for {user.username}</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTarget(user)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete {user.username}</span>
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

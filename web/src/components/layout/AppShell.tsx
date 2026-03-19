@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Shield, Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock } from 'lucide-react'
-import { clearToken } from '@/api/client'
+import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield } from 'lucide-react'
+import { clearToken, getIdentity, isAdmin } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
 import type { BuildInfo } from '@/types/api'
@@ -38,9 +38,19 @@ function NavItem({ to, icon, label }: NavItemProps) {
 // AppShell — persistent sidebar + main content area.
 // Child routes render inside <Outlet />.
 // ---------------------------------------------------------------------------
+function initials(first?: string, last?: string, username?: string): string {
+  if (first && last) return `${first[0]}${last[0]}`.toUpperCase()
+  if (first) return first.slice(0, 2).toUpperCase()
+  if (username) return username.slice(0, 2).toUpperCase()
+  return '??'
+}
+
 export default function AppShell() {
   const navigate = useNavigate()
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null)
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const identity = getIdentity()
 
   useEffect(() => {
     getVersion()
@@ -49,6 +59,17 @@ export default function AppShell() {
         // Version display is best-effort; silently ignore failures.
       })
   }, [])
+
+  // Close popover when clicking outside.
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPopoverOpen(false)
+      }
+    }
+    if (popoverOpen) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [popoverOpen])
 
   function handleLogout() {
     clearToken()
@@ -72,9 +93,9 @@ export default function AppShell() {
           <NavItem to="/hosts" icon={<Server className="h-4 w-4" />} label="Hosts" />
         </nav>
 
-        {/* Bottom nav — settings + API docs */}
+        {/* Bottom nav — settings (admin only) + API docs */}
         <div className="border-t p-3 space-y-1">
-          <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />
+          {isAdmin() && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
           <a
             href="/api-docs/index.html"
             target="_blank"
@@ -86,7 +107,7 @@ export default function AppShell() {
           </a>
         </div>
 
-        {/* Footer — version + logout */}
+        {/* Footer — user avatar + version */}
         <div className="border-t p-3 space-y-1">
           {buildInfo && (
             <p
@@ -99,13 +120,46 @@ export default function AppShell() {
               )}
             </p>
           )}
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
+
+          {/* Avatar button + popover */}
+          <div className="relative" ref={popoverRef}>
+            <button
+              onClick={() => setPopoverOpen(v => !v)}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
+                {initials(identity?.given_name, identity?.family_name, identity?.sub)}
+              </span>
+              <span className="truncate">
+                {identity?.given_name
+                  ? `${identity.given_name}${identity.family_name ? ' ' + identity.family_name : ''}`
+                  : identity?.sub ?? 'Account'}
+              </span>
+            </button>
+
+            {popoverOpen && (
+              <div className="absolute bottom-full left-0 mb-1 w-52 rounded-md border bg-popover shadow-md text-popover-foreground text-sm">
+                <div className="px-3 py-2 border-b">
+                  {(identity?.given_name || identity?.family_name) && (
+                    <p className="font-medium truncate">
+                      {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}
+                    </p>
+                  )}
+                  <p className="text-muted-foreground truncate text-xs">{identity?.sub}</p>
+                  <p className="mt-1 text-xs capitalize text-muted-foreground/60">{identity?.role}</p>
+                </div>
+                <div className="p-1">
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 

@@ -13,10 +13,12 @@ const (
 // Identity is attached to the request context by the Authenticate middleware.
 type Identity struct {
 	Kind      IdentityKind
-	UserID    string // set when Kind == KindUser
-	Username  string // set when Kind == KindUser
-	Role      string // set when Kind == KindUser
-	ScannerID string // set when Kind == KindScanner
+	UserID    string  // set when Kind == KindUser
+	Username  string  // set when Kind == KindUser
+	Role      string  // set when Kind == KindUser
+	FirstName *string // set when Kind == KindUser
+	LastName  *string // set when Kind == KindUser
+	ScannerID string  // set when Kind == KindScanner
 }
 
 // contextKey is unexported to prevent collisions with other packages.

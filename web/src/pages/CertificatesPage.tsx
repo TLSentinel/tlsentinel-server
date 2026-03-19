@@ -24,6 +24,7 @@ import {
   createCertificate,
   deleteCertificate,
 } from '@/api/certificates'
+import { isAdmin } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -42,10 +43,10 @@ function fmtDate(iso: string) {
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
 
 const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
-  expired:  { label: 'Expired',  className: 'bg-red-100 text-red-800 border border-red-200' },
-  critical: { label: 'Critical', className: 'bg-orange-100 text-orange-800 border border-orange-200' },
-  warning:  { label: 'Warning',  className: 'bg-amber-100 text-amber-800 border border-amber-200' },
-  ok:       { label: 'OK',       className: 'bg-green-100 text-green-800 border border-green-200' },
+  expired:  { label: 'Expired',  className: 'bg-red-50    text-red-700    border border-red-500' },
+  critical: { label: 'Critical', className: 'bg-orange-50 text-orange-700 border border-orange-500' },
+  warning:  { label: 'Warning',  className: 'bg-amber-50  text-amber-700  border border-amber-500' },
+  ok:       { label: 'OK',       className: 'bg-green-50  text-green-700  border border-green-500' },
 }
 
 function StatusBadge({ notAfter }: { notAfter: string }) {
@@ -247,6 +248,7 @@ function DeleteDialog({ cert, onClose, onDeleted }: DeleteDialogProps) {
 const PAGE_SIZE = 20
 
 export default function CertificatesPage() {
+  const admin = isAdmin()
   const navigate = useNavigate()
   const [certs, setCerts] = useState<CertificateListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -298,10 +300,12 @@ export default function CertificatesPage() {
             {totalCount} certificate{totalCount !== 1 ? 's' : ''} stored
           </p>
         </div>
-        <Button onClick={() => setIngestOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Ingest
-        </Button>
+        {admin && (
+          <Button onClick={() => setIngestOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Ingest
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -368,18 +372,20 @@ export default function CertificatesPage() {
                   <TableCell>{fmtDate(cert.notBefore)}</TableCell>
                   <TableCell>{fmtDate(cert.notAfter)}</TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTarget(cert)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete</span>
-                    </Button>
+                    {admin && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget(cert)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

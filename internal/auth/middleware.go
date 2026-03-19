@@ -40,6 +40,29 @@ func Authenticate(store *db.Store, cfg *JWTConfig) func(http.Handler) http.Handl
 	}
 }
 
+// RequireRole returns middleware that allows only users whose role is in the
+// provided list. Must be used inside an Authenticate-protected group.
+func RequireRole(roles ...string) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		allowed[r] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id, ok := GetIdentity(r.Context())
+			if !ok || id.Kind != KindUser {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			if _, permitted := allowed[id.Role]; !permitted {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func extractBearerToken(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if !strings.HasPrefix(h, "Bearer ") {
@@ -54,10 +77,12 @@ func verifyJWT(cfg *JWTConfig, raw string) (Identity, error) {
 		return Identity{}, err
 	}
 	return Identity{
-		Kind:     KindUser,
-		UserID:   claims.UserID,
-		Username: claims.Username,
-		Role:     claims.Role,
+		Kind:      KindUser,
+		UserID:    claims.UserID,
+		Username:  claims.Username,
+		Role:      claims.Role,
+		FirstName: claims.FirstName,
+		LastName:  claims.LastName,
 	}, nil
 }
 

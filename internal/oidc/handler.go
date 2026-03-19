@@ -195,7 +195,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Issue our JWT ---
-	token, err := h.jwtCfg.IssueToken(user.ID, user.Username, user.Role)
+	token, err := h.jwtCfg.IssueToken(user.ID, user.Username, user.Role, user.FirstName, user.LastName)
 	if err != nil {
 		h.log.Error("failed to issue jwt", zap.Error(err))
 		http.Error(w, "failed to issue token", http.StatusInternalServerError)

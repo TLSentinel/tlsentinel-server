@@ -22,6 +22,30 @@ export function hasToken(): boolean {
   return _token !== null
 }
 
+export interface TokenIdentity {
+  uid: string
+  sub: string
+  role: string
+  given_name?: string
+  family_name?: string
+}
+
+/** Returns true when the current user has the admin role. */
+export function isAdmin(): boolean {
+  return getIdentity()?.role === 'admin'
+}
+
+/** Decodes the JWT payload without verifying the signature (client-side display only). */
+export function getIdentity(): TokenIdentity | null {
+  if (!_token) return null
+  try {
+    const payload = _token.split('.')[1]
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as TokenIdentity
+  } catch {
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Core fetch helper
 // ---------------------------------------------------------------------------

@@ -18,10 +18,10 @@ function getStatus(daysRemaining: number): CertStatus {
 }
 
 const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
-  expired:  { label: 'Expired',  className: 'bg-red-100 text-red-800 border border-red-200' },
-  critical: { label: 'Critical', className: 'bg-orange-100 text-orange-800 border border-orange-200' },
-  warning:  { label: 'Warning',  className: 'bg-amber-100 text-amber-800 border border-amber-200' },
-  ok:       { label: 'OK',       className: 'bg-green-100 text-green-800 border border-green-200' },
+  expired:  { label: 'Expired',  className: 'bg-red-50    text-red-700    border border-red-500' },
+  critical: { label: 'Critical', className: 'bg-orange-50 text-orange-700 border border-orange-500' },
+  warning:  { label: 'Warning',  className: 'bg-amber-50  text-amber-700  border border-amber-500' },
+  ok:       { label: 'OK',       className: 'bg-green-50  text-green-700  border border-green-500' },
 }
 
 function StatusBadge({ daysRemaining }: { daysRemaining: number }) {

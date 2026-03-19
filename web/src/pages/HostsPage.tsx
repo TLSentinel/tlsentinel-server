@@ -23,6 +23,7 @@ import {
 import { listHosts, getHost, createHost, updateHost, deleteHost } from '@/api/hosts'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
+import { isAdmin } from '@/api/client'
 import type { HostListItem, ScannerToken } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -354,6 +355,8 @@ function DeleteDialog({ host, onClose, onDeleted }: DeleteDialogProps) {
 const PAGE_SIZE = 20
 
 export default function HostsPage() {
+  const admin = isAdmin()
+
   // Captured once at mount — avoids calling the impure Date.now() during render.
   const [now] = useState(Date.now)
 
@@ -411,15 +414,17 @@ export default function HostsPage() {
             {totalCount} host{totalCount !== 1 ? 's' : ''} monitored
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setAddSeq((s) => s + 1)
-            setAddOpen(true)
-          }}
-        >
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add Host
-        </Button>
+        {admin && (
+          <Button
+            onClick={() => {
+              setAddSeq((s) => s + 1)
+              setAddOpen(true)
+            }}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add Host
+          </Button>
+        )}
       </div>
 
       {/* Error */}
@@ -532,28 +537,30 @@ export default function HostsPage() {
                     )}
                   </TableCell>
 
-                  {/* Row actions */}
+                  {/* Row actions — admin only */}
                   <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => setEditTarget(host)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit {host.name}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteTarget(host)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete {host.name}</span>
-                      </Button>
-                    </div>
+                    {admin && (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground"
+                          onClick={() => setEditTarget(host)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Edit {host.name}</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTarget(host)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete {host.name}</span>
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

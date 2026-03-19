@@ -346,7 +346,7 @@ export default function MailConfigPage() {
             className={[
               'flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
               testResult.ok
-                ? 'border-green-200 bg-green-50 text-green-700'
+                ? 'border-green-500 bg-green-50 text-green-700'
                 : 'border-destructive/30 bg-destructive/5 text-destructive',
             ].join(' ')}
           >

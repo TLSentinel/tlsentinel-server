@@ -92,12 +92,18 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 			r.Use(auth.Authenticate(store, jwtCfg))
 
 			r.Route("/scanners", func(r chi.Router) {
-				r.Get("/", tokenHandler.List)
-				r.Post("/", tokenHandler.Create)
-				r.Route("/{scannerID}", func(r chi.Router) {
-					r.Put("/", tokenHandler.Update)
-					r.Delete("/", tokenHandler.Delete)
-					r.Post("/default", tokenHandler.SetDefault)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequireRole("admin", "viewer"))
+					r.Get("/", tokenHandler.List)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequireRole("admin"))
+					r.Post("/", tokenHandler.Create)
+					r.Route("/{scannerID}", func(r chi.Router) {
+						r.Put("/", tokenHandler.Update)
+						r.Delete("/", tokenHandler.Delete)
+						r.Post("/default", tokenHandler.SetDefault)
+					})
 				})
 			})
 			r.Route("/alerts", func(r chi.Router) {
@@ -105,30 +111,55 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 			})
 
 			r.Route("/certificates", func(r chi.Router) {
-				r.Get("/", certHandler.List)
-				r.Post("/", certHandler.Create)
-				r.Get("/active", certHandler.Active)
-				r.Get("/expiring", certHandler.Expiring)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequireRole("admin", "viewer"))
+					r.Get("/", certHandler.List)
+					r.Get("/active", certHandler.Active)
+					r.Get("/expiring", certHandler.Expiring)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequireRole("admin"))
+					r.Post("/", certHandler.Create)
+				})
 				r.Route("/{fingerprint}", func(r chi.Router) {
-					r.Get("/", certHandler.Get)
-					r.Delete("/", certHandler.Delete)
-					r.Get("/hosts", certHandler.GetHosts)
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequireRole("admin", "viewer"))
+						r.Get("/", certHandler.Get)
+						r.Get("/hosts", certHandler.GetHosts)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequireRole("admin"))
+						r.Delete("/", certHandler.Delete)
+					})
 				})
 			})
 
 			r.Route("/hosts", func(r chi.Router) {
-				r.Get("/", hostHandler.List)
-				r.Post("/", hostHandler.Create)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequireRole("admin", "viewer"))
+					r.Get("/", hostHandler.List)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequireRole("admin"))
+					r.Post("/", hostHandler.Create)
+				})
 				r.Route("/{hostID}", func(r chi.Router) {
-					r.Get("/", hostHandler.Get)
-					r.Put("/", hostHandler.Update)
-					r.Delete("/", hostHandler.Delete)
-					r.Get("/tls-profile", hostHandler.GetTLSProfile)
-					r.Get("/history", hostHandler.History)
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequireRole("admin", "viewer"))
+						r.Get("/", hostHandler.Get)
+						r.Get("/tls-profile", hostHandler.GetTLSProfile)
+						r.Get("/history", hostHandler.History)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequireRole("admin"))
+						r.Put("/", hostHandler.Update)
+						r.Delete("/", hostHandler.Delete)
+					})
 				})
 			})
 
 			r.Route("/users", func(r chi.Router) {
+				r.Use(auth.RequireRole("admin"))
 				r.Get("/", userHandler.List)
 				r.Post("/", userHandler.Create)
 				r.Route("/{userID}", func(r chi.Router) {
@@ -140,6 +171,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 			})
 
 			r.Route("/settings", func(r chi.Router) {
+				r.Use(auth.RequireRole("admin"))
 				r.Route("/mail", func(r chi.Router) {
 					r.Get("/", mailHandler.Get)
 					r.Put("/", mailHandler.Save)
@@ -150,6 +182,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 			})
 
 			r.Route("/utils", func(r chi.Router) {
+				r.Use(auth.RequireRole("admin", "viewer"))
 				r.Get("/resolve", utilsHandler.Resolve)
 			})
 

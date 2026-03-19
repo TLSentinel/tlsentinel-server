@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { listScanners, createScanner, updateScanner, setDefaultScanner, deleteScanner } from '@/api/scanners'
+import { isAdmin } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -372,6 +373,7 @@ function DeleteDialog({ scanner, onClose, onDeleted }: DeleteDialogProps) {
 // ---------------------------------------------------------------------------
 
 export default function ScannersPage() {
+  const admin = isAdmin()
   const [now] = useState(Date.now)
 
   const [scanners, setScanners] = useState<ScannerToken[]>([])
@@ -435,15 +437,17 @@ export default function ScannersPage() {
             {scanners.length} scanner{scanners.length !== 1 ? 's' : ''} registered
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setAddSeq((s) => s + 1)
-            setAddOpen(true)
-          }}
-        >
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add Scanner
-        </Button>
+        {admin && (
+          <Button
+            onClick={() => {
+              setAddSeq((s) => s + 1)
+              setAddOpen(true)
+            }}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add Scanner
+          </Button>
+        )}
       </div>
 
       {/* Error */}
@@ -524,56 +528,58 @@ export default function ScannersPage() {
                     )}
                   </TableCell>
 
-                  {/* Actions */}
+                  {/* Actions — admin only */}
                   <TableCell>
-                    <div className="flex items-center justify-end gap-0.5">
-                      {/* Set as default */}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className={
-                          scanner.isDefault
-                            ? 'text-amber-500'
-                            : 'text-muted-foreground hover:text-amber-500'
-                        }
-                        onClick={() => handleSetDefault(scanner)}
-                        title={scanner.isDefault ? 'Default scanner' : 'Set as default'}
-                      >
-                        <Star
-                          className="h-4 w-4"
-                          fill={scanner.isDefault ? 'currentColor' : 'none'}
-                        />
-                        <span className="sr-only">
-                          {scanner.isDefault
-                            ? 'Default scanner'
-                            : `Set ${scanner.name} as default`}
-                        </span>
-                      </Button>
+                    {admin && (
+                      <div className="flex items-center justify-end gap-0.5">
+                        {/* Set as default */}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className={
+                            scanner.isDefault
+                              ? 'text-amber-500'
+                              : 'text-muted-foreground hover:text-amber-500'
+                          }
+                          onClick={() => handleSetDefault(scanner)}
+                          title={scanner.isDefault ? 'Default scanner' : 'Set as default'}
+                        >
+                          <Star
+                            className="h-4 w-4"
+                            fill={scanner.isDefault ? 'currentColor' : 'none'}
+                          />
+                          <span className="sr-only">
+                            {scanner.isDefault
+                              ? 'Default scanner'
+                              : `Set ${scanner.name} as default`}
+                          </span>
+                        </Button>
 
-                      {/* Edit */}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => setEditTarget(scanner)}
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit {scanner.name}</span>
-                      </Button>
+                        {/* Edit */}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground"
+                          onClick={() => setEditTarget(scanner)}
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Edit {scanner.name}</span>
+                        </Button>
 
-                      {/* Revoke */}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteTarget(scanner)}
-                        title="Revoke"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Revoke {scanner.name}</span>
-                      </Button>
-                    </div>
+                        {/* Revoke */}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTarget(scanner)}
+                          title="Revoke"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Revoke {scanner.name}</span>
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

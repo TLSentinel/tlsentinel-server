@@ -9,9 +9,11 @@ import (
 
 // Claims is the JWT payload.
 type Claims struct {
-	UserID   string `json:"uid"`
-	Username string `json:"sub"`
-	Role     string `json:"role"`
+	UserID    string  `json:"uid"`
+	Username  string  `json:"sub"`
+	Role      string  `json:"role"`
+	FirstName *string `json:"given_name,omitempty"`
+	LastName  *string `json:"family_name,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -22,16 +24,18 @@ type JWTConfig struct {
 }
 
 // IssueToken signs and returns a JWT for the given user.
-func (c *JWTConfig) IssueToken(userID, username, role string) (string, error) {
+func (c *JWTConfig) IssueToken(userID, username, role string, firstName, lastName *string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:    userID,
+		Username:  username,
+		Role:      role,
+		FirstName: firstName,
+		LastName:  lastName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(c.TTL)),
-			Issuer:    "certmonitor",
+			Issuer:    "tlsentinel",
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
