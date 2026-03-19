@@ -172,6 +172,69 @@ func (s *Store) UpdateUserPassword(ctx context.Context, id, passwordHash string)
 	return nil
 }
 
+// OIDCUserParams carries the identity information from an OIDC ID token.
+type OIDCUserParams struct {
+	ProviderID  string  // idToken.Subject — stored for reference
+	Username    string  // derived from email / preferred_username
+	Email       *string
+	FirstName   *string
+	LastName    *string
+	DefaultRole string // assigned only when creating a new user
+}
+
+// UpsertOIDCUser provisions a user from an OIDC login.
+// It matches by email so that an existing local account is automatically
+// linked when the email matches. If no match is found a new user is created.
+func (s *Store) UpsertOIDCUser(ctx context.Context, p OIDCUserParams) (models.User, error) {
+	role := p.DefaultRole
+	if role == "" {
+		role = "viewer"
+	}
+
+	// Try to find an existing user by email.
+	if p.Email != nil && *p.Email != "" {
+		var existing User
+		err := s.db.NewSelect().Model(&existing).
+			Where("email = ?", *p.Email).
+			Scan(ctx)
+		if err == nil {
+			// Update mutable profile fields from the latest claims.
+			_, updateErr := s.db.NewUpdate().
+				TableExpr("tlsentinel.users").
+				Set("username = ?", p.Username).
+				Set("first_name = ?", p.FirstName).
+				Set("last_name = ?", p.LastName).
+				Set("provider = 'OIDC'").
+				Set("provider_id = ?", p.ProviderID).
+				Set("updated_at = NOW()").
+				Where("id = ?", existing.ID).
+				Exec(ctx)
+			if updateErr != nil {
+				return models.User{}, fmt.Errorf("failed to update oidc user profile: %w", updateErr)
+			}
+			return s.GetUserByID(ctx, existing.ID)
+		}
+	}
+
+	// No existing user — create one.
+	row := &User{
+		Username:   p.Username,
+		Provider:   "OIDC",
+		ProviderID: p.ProviderID,
+		Role:       role,
+		Email:      p.Email,
+		FirstName:  p.FirstName,
+		LastName:   p.LastName,
+	}
+	if _, err := s.db.NewInsert().Model(row).
+		ExcludeColumn("id", "created_at", "updated_at", "password_hash").
+		Returning("*").
+		Exec(ctx); err != nil {
+		return models.User{}, fmt.Errorf("failed to create oidc user: %w", err)
+	}
+	return userToModel(*row), nil
+}
+
 // DeleteUser removes a user by ID.
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	res, err := s.db.NewDelete().

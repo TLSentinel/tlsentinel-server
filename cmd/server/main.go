@@ -12,7 +12,6 @@ import (
 
 	_ "github.com/tlsentinel/tlsentinel-server/docs"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
-	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
@@ -86,18 +85,13 @@ func main() {
 		TTL:       24 * time.Hour,
 	}
 
-	// Encryption key is optional — if absent, operations that require storing
-	// sensitive values (e.g. SMTP passwords) will return a clear error.
-	encryptionKey, keyErr := crypto.LoadEncryptionKey()
-	if keyErr != nil {
-		log.Warn("sensitive value storage will be unavailable", zap.Error(keyErr))
-	}
-	enc := crypto.NewEncryptor(encryptionKey)
-
 	sched := scheduler.New()
 	// Jobs are registered here as they are implemented — none yet.
 
-	r := routes.RegisterRoutes(store, jwtCfg, enc)
+	r, err := routes.RegisterRoutes(store, jwtCfg)
+	if err != nil {
+		log.Fatal("failed to initialise routes", zap.Error(err))
+	}
 
 	srv := &http.Server{
 		Addr:    ":8080",

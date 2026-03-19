@@ -21,11 +21,12 @@ type Handler struct {
 	enc   *crypto.Encryptor
 }
 
-// NewHandler creates a new Handler. enc may wrap a nil key if
-// TLSENTINEL_ENCRYPTION_KEY is not set; in that case any attempt to store an
-// SMTP password will be rejected with a clear error.
-func NewHandler(store *db.Store, enc *crypto.Encryptor) *Handler {
-	return &Handler{store: store, enc: enc}
+// NewHandler creates a new Handler. It loads the encryption key from the
+// environment; if absent, any attempt to store an SMTP password will be
+// rejected with a clear error rather than silently failing.
+func NewHandler(store *db.Store) *Handler {
+	key, _ := crypto.LoadEncryptionKey()
+	return &Handler{store: store, enc: crypto.NewEncryptor(key)}
 }
 
 // @Summary      Get mail config

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,12 +9,23 @@ import { login } from '@/api/auth'
 import { setToken } from '@/api/client'
 import { ApiError } from '@/types/api'
 
+async function fetchAuthConfig(): Promise<{ oidcEnabled: boolean }> {
+  const res = await fetch('/api/v1/auth/config')
+  if (!res.ok) return { oidcEnabled: false }
+  return res.json()
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [oidcEnabled, setOidcEnabled] = useState(false)
+
+  useEffect(() => {
+    fetchAuthConfig().then((cfg) => setOidcEnabled(cfg.oidcEnabled))
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,7 +58,7 @@ export default function LoginPage() {
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
@@ -82,6 +93,27 @@ export default function LoginPage() {
               {loading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
+
+          {oidcEnabled && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => { window.location.href = '/api/v1/auth/oidc/login' }}
+              >
+                Sign in with SSO
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

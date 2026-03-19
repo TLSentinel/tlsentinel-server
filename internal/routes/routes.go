@@ -1,8 +1,13 @@
 package routes
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -11,12 +16,12 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
-	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/hosts"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
+	"github.com/tlsentinel/tlsentinel-server/internal/oidc"
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
@@ -25,7 +30,14 @@ import (
 	tlsetinelWeb "github.com/tlsentinel/tlsentinel-server/web"
 )
 
-func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, enc *crypto.Encryptor) http.Handler {
+// RegisterRoutes builds and returns the root HTTP handler.
+// It reads OIDC configuration from the environment directly; the /auth/oidc/*
+// routes are omitted when OIDC is not configured.
+func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig) (http.Handler, error) {
+	oidcHandler, err := buildOIDCHandler(context.Background(), store, jwtCfg)
+	if err != nil {
+		return nil, err
+	}
 	r := chi.NewRouter()
 
 	tokenHandler := scanners.NewHandler(store)
@@ -36,7 +48,7 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, enc *crypto.Encrypt
 	userHandler := users.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	scannerHandler := probe.NewHandler(store)
-	mailHandler := mail.NewHandler(store, enc)
+	mailHandler := mail.NewHandler(store)
 
 	r.Use(middleware.RequestID)
 	r.Use(logger.RequestLogger)
@@ -50,6 +62,21 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, enc *crypto.Encrypt
 		r.Get("/health", handlers.Health)
 		r.Get("/version", handlers.Version)
 		r.Post("/auth/login", authHandler.Login)
+
+		// Auth capability discovery — lets the frontend show/hide SSO options.
+		r.Get("/auth/config", func(w http.ResponseWriter, r *http.Request) {
+			type authConfig struct {
+				OIDCEnabled bool `json:"oidcEnabled"`
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(authConfig{OIDCEnabled: oidcHandler != nil}) //nolint:errcheck
+		})
+
+		// OIDC routes — only registered when OIDC is configured.
+		if oidcHandler != nil {
+			r.Get("/auth/oidc/login", oidcHandler.Login)
+			r.Get("/auth/oidc/callback", oidcHandler.Callback)
+		}
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
@@ -143,5 +170,38 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig, enc *crypto.Encrypt
 		fileServer.ServeHTTP(w, r)
 	}))
 
-	return r
+	return r, nil
+}
+
+// buildOIDCHandler reads OIDC config from the environment and returns an
+// initialised handler. Returns (nil, nil) when OIDC is not configured.
+func buildOIDCHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig) (*oidc.Handler, error) {
+	issuer := os.Getenv("TLSENTINEL_OIDC_ISSUER")
+	if issuer == "" {
+		return nil, nil
+	}
+
+	clientID := os.Getenv("TLSENTINEL_OIDC_CLIENT_ID")
+	clientSecret := os.Getenv("TLSENTINEL_OIDC_CLIENT_SECRET")
+	redirectURL := os.Getenv("TLSENTINEL_OIDC_REDIRECT_URL")
+	if clientID == "" || clientSecret == "" || redirectURL == "" {
+		return nil, fmt.Errorf("TLSENTINEL_OIDC_ISSUER is set but CLIENT_ID, CLIENT_SECRET, or REDIRECT_URL is missing")
+	}
+
+	var scopes []string
+	if s := os.Getenv("TLSENTINEL_OIDC_SCOPES"); s != "" {
+		scopes = strings.Fields(s)
+	}
+
+	cfg := oidc.Config{
+		Issuer:        issuer,
+		ClientID:      clientID,
+		ClientSecret:  clientSecret,
+		RedirectURL:   redirectURL,
+		Scopes:        scopes,
+		DefaultRole:   os.Getenv("TLSENTINEL_OIDC_DEFAULT_ROLE"),
+		UsernameClaim: os.Getenv("TLSENTINEL_OIDC_USERNAME_CLAIM"),
+	}
+
+	return oidc.NewHandler(ctx, store, jwtCfg, cfg)
 }

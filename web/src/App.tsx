@@ -14,6 +14,7 @@ import MailConfigPage from '@/pages/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
 import ActivePage from '@/pages/ActivePage'
 import GeneralSettingsPage from '@/pages/GeneralSettingsPage'
+import AuthCallbackPage from '@/pages/AuthCallbackPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -31,6 +32,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
         {/* All authenticated pages share the AppShell layout */}
         <Route
