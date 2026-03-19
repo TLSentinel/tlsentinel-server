@@ -63,10 +63,13 @@ type ScannerHost struct {
 
 // ScanResultRequest is the payload a scanner POSTs after scanning a host.
 type ScanResultRequest struct {
-	ActiveFingerprint *string `json:"activeFingerprint"`
-	ResolvedIP        *string `json:"resolvedIp"`
-	TLSVersion        *string `json:"tlsVersion"`
-	Error             *string `json:"error"`
+	ActiveFingerprint *string  `json:"activeFingerprint"`
+	ResolvedIP        *string  `json:"resolvedIp"`
+	TLSVersion        *string  `json:"tlsVersion"`
+	Error             *string  `json:"error"`
+	// PEMs contains PEM-encoded certificates in chain order (leaf first).
+	// The server parses and upserts each; re-sending known certs is safe.
+	PEMs              []string `json:"pems"`
 }
 
 // HostScanHistoryList is the response envelope for scan history.

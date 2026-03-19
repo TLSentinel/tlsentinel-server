@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
@@ -110,6 +111,41 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
+	}
+
+	// Upsert each certificate the scanner found (leaf first, then chain).
+	// If the leaf cert fails to ingest we clear ActiveFingerprint so we don't
+	// create a dangling foreign-key reference in the hosts table.
+	leafOK := len(req.PEMs) == 0 // no PEMs means error scan — leave fingerprint as-is
+	for i, pemStr := range req.PEMs {
+		cert, err := certificates.ParsePEMCertificate(pemStr)
+		if err != nil {
+			zap.L().Warn("scanner submitted unparseable PEM, skipping",
+				zap.String("host_id", hostID),
+				zap.Int("index", i),
+				zap.Error(err),
+			)
+			continue
+		}
+		rec := certificates.ExtractCertificateRecord(cert)
+		if _, err := h.store.InsertCertificate(r.Context(), rec); err != nil {
+			zap.L().Error("failed to upsert scanner certificate",
+				zap.String("host_id", hostID),
+				zap.String("fingerprint", rec.Fingerprint),
+				zap.Error(err),
+			)
+			// Leaf failed — don't link a fingerprint that may not be in the DB.
+			if i == 0 {
+				req.ActiveFingerprint = nil
+			}
+			continue
+		}
+		if i == 0 {
+			leafOK = true
+		}
+	}
+	if !leafOK {
+		req.ActiveFingerprint = nil
 	}
 
 	if err := h.store.RecordScanResult(r.Context(), hostID, req); err != nil {

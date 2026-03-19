@@ -167,7 +167,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec := extractCertificateRecord(cert)
+	rec := ExtractCertificateRecord(cert)
 
 	inserted, err := h.store.InsertCertificate(r.Context(), rec)
 	if err != nil {

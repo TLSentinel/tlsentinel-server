@@ -27,15 +27,15 @@ func parseIngestRequest(req IngestCertificateRequest) (*x509.Certificate, error)
 	}
 
 	if hasPEM {
-		return parsePEMCertificate(req.CertificatePEM)
+		return ParsePEMCertificate(req.CertificatePEM)
 	}
 
 	return parseBase64DERCertificate(req.CertificateDERBase64)
 }
 
-// parsePEMCertificate decodes and parses a PEM-encoded certificate string,
-// returning the parsed certificate and its common name.
-func parsePEMCertificate(pemStr string) (*x509.Certificate, error) {
+// ParsePEMCertificate decodes and parses a PEM-encoded certificate string.
+// It is exported so the probe handler can reuse it when ingesting scanner-submitted certs.
+func ParsePEMCertificate(pemStr string) (*x509.Certificate, error) {
 	block, _ := pem.Decode([]byte(pemStr))
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")
@@ -193,7 +193,9 @@ func EnrichDetail(detail *models.CertificateDetail, cert *x509.Certificate) {
 	}
 }
 
-func extractCertificateRecord(cert *x509.Certificate) models.CertificateRecord {
+// ExtractCertificateRecord derives a CertificateRecord from a parsed x509.Certificate.
+// It is exported so the probe handler can reuse it when ingesting scanner-submitted certs.
+func ExtractCertificateRecord(cert *x509.Certificate) models.CertificateRecord {
 	fingerprint := sha256.Sum256(cert.Raw)
 
 	pemBytes := pem.EncodeToMemory(&pem.Block{
