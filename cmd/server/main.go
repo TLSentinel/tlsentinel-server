@@ -12,6 +12,7 @@ import (
 
 	_ "github.com/tlsentinel/tlsentinel-server/docs"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
@@ -29,8 +30,13 @@ import (
 // @host      localhost:8080
 // @BasePath  /api/v1
 func main() {
-	// Load .env before anything else so TLSENTINEL_LOG_* vars are available.
 	_ = godotenv.Load()
+
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
 
 	log, err := logger.Build()
 	if err != nil {
@@ -46,17 +52,7 @@ func main() {
 		zap.String("built", version.BuildTime),
 	)
 
-	connString, err := dbConnString()
-	if err != nil {
-		log.Fatal("database configuration", zap.Error(err))
-	}
-
-	jwtSecret := os.Getenv("TLSENTINEL_JWT_SECRET")
-	if len(jwtSecret) < 32 {
-		log.Fatal("TLSENTINEL_JWT_SECRET must be at least 32 characters")
-	}
-
-	bunDB, err := db.NewDB(connString)
+	bunDB, err := db.NewDB(cfg.DBConnString)
 	if err != nil {
 		log.Fatal("failed to connect to database", zap.Error(err))
 	}
@@ -67,8 +63,8 @@ func main() {
 	if err := auth.EnsureAdminUser(
 		context.Background(),
 		store,
-		os.Getenv("TLSENTINEL_ADMIN_USERNAME"),
-		os.Getenv("TLSENTINEL_ADMIN_PASSWORD"),
+		cfg.AdminUsername,
+		cfg.AdminPassword,
 	); err != nil {
 		log.Fatal("bootstrap failed", zap.Error(err))
 	}
@@ -80,26 +76,21 @@ func main() {
 		log.Info("reconciled certificate chain links", zap.Int64("count", n))
 	}
 
-	jwtCfg := &auth.JWTConfig{
-		SecretKey: []byte(jwtSecret),
-		TTL:       24 * time.Hour,
-	}
-
 	sched := scheduler.New()
 	// Jobs are registered here as they are implemented — none yet.
 
-	r, err := routes.RegisterRoutes(store, jwtCfg)
+	r, err := routes.RegisterRoutes(store, cfg)
 	if err != nil {
 		log.Fatal("failed to initialise routes", zap.Error(err))
 	}
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    cfg.Addr(),
 		Handler: r,
 	}
 
 	go func() {
-		log.Info("server listening", zap.String("addr", ":8080"))
+		log.Info("server listening", zap.String("addr", cfg.Addr()))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal("server error", zap.Error(err))
 		}
@@ -123,41 +114,4 @@ func main() {
 		log.Fatal("server forced to shutdown", zap.Error(err))
 	}
 	log.Info("server stopped")
-}
-
-// dbConnString returns the Postgres connection string.
-// It prefers TLSENTINEL_DATABASE_URL; if absent it assembles a URL from
-// TLSENTINEL_DB_HOST, TLSENTINEL_DB_USER, TLSENTINEL_DB_PASSWORD,
-// TLSENTINEL_DB_NAME, and optionally TLSENTINEL_DB_PORT (default 5432)
-// and TLSENTINEL_DB_SSLMODE (default require).
-func dbConnString() (string, error) {
-	if url := os.Getenv("TLSENTINEL_DATABASE_URL"); url != "" {
-		return url, nil
-	}
-
-	host := os.Getenv("TLSENTINEL_DB_HOST")
-	username := os.Getenv("TLSENTINEL_DB_USERNAME")
-	password := os.Getenv("TLSENTINEL_DB_PASSWORD")
-	name := os.Getenv("TLSENTINEL_DB_NAME")
-
-	if host == "" || username == "" || password == "" || name == "" {
-		return "", fmt.Errorf(
-			"set TLSENTINEL_DATABASE_URL, or provide TLSENTINEL_DB_HOST, " +
-				"TLSENTINEL_DB_USER, TLSENTINEL_DB_PASSWORD, and TLSENTINEL_DB_NAME",
-		)
-	}
-
-	port := os.Getenv("TLSENTINEL_DB_PORT")
-	if port == "" {
-		port = "5432"
-	}
-
-	sslmode := os.Getenv("TLSENTINEL_DB_SSLMODE")
-	if sslmode == "" {
-		sslmode = "require"
-	}
-
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		username, password, host, port, name, sslmode,
-	), nil
 }

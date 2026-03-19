@@ -5,12 +5,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
-
 
 var validAuthTypes = map[string]bool{"none": true, "plain": true, "login": true}
 var validTLSModes = map[string]bool{"none": true, "starttls": true, "tls": true}
@@ -24,8 +24,8 @@ type Handler struct {
 // NewHandler creates a new Handler. It loads the encryption key from the
 // environment; if absent, any attempt to store an SMTP password will be
 // rejected with a clear error rather than silently failing.
-func NewHandler(store *db.Store) *Handler {
-	key, _ := crypto.LoadEncryptionKey()
+func NewHandler(store *db.Store, cfg *config.Config) *Handler {
+	key := cfg.EncryptionKey
 	return &Handler{store: store, enc: crypto.NewEncryptor(key)}
 }
 

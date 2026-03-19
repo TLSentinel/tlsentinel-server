@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/hosts"
@@ -33,11 +35,18 @@ import (
 // RegisterRoutes builds and returns the root HTTP handler.
 // It reads OIDC configuration from the environment directly; the /auth/oidc/*
 // routes are omitted when OIDC is not configured.
-func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig) (http.Handler, error) {
+func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
+
+	jwtCfg := &auth.JWTConfig{
+		SecretKey: []byte(cfg.JWTSecret),
+		TTL:       24 * time.Hour,
+	}
+
 	oidcHandler, err := buildOIDCHandler(context.Background(), store, jwtCfg)
 	if err != nil {
 		return nil, err
 	}
+
 	r := chi.NewRouter()
 
 	tokenHandler := scanners.NewHandler(store)
@@ -48,7 +57,7 @@ func RegisterRoutes(store *db.Store, jwtCfg *auth.JWTConfig) (http.Handler, erro
 	userHandler := users.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	scannerHandler := probe.NewHandler(store)
-	mailHandler := mail.NewHandler(store)
+	mailHandler := mail.NewHandler(store, cfg)
 
 	r.Use(middleware.RequestID)
 	r.Use(logger.RequestLogger)

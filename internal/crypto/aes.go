@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 )
 
 // ErrNoKey is returned by Encryptor when no encryption key has been configured.
@@ -52,24 +51,6 @@ func (e *Encryptor) Decrypt(encoded string) (string, error) {
 		return "", ErrNoKey
 	}
 	return Decrypt(e.key, encoded)
-}
-
-// LoadEncryptionKey reads TLSENTINEL_ENCRYPTION_KEY, base64-decodes it, and
-// validates that it is exactly 32 bytes (required for AES-256).
-// Returns a non-nil error if the variable is absent or malformed.
-func LoadEncryptionKey() ([]byte, error) {
-	val := os.Getenv("TLSENTINEL_ENCRYPTION_KEY")
-	if val == "" {
-		return nil, errors.New("TLSENTINEL_ENCRYPTION_KEY is not set")
-	}
-	key, err := base64.StdEncoding.DecodeString(val)
-	if err != nil {
-		return nil, fmt.Errorf("TLSENTINEL_ENCRYPTION_KEY is not valid base64: %w", err)
-	}
-	if len(key) != 32 {
-		return nil, fmt.Errorf("TLSENTINEL_ENCRYPTION_KEY must decode to 32 bytes, got %d", len(key))
-	}
-	return key, nil
 }
 
 // Encrypt encrypts plaintext using AES-256-GCM and returns a base64-encoded
