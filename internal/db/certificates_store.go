@@ -10,17 +10,30 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// ListAllActiveCerts returns a paginated list of active host-certificate pairs, ordered by
-// days_remaining ascending (most urgent / already-expired first).
+// ListAllActiveCerts returns a paginated list of active host-certificate pairs.
 //
 // search filters on host_name, dns_name, or common_name (case-insensitive contains).
 // status restricts results by expiry bucket: "expired" (<0), "critical" (0–7), "warning" (8–30), "ok" (>30).
+// sort controls ordering: "" or "days_asc" (default), "days_desc", "host_name", "common_name".
 // An empty status returns all entries.
-func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, search, status string) (models.ExpiringCertList, error) {
+func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, search, status, sort string) (models.ExpiringCertList, error) {
 	var rows []VActiveCertificate
+
+	var orderExpr string
+	switch sort {
+	case "days_desc":
+		orderExpr = "days_remaining DESC"
+	case "host_name":
+		orderExpr = "host_name ASC"
+	case "common_name":
+		orderExpr = "common_name ASC"
+	default:
+		orderExpr = "days_remaining ASC"
+	}
+
 	q := s.db.NewSelect().
 		Model(&rows).
-		OrderExpr("days_remaining ASC").
+		OrderExpr(orderExpr).
 		Limit(pageSize).
 		Offset((page - 1) * pageSize)
 
@@ -95,11 +108,28 @@ func (s *Store) ListExpiringCerts(ctx context.Context, daysRemaining int) ([]mod
 	return items, nil
 }
 
-func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, commonName string, expiringBefore *time.Time) (models.CertificateList, error) {
+// ListCertificates returns a paginated list of certificates with optional filters.
+//
+// status filters by expiry bucket: "expired", "critical" (≤7d), "warning" (≤30d), "ok" (>30d).
+// sort controls ordering: "" or "newest" (default), "expiry_asc", "expiry_desc", "common_name".
+func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, commonName string, expiringBefore *time.Time, status, sort string) (models.CertificateList, error) {
 	var rows []Certificate
+
+	var orderExpr string
+	switch sort {
+	case "expiry_asc":
+		orderExpr = "not_after ASC"
+	case "expiry_desc":
+		orderExpr = "not_after DESC"
+	case "common_name":
+		orderExpr = "common_name ASC"
+	default:
+		orderExpr = "created_at DESC"
+	}
+
 	q := s.db.NewSelect().
 		Model(&rows).
-		OrderExpr("created_at DESC").
+		OrderExpr(orderExpr).
 		Limit(pageSize).
 		Offset((page - 1) * pageSize)
 	if commonName != "" {
@@ -107,6 +137,16 @@ func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, common
 	}
 	if expiringBefore != nil {
 		q = q.Where("not_after < ?", expiringBefore)
+	}
+	switch status {
+	case "expired":
+		q = q.Where("not_after < NOW()")
+	case "critical":
+		q = q.Where("not_after >= NOW() AND not_after < NOW() + INTERVAL '7 days'")
+	case "warning":
+		q = q.Where("not_after >= NOW() + INTERVAL '7 days' AND not_after < NOW() + INTERVAL '30 days'")
+	case "ok":
+		q = q.Where("not_after >= NOW() + INTERVAL '30 days'")
 	}
 	total, err := q.ScanAndCount(ctx)
 	if err != nil {

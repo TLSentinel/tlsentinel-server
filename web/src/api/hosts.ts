@@ -1,12 +1,14 @@
 import { api } from './client'
 import type { Host, HostList, HostTLSProfile, HostScanHistoryList, CreateHostRequest, UpdateHostRequest } from '@/types/api'
 
-export function listHosts(page = 1, pageSize = 20, name = ''): Promise<HostList> {
+export function listHosts(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<HostList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
   if (name) params.set('name', name)
+  if (status) params.set('status', status)
+  if (sort) params.set('sort', sort)
   return api.get<HostList>(`/hosts?${params}`)
 }
 

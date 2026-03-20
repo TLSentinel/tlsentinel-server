@@ -19,6 +19,7 @@ import { ApiError } from '@/types/api'
 
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
+type SortOption = '' | 'days_desc' | 'host_name' | 'common_name'
 
 function getStatus(daysRemaining: number): CertStatus {
   if (daysRemaining < 0) return 'expired'
@@ -40,6 +41,13 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'critical', label: 'Critical (≤7d)' },
   { value: 'warning',  label: 'Warning (≤30d)' },
   { value: 'ok',       label: 'OK' },
+]
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: '',            label: 'Expiring soonest' },
+  { value: 'days_desc',   label: 'Most time left' },
+  { value: 'host_name',   label: 'Host name A→Z' },
+  { value: 'common_name', label: 'Common name A→Z' },
 ]
 
 function StatusBadge({ daysRemaining }: { daysRemaining: number }) {
@@ -79,6 +87,7 @@ export default function ActivePage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
+  const [sortOption, setSortOption] = useState<SortOption>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -95,7 +104,7 @@ export default function ActivePage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter)
+      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
       setItems(data.items ?? [])
       setTotalCount(data.totalCount)
     } catch (err) {
@@ -103,7 +112,7 @@ export default function ActivePage() {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch, statusFilter])
+  }, [page, debouncedSearch, statusFilter, sortOption])
 
   useEffect(() => {
     load()
@@ -114,9 +123,15 @@ export default function ActivePage() {
     setPage(1)
   }
 
+  function handleSortChange(value: SortOption) {
+    setSortOption(value)
+    setPage(1)
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
+  const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Expiring soonest'
 
   return (
     <div className="space-y-4">
@@ -169,18 +184,16 @@ export default function ActivePage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              Days remaining
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Expiry date
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Host name
-            </DropdownMenuItem>
+            {SORT_OPTIONS.map(({ value, label }) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => handleSortChange(value)}
+                className="gap-2"
+              >
+                <Check className={`h-4 w-4 ${sortOption === value ? 'opacity-100' : 'opacity-0'}`} />
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -192,6 +205,8 @@ export default function ActivePage() {
         {debouncedSearch && (
           <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
         )}
+        {' · '}sorted by{' '}
+        <span className="font-semibold text-foreground">{activeSortLabel.toLowerCase()}</span>
       </p>
 
       {/* Error */}

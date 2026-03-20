@@ -50,6 +50,8 @@ type UpdateHostRequest struct {
 // @Param        page_size  query  int     false  "Page size (default 20, max 100)"
 // @Param        has_error  query  bool    false  "When true, return only hosts with an active scan error"
 // @Param        name       query  string  false  "Filter by name or DNS name (partial match)"
+// @Param        status     query  string  false  "Filter by enabled state: enabled, disabled"
+// @Param        sort       query  string  false  "Sort order: \"\" (newest first, default), name, dns_name, last_scanned"
 // @Success      200  {object}  models.HostList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /hosts [get]
@@ -69,8 +71,10 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	hasError := r.URL.Query().Get("has_error") == "true"
 	name := r.URL.Query().Get("name")
+	status := r.URL.Query().Get("status")
+	sort := r.URL.Query().Get("sort")
 
-	result, err := h.store.ListHosts(r.Context(), page, pageSize, hasError, name)
+	result, err := h.store.ListHosts(r.Context(), page, pageSize, hasError, name, status, sort)
 	if err != nil {
 		http.Error(w, "failed to list hosts", http.StatusInternalServerError)
 		return

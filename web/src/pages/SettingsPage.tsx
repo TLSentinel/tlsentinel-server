@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bot, Users, Mail, Webhook, SlidersHorizontal, ChevronRight, Info, Wrench } from 'lucide-react'
+import { Bot, Users, Mail, Webhook, SlidersHorizontal, ChevronRight, Info, Wrench, ScrollText } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,12 @@ export default function SettingsPage() {
           icon={<Mail className="h-4 w-4" />}
           title="Email / SMTP"
           description="Send certificate expiry warnings and scan error alerts via email."
+        />
+        <SettingCard
+          icon={<ScrollText className="h-4 w-4" />}
+          title="Audit Log"
+          description="Track user logins, certificate changes, and other administrative actions."
+          soon
         />
         <SettingCard
           icon={<Webhook className="h-4 w-4" />}

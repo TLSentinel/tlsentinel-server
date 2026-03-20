@@ -59,13 +59,14 @@ func (h *Handler) Expiring(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      List active certificates
-// @Description  Returns a paginated list of active host-certificate pairs ordered by days remaining ascending. Supports optional search and status filter.
+// @Description  Returns a paginated list of active host-certificate pairs. Supports search, status filter, and sort.
 // @Tags         certificates
 // @Produce      json
 // @Param        page       query  int     false  "Page number (default 1)"
 // @Param        page_size  query  int     false  "Page size (default 20, max 100)"
 // @Param        name       query  string  false  "Search host name, DNS name, or common name (partial match)"
 // @Param        status     query  string  false  "Filter by status: expired, critical, warning, ok"
+// @Param        sort       query  string  false  "Sort order: \"\" (expiring soonest, default), days_desc, host_name, common_name"
 // @Success      200  {object}  models.ExpiringCertList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/active [get]
@@ -85,8 +86,9 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 
 	name := r.URL.Query().Get("name")
 	status := r.URL.Query().Get("status")
+	sort := r.URL.Query().Get("sort")
 
-	result, err := h.store.ListAllActiveCerts(r.Context(), page, pageSize, name, status)
+	result, err := h.store.ListAllActiveCerts(r.Context(), page, pageSize, name, status, sort)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -106,6 +108,8 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 // @Param        page_size       query  int     false  "Page size (default 20, max 100)"
 // @Param        common_name     query  string  false  "Filter by common name (partial match)"
 // @Param        expiring_before query  string  false  "Filter by expiry date (RFC3339)"
+// @Param        status          query  string  false  "Filter by status: expired, critical, warning, ok"
+// @Param        sort            query  string  false  "Sort order: \"\" (newest first, default), expiry_asc, expiry_desc, common_name"
 // @Success      200  {object}  models.CertificateList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates [get]
@@ -124,6 +128,8 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	commonName := r.URL.Query().Get("common_name")
+	status := r.URL.Query().Get("status")
+	sort := r.URL.Query().Get("sort")
 
 	var expiringBefore *time.Time
 	if eb := r.URL.Query().Get("expiring_before"); eb != "" {
@@ -135,7 +141,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		expiringBefore = &t
 	}
 
-	result, err := h.store.ListCertificates(r.Context(), page, pageSize, commonName, expiringBefore)
+	result, err := h.store.ListCertificates(r.Context(), page, pageSize, commonName, expiringBefore, status, sort)
 	if err != nil {
 		http.Error(w, "failed to list certificates", http.StatusInternalServerError)
 		return
@@ -145,12 +151,13 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Ingest a certificate
-// @Description  Accepts a PEM or base64 DER encoded certificate and stores it if not already present
+// @Description  Accepts a PEM or base64 DER encoded certificate and stores it. Returns 201 if newly inserted, 200 if already present.
 // @Tags         certificates
 // @Accept       json
 // @Produce      json
 // @Param        request  body      IngestCertificateRequest  true  "Certificate payload"
-// @Success      201
+// @Success      200  {object}  models.CertificateDetail  "Already present"
+// @Success      201  {object}  models.CertificateDetail  "Newly inserted"
 // @Failure      400  {string}  string  "invalid request"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates [post]

@@ -100,13 +100,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary      Rename a scanner token
-// @Description  Updates the display name of a scanner token
+// @Summary      Update a scanner
+// @Description  Updates a scanner's name and scan configuration (interval, concurrency)
 // @Tags         scanners
 // @Accept       json
 // @Produce      json
 // @Param        scannerID  path      string                     true  "Scanner token ID"
-// @Param        request    body      updateScannerTokenRequest  true  "Rename payload"
+// @Param        request    body      updateScannerTokenRequest  true  "Scanner update payload"
 // @Success      200        {object}  models.ScannerTokenResponse
 // @Failure      400        {string}  string  "invalid request"
 // @Failure      404        {string}  string  "scanner token not found"

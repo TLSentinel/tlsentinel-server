@@ -28,12 +28,16 @@ export function listCertificates(
   page = 1,
   pageSize = 20,
   commonName = '',
+  status = '',
+  sort = '',
 ): Promise<CertificateList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
   if (commonName) params.set('common_name', commonName)
+  if (status) params.set('status', status)
+  if (sort) params.set('sort', sort)
   return api.get<CertificateList>(`/certificates?${params}`)
 }
 
@@ -53,13 +57,14 @@ export function getCertificateHosts(fingerprint: string): Promise<HostListItem[]
   return api.get<HostListItem[]>(`/certificates/${fingerprint}/hosts`)
 }
 
-export function listActive(page = 1, pageSize = 20, name = '', status = ''): Promise<ExpiringCertList> {
+export function listActive(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<ExpiringCertList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
   if (name) params.set('name', name)
   if (status) params.set('status', status)
+  if (sort) params.set('sort', sort)
   return api.get<ExpiringCertList>(`/certificates/active?${params}`)
 }
 

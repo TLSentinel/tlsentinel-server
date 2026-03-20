@@ -61,12 +61,29 @@ func (s *Store) selectHostWithScanner() *bun.SelectQuery {
 		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id")
 }
 
-// ListHosts: when hasError is true, only hosts with a non-nil last_scan_error are returned.
-// When search is non-empty, results are filtered by name or dns_name (case-insensitive contains).
-func (s *Store) ListHosts(ctx context.Context, page, pageSize int, hasError bool, search string) (models.HostList, error) {
+// ListHosts returns a paginated list of hosts.
+//
+// hasError: when true, only hosts with a non-nil last_scan_error are returned.
+// search: case-insensitive contains match on name or dns_name.
+// status: "" = all, "enabled" = enabled only, "disabled" = disabled only.
+// sort: "" or "newest" (default), "name", "dns_name", "last_scanned".
+func (s *Store) ListHosts(ctx context.Context, page, pageSize int, hasError bool, search, status, sort string) (models.HostList, error) {
 	var rows []hostWithScanner
+
+	var orderExpr string
+	switch sort {
+	case "name":
+		orderExpr = "h.name ASC"
+	case "dns_name":
+		orderExpr = "h.dns_name ASC"
+	case "last_scanned":
+		orderExpr = "h.last_scanned_at DESC NULLS LAST"
+	default:
+		orderExpr = "h.created_at DESC"
+	}
+
 	q := s.selectHostWithScanner().
-		OrderExpr("h.created_at DESC").
+		OrderExpr(orderExpr).
 		Limit(pageSize).
 		Offset((page - 1) * pageSize)
 	if hasError {
@@ -75,6 +92,12 @@ func (s *Store) ListHosts(ctx context.Context, page, pageSize int, hasError bool
 	if search != "" {
 		pattern := "%" + search + "%"
 		q = q.Where("(h.name ILIKE ? OR h.dns_name ILIKE ?)", pattern, pattern)
+	}
+	switch status {
+	case "enabled":
+		q = q.Where("h.enabled = TRUE")
+	case "disabled":
+		q = q.Where("h.enabled = FALSE")
 	}
 	total, err := q.ScanAndCount(ctx, &rows)
 	if err != nil {

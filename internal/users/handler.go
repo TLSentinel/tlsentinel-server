@@ -47,11 +47,15 @@ type ChangePasswordRequest struct {
 }
 
 // @Summary      List users
-// @Description  Returns a paginated list of users
+// @Description  Returns a paginated list of users with optional search, role, provider, and sort filters
 // @Tags         users
 // @Produce      json
-// @Param        page       query  int  false  "Page number (default 1)"
-// @Param        page_size  query  int  false  "Page size (default 20, max 100)"
+// @Param        page       query  int     false  "Page number (default 1)"
+// @Param        page_size  query  int     false  "Page size (default 20, max 100)"
+// @Param        search     query  string  false  "Search username, first name, or last name (partial match)"
+// @Param        role       query  string  false  "Filter by role: admin, viewer"
+// @Param        provider   query  string  false  "Filter by provider: local, OIDC"
+// @Param        sort       query  string  false  "Sort order: \"\" (newest first, default), username, name"
 // @Success      200  {object}  models.UserList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /users [get]
@@ -68,7 +72,12 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		pageSize = 100
 	}
 
-	result, err := h.store.ListUsers(r.Context(), page, pageSize)
+	search := r.URL.Query().Get("search")
+	role := r.URL.Query().Get("role")
+	provider := r.URL.Query().Get("provider")
+	sort := r.URL.Query().Get("sort")
+
+	result, err := h.store.ListUsers(r.Context(), page, pageSize, search, role, provider, sort)
 	if err != nil {
 		http.Error(w, "failed to list users", http.StatusInternalServerError)
 		return

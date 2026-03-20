@@ -34,6 +34,26 @@ import type { HostListItem, ScannerToken } from '@/types/api'
 import { ApiError } from '@/types/api'
 
 // ---------------------------------------------------------------------------
+// Filter / sort options
+// ---------------------------------------------------------------------------
+
+type HostStatus = '' | 'enabled' | 'disabled'
+type SortOption = '' | 'name' | 'dns_name' | 'last_scanned'
+
+const STATUS_OPTIONS: { value: HostStatus; label: string }[] = [
+  { value: '',         label: 'All' },
+  { value: 'enabled',  label: 'Enabled' },
+  { value: 'disabled', label: 'Disabled' },
+]
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: '',             label: 'Newest first' },
+  { value: 'name',         label: 'Name A→Z' },
+  { value: 'dns_name',     label: 'DNS name A→Z' },
+  { value: 'last_scanned', label: 'Last scanned' },
+]
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -371,6 +391,8 @@ export default function HostsPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<HostStatus>('')
+  const [sortOption, setSortOption] = useState<SortOption>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -395,7 +417,7 @@ export default function HostsPage() {
     setLoading(true)
     setError(null)
     try {
-      const result = await listHosts(page, PAGE_SIZE, debouncedSearch)
+      const result = await listHosts(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
       setHosts(result.items ?? [])
       setTotalCount(result.totalCount)
     } catch (err) {
@@ -403,7 +425,7 @@ export default function HostsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch])
+  }, [page, debouncedSearch, statusFilter, sortOption])
 
   useEffect(() => {
     load()
@@ -414,7 +436,19 @@ export default function HostsPage() {
     listScanners().then(setScanners).catch(() => {})
   }, [])
 
+  function handleStatusChange(value: HostStatus) {
+    setStatusFilter(value)
+    setPage(1)
+  }
+
+  function handleSortChange(value: SortOption) {
+    setSortOption(value)
+    setPage(1)
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
+  const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Newest first'
 
   function handleCloseDialog() {
     setAddOpen(false)
@@ -464,18 +498,16 @@ export default function HostsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              All
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Enabled
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Disabled
-            </DropdownMenuItem>
+            {STATUS_OPTIONS.map(({ value, label }) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => handleStatusChange(value)}
+                className="gap-2"
+              >
+                <Check className={`h-4 w-4 ${statusFilter === value ? 'opacity-100' : 'opacity-0'}`} />
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -487,28 +519,29 @@ export default function HostsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              Newest first
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Name
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Last scanned
-            </DropdownMenuItem>
+            {SORT_OPTIONS.map(({ value, label }) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => handleSortChange(value)}
+                className="gap-2"
+              >
+                <Check className={`h-4 w-4 ${sortOption === value ? 'opacity-100' : 'opacity-0'}`} />
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* Active filter context line */}
       <p className="text-sm text-muted-foreground">
-        Showing results for <span className="font-semibold text-foreground">all</span>
+        Showing results for{' '}
+        <span className="font-semibold text-foreground">{activeStatusLabel.toLowerCase()}</span>
         {debouncedSearch && (
           <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
         )}
+        {' · '}sorted by{' '}
+        <span className="font-semibold text-foreground">{activeSortLabel.toLowerCase()}</span>
       </p>
 
       {/* Error */}
@@ -546,7 +579,7 @@ export default function HostsPage() {
                   colSpan={7}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
-                  {debouncedSearch ? 'No hosts match your search.' : 'No hosts yet. Click Add Host to get started.'}
+                  {debouncedSearch || statusFilter ? 'No hosts match your filters.' : 'No hosts yet. Click Add Host to get started.'}
                 </TableCell>
               </TableRow>
             )}

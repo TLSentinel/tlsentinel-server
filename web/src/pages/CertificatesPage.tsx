@@ -47,6 +47,23 @@ function fmtDate(iso: string) {
 }
 
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
+type StatusFilter = '' | CertStatus
+type SortOption = '' | 'expiry_asc' | 'expiry_desc' | 'common_name'
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: '',         label: 'All' },
+  { value: 'expired',  label: 'Expired' },
+  { value: 'critical', label: 'Critical (≤7d)' },
+  { value: 'warning',  label: 'Warning (≤30d)' },
+  { value: 'ok',       label: 'OK' },
+]
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: '',            label: 'Newest first' },
+  { value: 'expiry_asc',  label: 'Expiring soonest' },
+  { value: 'expiry_desc', label: 'Expiring latest' },
+  { value: 'common_name', label: 'Common name A→Z' },
+]
 
 const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
   expired:  { label: 'Expired',  className: 'bg-red-50    text-red-700    border border-red-500' },
@@ -261,6 +278,8 @@ export default function CertificatesPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
+  const [sortOption, setSortOption] = useState<SortOption>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -280,7 +299,7 @@ export default function CertificatesPage() {
     setLoading(true)
     setError(null)
     try {
-      const result = await listCertificates(page, PAGE_SIZE, debouncedSearch)
+      const result = await listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
       setCerts(result.items ?? [])
       setTotalCount(result.totalCount)
     } catch (err) {
@@ -288,13 +307,25 @@ export default function CertificatesPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch])
+  }, [page, debouncedSearch, statusFilter, sortOption])
 
   useEffect(() => {
     load()
   }, [load])
 
+  function handleStatusChange(value: StatusFilter) {
+    setStatusFilter(value)
+    setPage(1)
+  }
+
+  function handleSortChange(value: SortOption) {
+    setSortOption(value)
+    setPage(1)
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
+  const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Newest first'
 
   return (
     <div className="space-y-4">
@@ -334,26 +365,16 @@ export default function CertificatesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              All
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Expired
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Critical (≤7d)
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Warning (≤30d)
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              OK
-            </DropdownMenuItem>
+            {STATUS_OPTIONS.map(({ value, label }) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => handleStatusChange(value)}
+                className="gap-2"
+              >
+                <Check className={`h-4 w-4 ${statusFilter === value ? 'opacity-100' : 'opacity-0'}`} />
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -365,28 +386,29 @@ export default function CertificatesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              Newest first
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Expiry date
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Common name
-            </DropdownMenuItem>
+            {SORT_OPTIONS.map(({ value, label }) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => handleSortChange(value)}
+                className="gap-2"
+              >
+                <Check className={`h-4 w-4 ${sortOption === value ? 'opacity-100' : 'opacity-0'}`} />
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* Active filter context line */}
       <p className="text-sm text-muted-foreground">
-        Showing results for <span className="font-semibold text-foreground">all</span>
+        Showing results for{' '}
+        <span className="font-semibold text-foreground">{activeStatusLabel.toLowerCase()}</span>
         {debouncedSearch && (
           <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
         )}
+        {' · '}sorted by{' '}
+        <span className="font-semibold text-foreground">{activeSortLabel.toLowerCase()}</span>
       </p>
 
       {/* Error */}
@@ -417,7 +439,7 @@ export default function CertificatesPage() {
             {!loading && certs.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  {debouncedSearch ? 'No certificates match your search.' : 'No certificates yet.'}
+                  {debouncedSearch || statusFilter ? 'No certificates match your filters.' : 'No certificates yet.'}
                 </TableCell>
               </TableRow>
             )}

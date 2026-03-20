@@ -391,6 +391,32 @@ function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Filter types
+// ---------------------------------------------------------------------------
+
+type RoleFilter = '' | 'admin' | 'viewer'
+type ProviderFilter = '' | 'local' | 'OIDC'
+type SortOption = '' | 'username' | 'name'
+
+const ROLE_OPTIONS: { value: RoleFilter; label: string }[] = [
+  { value: '', label: 'All roles' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'viewer', label: 'Viewer' },
+]
+
+const PROVIDER_OPTIONS: { value: ProviderFilter; label: string }[] = [
+  { value: '', label: 'All providers' },
+  { value: 'local', label: 'Local' },
+  { value: 'OIDC', label: 'OIDC' },
+]
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: '', label: 'Newest first' },
+  { value: 'username', label: 'Username A→Z' },
+  { value: 'name', label: 'Name A→Z' },
+]
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -402,6 +428,10 @@ export default function UsersPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('')
+  const [providerFilter, setProviderFilter] = useState<ProviderFilter>('')
+  const [sortOption, setSortOption] = useState<SortOption>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -412,11 +442,22 @@ export default function UsersPage() {
   const [passwordTarget, setPasswordTarget] = useState<User | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
 
+  // Debounce search input by 400 ms.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Reset to page 1 whenever any filter changes.
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, roleFilter, providerFilter, sortOption])
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await listUsers(page, PAGE_SIZE)
+      const result = await listUsers(page, PAGE_SIZE, debouncedSearch, roleFilter, providerFilter, sortOption)
       setUsers(result.items ?? [])
       setTotalCount(result.totalCount)
     } catch (err) {
@@ -424,11 +465,23 @@ export default function UsersPage() {
     } finally {
       setLoading(false)
     }
-  }, [page])
+  }, [page, debouncedSearch, roleFilter, providerFilter, sortOption])
 
   useEffect(() => {
     load()
   }, [load])
+
+  function handleRoleChange(value: RoleFilter) {
+    setRoleFilter(value)
+  }
+
+  function handleProviderChange(value: ProviderFilter) {
+    setProviderFilter(value)
+  }
+
+  function handleSortChange(value: SortOption) {
+    setSortOption(value)
+  }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -482,78 +535,82 @@ export default function UsersPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-1.5">
-              Role
+              {ROLE_OPTIONS.find((o) => o.value === roleFilter)?.label ?? 'Role'}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              All
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Admin
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Viewer
-            </DropdownMenuItem>
+            {ROLE_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                className="gap-2"
+                onSelect={() => handleRoleChange(opt.value)}
+              >
+                <Check className={`h-4 w-4 ${roleFilter === opt.value ? 'opacity-100' : 'opacity-0'}`} />
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-1.5">
-              Provider
+              {PROVIDER_OPTIONS.find((o) => o.value === providerFilter)?.label ?? 'Provider'}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              All
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Local
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              OIDC
-            </DropdownMenuItem>
+            {PROVIDER_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                className="gap-2"
+                onSelect={() => handleProviderChange(opt.value)}
+              >
+                <Check className={`h-4 w-4 ${providerFilter === opt.value ? 'opacity-100' : 'opacity-0'}`} />
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-1.5">
-              Sort
+              {SORT_OPTIONS.find((o) => o.value === sortOption)?.label ?? 'Sort'}
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-100" />
-              Newest first
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Username
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2" disabled>
-              <Check className="h-4 w-4 opacity-0" />
-              Name
-            </DropdownMenuItem>
+            {SORT_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                className="gap-2"
+                onSelect={() => handleSortChange(opt.value)}
+              >
+                <Check className={`h-4 w-4 ${sortOption === opt.value ? 'opacity-100' : 'opacity-0'}`} />
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* Active filter context line */}
       <p className="text-sm text-muted-foreground">
-        Showing results for <span className="font-semibold text-foreground">all</span>
-        {search && (
-          <> matching <span className="font-semibold text-foreground">"{search}"</span></>
+        Showing{' '}
+        <span className="font-semibold text-foreground">
+          {roleFilter ? roleFilter : 'all'}
+        </span>{' '}
+        {providerFilter && (
+          <><span className="font-semibold text-foreground">{providerFilter}</span>{' '}</>
+        )}
+        users
+        {debouncedSearch && (
+          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
+        )}
+        {sortOption && (
+          <> · sorted by <span className="font-semibold text-foreground">{SORT_OPTIONS.find((o) => o.value === sortOption)?.label}</span></>
         )}
       </p>
 
@@ -591,7 +648,9 @@ export default function UsersPage() {
                   colSpan={6}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
-                  No users yet. Click <strong>Add User</strong> to get started.
+                  {debouncedSearch || roleFilter || providerFilter
+                    ? 'No users match your filters.'
+                    : <>No users yet. Click <strong>Add User</strong> to get started.</>}
                 </TableCell>
               </TableRow>
             )}
@@ -631,8 +690,16 @@ export default function UsersPage() {
                   </TableCell>
 
                   {/* Provider */}
-                  <TableCell className="text-sm capitalize text-muted-foreground">
-                    {user.provider}
+                  <TableCell>
+                    {user.provider === 'OIDC' ? (
+                      <Badge variant="outline" className="border-purple-500 bg-purple-50 text-purple-700">
+                        OIDC
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-gray-400 text-gray-600">
+                        Local
+                      </Badge>
+                    )}
                   </TableCell>
 
                   {/* Created */}

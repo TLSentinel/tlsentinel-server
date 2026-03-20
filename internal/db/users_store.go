@@ -53,14 +53,42 @@ func (s *Store) CountAdminUsers(ctx context.Context) (int64, error) {
 }
 
 // ListUsers returns a paginated list of users.
-func (s *Store) ListUsers(ctx context.Context, page, pageSize int) (models.UserList, error) {
+//
+// search: case-insensitive partial match on username, first_name, or last_name.
+// role: "" = all, "admin", "viewer".
+// provider: "" = all, "local", "OIDC".
+// sort: "" or "newest" (default, created_at DESC), "username" (A→Z), "name" (last_name, first_name A→Z).
+func (s *Store) ListUsers(ctx context.Context, page, pageSize int, search, role, provider, sort string) (models.UserList, error) {
 	var rows []User
-	total, err := s.db.NewSelect().
+
+	var orderExpr string
+	switch sort {
+	case "username":
+		orderExpr = "username ASC"
+	case "name":
+		orderExpr = "last_name ASC NULLS LAST, first_name ASC NULLS LAST"
+	default:
+		orderExpr = "created_at DESC"
+	}
+
+	q := s.db.NewSelect().
 		Model(&rows).
-		OrderExpr("created_at ASC").
+		OrderExpr(orderExpr).
 		Limit(pageSize).
-		Offset((page - 1) * pageSize).
-		ScanAndCount(ctx)
+		Offset((page - 1) * pageSize)
+
+	if search != "" {
+		pattern := "%" + search + "%"
+		q = q.Where("(username ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?)", pattern, pattern, pattern)
+	}
+	if role != "" {
+		q = q.Where("role = ?", role)
+	}
+	if provider != "" {
+		q = q.Where("provider = ?", provider)
+	}
+
+	total, err := q.ScanAndCount(ctx)
 	if err != nil {
 		return models.UserList{}, fmt.Errorf("failed to list users: %w", err)
 	}
