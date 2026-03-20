@@ -68,6 +68,7 @@ export interface Host {
   lastScannedAt: string | null
   lastScanError: string | null
   errorSince: string | null
+  notes: string | null
   createdAt: string
   updatedAt: string
 }
@@ -78,6 +79,7 @@ export interface CreateHostRequest {
   ipAddress?: string
   port?: number
   scannerId?: string
+  notes?: string
 }
 
 export interface UpdateHostRequest {
@@ -87,6 +89,7 @@ export interface UpdateHostRequest {
   port: number
   enabled: boolean
   scannerId?: string
+  notes?: string
 }
 
 export type HostList = PaginatedList<HostListItem>

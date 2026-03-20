@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
 import { ArrowLeft, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -121,6 +122,22 @@ function HostInfoSection({ host }: { host: Host }) {
           </Field>
         )}
         <Field label="Scanner">{host.scannerName ?? 'Default'}</Field>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Notes section
+// ---------------------------------------------------------------------------
+
+function NotesSection({ notes }: { notes: string | null }) {
+  if (!notes) return null
+  return (
+    <div className="space-y-3">
+      <SectionHeader title="Notes" />
+      <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
+        <ReactMarkdown>{notes}</ReactMarkdown>
       </div>
     </div>
   )
@@ -535,6 +552,7 @@ export default function HostDetailPage() {
         {/* ── Left column — host info + TLS profile ── */}
         <div className="space-y-6">
           <HostInfoSection host={host} />
+          <NotesSection notes={host.notes} />
           <ScanStatusSection host={host} />
           <TLSProfileSection tlsState={tlsState} />
         </div>

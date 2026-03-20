@@ -30,6 +30,7 @@ type CreateHostRequest struct {
 	IPAddress *string `json:"ipAddress"`
 	Port      int     `json:"port"`
 	ScannerID *string `json:"scannerId"`
+	Notes     *string `json:"notes"`
 }
 
 // UpdateHostRequest is the payload for replacing a host's configuration.
@@ -40,6 +41,7 @@ type UpdateHostRequest struct {
 	Port      int     `json:"port"`
 	Enabled   bool    `json:"enabled"`
 	ScannerID *string `json:"scannerId"`
+	Notes     *string `json:"notes"`
 }
 
 // @Summary      List hosts
@@ -115,6 +117,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Port:      req.Port,
 		Enabled:   true,
 		ScannerID: req.ScannerID,
+		Notes:     req.Notes,
 	}
 
 	host, err := h.store.InsertHost(r.Context(), rec)
@@ -187,6 +190,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		Port:      req.Port,
 		Enabled:   req.Enabled,
 		ScannerID: req.ScannerID,
+		Notes:     req.Notes,
 	}
 
 	host, err := h.store.UpdateHost(r.Context(), hostID, rec)

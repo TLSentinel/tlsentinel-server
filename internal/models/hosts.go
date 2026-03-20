@@ -10,6 +10,7 @@ type HostRecord struct {
 	Port      int
 	Enabled   bool
 	ScannerID *string
+	Notes     *string
 }
 
 // Host represents the full detail of a monitored host.
@@ -26,6 +27,7 @@ type Host struct {
 	LastScannedAt     *time.Time `json:"lastScannedAt"`
 	LastScanError     *string    `json:"lastScanError"`
 	ErrorSince        *time.Time `json:"errorSince"`
+	Notes             *string    `json:"notes"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
 }

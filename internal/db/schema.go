@@ -41,6 +41,7 @@ type Host struct {
 	LastScannedAt     *time.Time `bun:"last_scanned_at"`
 	LastScanError     *string    `bun:"last_scan_error"`
 	ErrorSince        *time.Time `bun:"error_since"`
+	Notes             *string    `bun:"notes"`
 	CreatedAt         time.Time  `bun:"created_at"`
 	UpdatedAt         time.Time  `bun:"updated_at"`
 }

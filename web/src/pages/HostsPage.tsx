@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Globe, Loader2, Search, ChevronDown, Check } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 import { Link } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -94,16 +95,18 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
   const [ipAddress, setIpAddress] = useState('')
   const [enabled, setEnabled] = useState(host?.enabled ?? true)
   const [scannerID, setScannerID] = useState(host?.scannerId ?? '')
+  const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
 
-  // In edit mode, HostListItem omits ipAddress — fetch the full record once on mount.
+  // In edit mode, HostListItem omits ipAddress/notes — fetch the full record once on mount.
   useEffect(() => {
     if (!host) return
     getHost(host.id).then((full) => {
       if (full.ipAddress) setIpAddress(full.ipAddress)
+      if (full.notes) setNotes(full.notes)
     }).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -144,6 +147,8 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
     setSubmitting(true)
     setError(null)
 
+    const notesVal = notes.trim() || undefined
+
     try {
       if (isEdit) {
         await updateHost(host.id, {
@@ -153,6 +158,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
           ipAddress: ip,
           enabled,
           scannerId: sid,
+          notes: notesVal,
         })
       } else {
         await createHost({
@@ -161,6 +167,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
           port: parsedPort,
           ipAddress: ip,
           scannerId: sid,
+          notes: notesVal,
         })
       }
       onSaved()
@@ -280,6 +287,21 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <Label htmlFor="h-notes">
+              Notes{' '}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              id="h-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={"Owner, support contact, runbook link…\n\nMarkdown is supported."}
+              rows={3}
+            />
           </div>
 
           {/* Enabled (edit only) */}

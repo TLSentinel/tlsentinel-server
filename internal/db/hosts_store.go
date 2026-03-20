@@ -47,6 +47,7 @@ func hostRowToHost(r hostWithScanner) models.Host {
 		LastScannedAt:     r.LastScannedAt,
 		LastScanError:     r.LastScanError,
 		ErrorSince:        r.ErrorSince,
+		Notes:             r.Notes,
 		CreatedAt:         r.CreatedAt,
 		UpdatedAt:         r.UpdatedAt,
 	}
@@ -138,6 +139,7 @@ func (s *Store) InsertHost(ctx context.Context, rec models.HostRecord) (models.H
 		Port:      rec.Port,
 		Enabled:   rec.Enabled,
 		ScannerID: rec.ScannerID,
+		Notes:     rec.Notes,
 	}
 	if _, err := s.db.NewInsert().Model(h).
 		ExcludeColumn("id", "created_at", "updated_at").
@@ -157,6 +159,7 @@ func (s *Store) UpdateHost(ctx context.Context, id string, rec models.HostRecord
 		Set("port = ?", rec.Port).
 		Set("enabled = ?", rec.Enabled).
 		Set("scanner_id = ?", rec.ScannerID).
+		Set("notes = ?", rec.Notes).
 		Set("updated_at = NOW()").
 		Where("id = ?", id).
 		Exec(ctx)

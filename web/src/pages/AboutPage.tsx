@@ -15,25 +15,30 @@ interface LibEntry {
 }
 
 const BACKEND_LIBS: LibEntry[] = [
-  { name: 'uptrace/bun',         license: 'BSD-2-Clause', url: 'https://github.com/uptrace/bun' },
-  { name: 'go-chi/chi',          license: 'MIT',          url: 'https://github.com/go-chi/chi' },
-  { name: 'golang-jwt/jwt',      license: 'MIT',          url: 'https://github.com/golang-jwt/jwt' },
-  { name: 'swaggo/swag',         license: 'MIT',          url: 'https://github.com/swaggo/swag' },
-  { name: 'swaggo/http-swagger', license: 'MIT',          url: 'https://github.com/swaggo/http-swagger' },
-  { name: 'netresearch/go-cron', license: 'MIT',          url: 'https://github.com/netresearch/go-cron' },
-  { name: 'uber-go/zap',         license: 'MIT',          url: 'https://github.com/uber-go/zap' },
-  { name: 'golang.org/x/crypto', license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/crypto' },
+  { name: 'uptrace/bun',              license: 'BSD-2-Clause', url: 'https://github.com/uptrace/bun' },
+  { name: 'go-chi/chi',               license: 'MIT',          url: 'https://github.com/go-chi/chi' },
+  { name: 'golang-jwt/jwt',           license: 'MIT',          url: 'https://github.com/golang-jwt/jwt' },
+  { name: 'coreos/go-oidc',           license: 'Apache-2.0',   url: 'https://github.com/coreos/go-oidc' },
+  { name: 'golang.org/x/oauth2',      license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/oauth2' },
+  { name: 'golang-migrate/migrate',   license: 'MIT',          url: 'https://github.com/golang-migrate/migrate' },
+  { name: 'swaggo/swag',              license: 'MIT',          url: 'https://github.com/swaggo/swag' },
+  { name: 'swaggo/http-swagger',      license: 'MIT',          url: 'https://github.com/swaggo/http-swagger' },
+  { name: 'netresearch/go-cron',      license: 'MIT',          url: 'https://github.com/netresearch/go-cron' },
+  { name: 'joho/godotenv',            license: 'MIT',          url: 'https://github.com/joho/godotenv' },
+  { name: 'uber-go/zap',              license: 'MIT',          url: 'https://github.com/uber-go/zap' },
+  { name: 'golang.org/x/crypto',      license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/crypto' },
 ]
 
 const FRONTEND_LIBS: LibEntry[] = [
-  { name: 'React',              license: 'MIT', url: 'https://react.dev' },
-  { name: 'Vite',               license: 'MIT', url: 'https://vitejs.dev' },
-  { name: 'React Router',       license: 'MIT', url: 'https://reactrouter.com' },
-  { name: 'Tailwind CSS',       license: 'MIT', url: 'https://tailwindcss.com' },
-  { name: 'shadcn/ui',          license: 'MIT', url: 'https://ui.shadcn.com' },
-  { name: 'Radix UI',           license: 'MIT', url: 'https://www.radix-ui.com' },
-  { name: 'Lucide React',       license: 'ISC', url: 'https://lucide.dev' },
-  { name: 'Recharts',           license: 'MIT', url: 'https://recharts.org' },
+  { name: 'React',              license: 'MIT',     url: 'https://react.dev' },
+  { name: 'Vite',               license: 'MIT',     url: 'https://vitejs.dev' },
+  { name: 'React Router',       license: 'MIT',     url: 'https://reactrouter.com' },
+  { name: 'Tailwind CSS',       license: 'MIT',     url: 'https://tailwindcss.com' },
+  { name: 'shadcn/ui',          license: 'MIT',     url: 'https://ui.shadcn.com' },
+  { name: 'Radix UI',           license: 'MIT',     url: 'https://www.radix-ui.com' },
+  { name: 'Lucide React',       license: 'ISC',     url: 'https://lucide.dev' },
+  { name: 'Geist',              license: 'OFL-1.1', url: 'https://vercel.com/font' },
+  { name: 'react-markdown',     license: 'MIT',     url: 'https://github.com/remarkjs/react-markdown' },
 ]
 
 interface LibSection {
