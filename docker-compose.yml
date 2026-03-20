@@ -20,8 +20,6 @@ services:
       POSTGRES_PASSWORD: ${TLSENTINEL_DB_PASSWORD:-tlsentinel}
     volumes:
       - db-data:/var/lib/postgresql/data
-      # Migrations run once on first volume creation, in filename order.
-      - ./migrations:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
     healthcheck:
