@@ -2,10 +2,16 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/x509"
 	"database/sql"
+	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
@@ -229,6 +235,8 @@ func (s *Store) InsertCertificate(ctx context.Context, rec models.CertificateRec
 		SerialNumber:   rec.SerialNumber,
 		SubjectKeyID:   rec.SubjectKeyID,
 		AuthorityKeyID: rec.AuthorityKeyID,
+		SubjectDNHash:  rec.SubjectDNHash,
+		IssuerDNHash:   rec.IssuerDNHash,
 	}
 	res, err := s.db.NewInsert().Model(c).On("CONFLICT (fingerprint) DO NOTHING").Exec(ctx)
 	if err != nil {
@@ -253,8 +261,9 @@ func (s *Store) ReconcileCertificateChains(ctx context.Context) (int64, error) {
 		UPDATE tlsentinel.certificates c
 		SET issuer_fingerprint = i.fingerprint
 		FROM tlsentinel.certificates i
-		WHERE c.authority_key_id  = i.subject_key_id
-		  AND c.fingerprint      != i.fingerprint
+		WHERE c.authority_key_id   = i.subject_key_id
+		  AND c.issuer_dn_hash     = i.subject_dn_hash
+		  AND c.fingerprint       != i.fingerprint
 		  AND c.issuer_fingerprint IS NULL
 		  AND c.authority_key_id  IS NOT NULL`)
 	if err != nil {
@@ -262,6 +271,56 @@ func (s *Store) ReconcileCertificateChains(ctx context.Context) (int64, error) {
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
+}
+
+// BackfillDNHashes populates subject_dn_hash and issuer_dn_hash for any certificates
+// that were inserted before those columns existed. It parses the stored PEM to recompute
+// the hashes from the raw DER bytes.
+//
+// This is a one-time migration aid and can be removed once all deployments have run
+// migration 000012 and a sufficient scan cycle has elapsed.
+func (s *Store) BackfillDNHashes(ctx context.Context) (int64, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT fingerprint, pem FROM tlsentinel.certificates WHERE subject_dn_hash = ''`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query certificates for dn hash backfill: %w", err)
+	}
+	defer rows.Close()
+
+	var updated int64
+	for rows.Next() {
+		var fingerprint, pemStr string
+		if err := rows.Scan(&fingerprint, &pemStr); err != nil {
+			return updated, err
+		}
+
+		block, _ := pem.Decode([]byte(pemStr))
+		if block == nil {
+			zap.L().Warn("dn hash backfill: failed to decode PEM", zap.String("fingerprint", fingerprint))
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			zap.L().Warn("dn hash backfill: failed to parse certificate", zap.String("fingerprint", fingerprint), zap.Error(err))
+			continue
+		}
+
+		subjectHash := sha256.Sum256(cert.RawSubject)
+		issuerHash := sha256.Sum256(cert.RawIssuer)
+
+		_, err = s.db.ExecContext(ctx,
+			`UPDATE tlsentinel.certificates SET subject_dn_hash = ?, issuer_dn_hash = ? WHERE fingerprint = ?`,
+			hex.EncodeToString(subjectHash[:]),
+			hex.EncodeToString(issuerHash[:]),
+			fingerprint,
+		)
+		if err != nil {
+			zap.L().Warn("dn hash backfill: failed to update", zap.String("fingerprint", fingerprint), zap.Error(err))
+			continue
+		}
+		updated++
+	}
+	return updated, rows.Err()
 }
 
 func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error {

@@ -14,6 +14,8 @@ type CertificateRecord struct {
 	SerialNumber   string
 	SubjectKeyID   string
 	AuthorityKeyID *string
+	SubjectDNHash  string
+	IssuerDNHash   string
 }
 
 // CertificateListItem represents a summary of a certificate for list responses.

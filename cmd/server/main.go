@@ -73,6 +73,14 @@ func main() {
 		log.Fatal("bootstrap failed", zap.Error(err))
 	}
 
+	// Backfill subject_dn_hash / issuer_dn_hash for certs inserted before migration 000012.
+	// No-op once all rows are populated. Can be removed after sufficient time has passed.
+	if n, err := store.BackfillDNHashes(context.Background()); err != nil {
+		log.Warn("dn hash backfill failed", zap.Error(err))
+	} else if n > 0 {
+		log.Info("backfilled dn hashes", zap.Int64("count", n))
+	}
+
 	n, err := store.ReconcileCertificateChains(context.Background())
 	if err != nil {
 		log.Warn("certificate chain reconciliation failed", zap.Error(err))

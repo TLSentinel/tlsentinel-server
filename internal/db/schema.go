@@ -20,6 +20,8 @@ type Certificate struct {
 	SerialNumber      string    `bun:"serial_number"`
 	SubjectKeyID      string    `bun:"subject_key_id"`
 	AuthorityKeyID    *string   `bun:"authority_key_id"`
+	SubjectDNHash     string    `bun:"subject_dn_hash"`
+	IssuerDNHash      string    `bun:"issuer_dn_hash"`
 	IssuerFingerprint *string   `bun:"issuer_fingerprint"`
 	CreatedAt         time.Time `bun:"created_at"`
 }

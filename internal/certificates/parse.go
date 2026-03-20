@@ -214,6 +214,9 @@ func ExtractCertificateRecord(cert *x509.Certificate) models.CertificateRecord {
 		authorityKeyId = &s
 	}
 
+	subjectDNHash := sha256.Sum256(cert.RawSubject)
+	issuerDNHash := sha256.Sum256(cert.RawIssuer)
+
 	return models.CertificateRecord{
 		Fingerprint:    hex.EncodeToString(fingerprint[:]),
 		PEM:            string(pemBytes),
@@ -224,5 +227,7 @@ func ExtractCertificateRecord(cert *x509.Certificate) models.CertificateRecord {
 		SerialNumber:   cert.SerialNumber.String(),
 		SubjectKeyID:   hex.EncodeToString(cert.SubjectKeyId),
 		AuthorityKeyID: authorityKeyId,
+		SubjectDNHash:  hex.EncodeToString(subjectDNHash[:]),
+		IssuerDNHash:   hex.EncodeToString(issuerDNHash[:]),
 	}
 }
