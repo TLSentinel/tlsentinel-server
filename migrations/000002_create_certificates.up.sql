@@ -39,6 +39,8 @@ BEGIN
         WHERE subject_key_id = NEW.authority_key_id
           AND subject_dn_hash = NEW.issuer_dn_hash
           AND fingerprint != NEW.fingerprint
+        ORDER BY not_after DESC
+        LIMIT 1
     )
     WHERE fingerprint = NEW.fingerprint
       AND issuer_fingerprint IS NULL

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronLeft, ChevronRight, Check, Search } from 'lucide-react'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -236,10 +237,10 @@ export default function ActivePage() {
 
             {!loading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={6} className="py-10 text-center">
                   {debouncedSearch || statusFilter
-                    ? 'No certificates match your filters.'
-                    : 'No hosts with active certificates yet.'}
+                    ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+                    : <StrixEmpty message="No hosts with active certificates yet." />}
                 </TableCell>
               </TableRow>
             )}

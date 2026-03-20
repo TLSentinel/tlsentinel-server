@@ -98,6 +98,20 @@ export default function AboutPage() {
         <span className="text-foreground">About</span>
       </nav>
 
+      {/* Mascot + title */}
+      <div className="flex items-end gap-5">
+        <img
+          src="/strix.png"
+          alt="Strix the TLSentinel owl"
+          className="w-36 select-none"
+          draggable={false}
+        />
+        <div className="pb-1">
+          <h1 className="text-2xl font-semibold">TLSentinel</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">TLS certificate monitoring</p>
+        </div>
+      </div>
+
       {/* Version info */}
       <div className="rounded-lg border p-5 space-y-3">
         <h2 className="text-sm font-semibold">Build Information</h2>

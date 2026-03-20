@@ -31,7 +31,7 @@ func EnsureAdminUser(ctx context.Context, store *db.Store, username, password st
 	}
 
 	firstName := "Admin" // Or whatever name you want
-	if _, err := store.InsertUser(ctx, username, string(hash), "admin", &firstName, nil, nil); err != nil {
+	if _, err := store.InsertUser(ctx, username, string(hash), "admin", "local", &firstName, nil, nil); err != nil {
 		return fmt.Errorf("failed to create admin user: %w", err)
 	}
 

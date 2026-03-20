@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ArrowLeft } from 'lucide-react'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -480,11 +481,8 @@ export default function ScannersPage() {
 
             {!loading && scanners.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  No scanners yet. Click <strong>Add Scanner</strong> to get started.
+                <TableCell colSpan={6} className="py-10 text-center">
+                  <StrixEmpty message={<>No scanners yet. Click <strong>Add Scanner</strong> to get started.</>} />
                 </TableCell>
               </TableRow>
             )}

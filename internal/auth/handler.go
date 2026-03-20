@@ -98,6 +98,16 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !user.Enabled {
+		http.Error(w, "account disabled", http.StatusUnauthorized)
+		return
+	}
+
+	if user.Provider != "local" {
+		http.Error(w, "account requires SSO login", http.StatusUnauthorized)
+		return
+	}
+
 	if user.PasswordHash == nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return

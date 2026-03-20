@@ -14,6 +14,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
 
@@ -29,8 +30,8 @@ type Config struct {
 	ClientSecret  string
 	RedirectURL   string
 	Scopes        []string // defaults to [openid profile email]
-	DefaultRole   string   // role assigned to new users on first login
-	UsernameClaim string   // ID token claim used as username (default: email)
+	
+	UsernameClaim string   // ID token claim used as username (default: upn)
 }
 
 // Handler handles the OIDC login and callback flows.
@@ -44,16 +45,32 @@ type Handler struct {
 }
 
 // NewHandler initialises the OIDC provider and returns a ready Handler.
+// Returns (nil, nil) when OIDC is not configured in appCfg.
 // It contacts the issuer's discovery endpoint, so it requires network access.
-func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, cfg Config) (*Handler, error) {
-	provider, err := gooidc.NewProvider(ctx, cfg.Issuer)
-	if err != nil {
-		return nil, fmt.Errorf("oidc: failed to discover provider %q: %w", cfg.Issuer, err)
+func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, appCfg *config.Config) (*Handler, error) {
+	if !appCfg.OIDCEnabled {
+		return nil, nil
 	}
 
-	scopes := cfg.Scopes
+	provider, err := gooidc.NewProvider(ctx, appCfg.OIDCIssuer)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: failed to discover provider %q: %w", appCfg.OIDCIssuer, err)
+	}
+
+	var scopes []string
+	if appCfg.OIDCScopes != "" {
+		scopes = strings.Fields(appCfg.OIDCScopes)
+	}
 	if len(scopes) == 0 {
 		scopes = []string{gooidc.ScopeOpenID, "profile", "email"}
+	}
+
+	cfg := Config{
+		Issuer:        appCfg.OIDCIssuer,
+		ClientID:      appCfg.OIDCClientID,
+		ClientSecret:  appCfg.OIDCClientSecret,
+		RedirectURL:   appCfg.OIDCRedirectURL,
+		UsernameClaim: appCfg.OIDCUsernameClaim,
 	}
 
 	return &Handler{
@@ -63,9 +80,9 @@ func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, cf
 		log:    zap.L().With(zap.String("component", "oidc")),
 		provider: provider,
 		oauth2: oauth2.Config{
-			ClientID:     cfg.ClientID,
-			ClientSecret: cfg.ClientSecret,
-			RedirectURL:  cfg.RedirectURL,
+			ClientID:     appCfg.OIDCClientID,
+			ClientSecret: appCfg.OIDCClientSecret,
+			RedirectURL:  appCfg.OIDCRedirectURL,
 			Endpoint:     provider.Endpoint(),
 			Scopes:       scopes,
 		},
@@ -167,30 +184,15 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	providerID := idToken.Subject // always present
-	username := h.extractUsername(claims, providerID)
-	email := optionalClaim(claims, "email")
-	firstName := optionalClaim(claims, "given_name")
-	lastName := optionalClaim(claims, "family_name")
+	username := h.extractUsername(claims, idToken.Subject)
 
-	h.log.Info("oidc callback",
-		zap.String("subject", providerID),
-		zap.Stringp("email", email),
-		zap.String("username", username),
-	)
+	h.log.Info("oidc callback", zap.String("username", username))
 
-	// --- Upsert user ---
-	user, err := h.store.UpsertOIDCUser(r.Context(), db.OIDCUserParams{
-		ProviderID:  providerID,
-		Username:    username,
-		Email:       email,
-		FirstName:   firstName,
-		LastName:    lastName,
-		DefaultRole: h.cfg.DefaultRole,
-	})
+	// --- Look up pre-provisioned user ---
+	user, err := h.store.GetUserForOIDCLogin(r.Context(), username)
 	if err != nil {
-		h.log.Error("failed to provision oidc user", zap.Error(err))
-		http.Error(w, "failed to provision user", http.StatusInternalServerError)
+		h.log.Warn("oidc login rejected — user not found or disabled", zap.String("username", username))
+		http.Error(w, "account not provisioned or disabled", http.StatusUnauthorized)
 		return
 	}
 
@@ -208,12 +210,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 // extractUsername picks the best available claim for the username.
+// Defaults to "upn" (Entra ID), falling back to "preferred_username" then "email".
 func (h *Handler) extractUsername(claims map[string]any, fallback string) string {
 	claim := h.cfg.UsernameClaim
 	if claim == "" {
-		claim = "email"
+		claim = "upn"
 	}
-	for _, c := range []string{claim, "email", "preferred_username"} {
+	for _, c := range []string{claim, "preferred_username", "email"} {
 		if v := stringClaim(claims, c); v != "" {
 			return v
 		}
@@ -225,15 +228,6 @@ func (h *Handler) extractUsername(claims map[string]any, fallback string) string
 func stringClaim(claims map[string]any, key string) string {
 	v, _ := claims[key].(string)
 	return strings.TrimSpace(v)
-}
-
-// optionalClaim returns the named claim as a *string, nil if absent or empty.
-func optionalClaim(claims map[string]any, key string) *string {
-	v := stringClaim(claims, key)
-	if v == "" {
-		return nil
-	}
-	return &v
 }
 
 func randomState() (string, error) {

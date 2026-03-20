@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Globe, Loader2, Search, ChevronDown, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -575,11 +576,10 @@ export default function HostsPage() {
 
             {!loading && hosts.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  {debouncedSearch || statusFilter ? 'No hosts match your filters.' : 'No hosts yet. Click Add Host to get started.'}
+                <TableCell colSpan={7} className="py-10 text-center">
+                  {debouncedSearch || statusFilter
+                    ? <span className="text-sm text-muted-foreground">No hosts match your filters.</span>
+                    : <StrixEmpty message={<>No hosts yet. Click <strong>Add Host</strong> to get started.</>} />}
                 </TableCell>
               </TableRow>
             )}

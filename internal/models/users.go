@@ -5,9 +5,9 @@ import "time"
 type User struct {
 	ID           string
 	Username     string
-	PasswordHash *string // nil for OIDC/SAML users
+	PasswordHash *string // nil for OIDC users
 	Provider     string
-	ProviderID   string
+	Enabled      bool
 	Role         string
 	FirstName    *string
 	LastName     *string
@@ -22,6 +22,7 @@ type UserResponse struct {
 	Username  string    `json:"username"`
 	Role      string    `json:"role"`
 	Provider  string    `json:"provider"`
+	Enabled   bool      `json:"enabled"`
 	FirstName *string   `json:"firstName"`
 	LastName  *string   `json:"lastName"`
 	Email     *string   `json:"email"`
@@ -44,6 +45,7 @@ func (u *User) ToResponse() UserResponse {
 		Username:  u.Username,
 		Role:      u.Role,
 		Provider:  u.Provider,
+		Enabled:   u.Enabled,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,
 		Email:     u.Email,

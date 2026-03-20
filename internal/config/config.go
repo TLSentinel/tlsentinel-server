@@ -7,19 +7,20 @@ import (
 )
 
 type Config struct {
-	Host             string
-	Port             string
-	DBConnString     string
-	JWTSecret        string
-	EncryptionKey    []byte
-	AdminUsername    string
-	AdminPassword    string
-	OIDCClientID     string
-	OIDCClientSecret string
-	OIDCRedirectURL  string
-	OIDCIssuer       string
-	OIDCDefaultRole  string
-	OIDCEnabled      bool
+	Host              string
+	Port              string
+	DBConnString      string
+	JWTSecret         string
+	EncryptionKey     []byte
+	AdminUsername     string
+	AdminPassword     string
+	OIDCClientID      string
+	OIDCClientSecret  string
+	OIDCRedirectURL   string
+	OIDCIssuer        string
+	OIDCScopes        string
+	OIDCUsernameClaim string
+	OIDCEnabled       bool
 }
 
 // Addr returns the combined host:port string for http.Server
@@ -32,11 +33,11 @@ func LoadConfig() (*Config, error) {
 	cfg := &Config{}
 	var err error
 
-	cfg.Host = getEnv("TLSENTINEL_HOST", "")
-	cfg.Port = getEnv("TLSENTINEL_PORT", "8080")
+	cfg.Host = envOr("TLSENTINEL_HOST", "0.0.0.0")
+	cfg.Port = envOr("TLSENTINEL_PORT", "8080")
 
-	cfg.AdminUsername = getEnv("TLSENTINEL_ADMIN_USERNAME", "")
-	cfg.AdminPassword = getEnv("TLSENTINEL_ADMIN_PASSWORD", "")
+	cfg.AdminUsername = os.Getenv("TLSENTINEL_ADMIN_USERNAME")
+	cfg.AdminPassword = os.Getenv("TLSENTINEL_ADMIN_PASSWORD")
 
 	cfg.EncryptionKey, err = loadEncryptionKey()
 	if err != nil {
@@ -60,7 +61,8 @@ func LoadConfig() (*Config, error) {
 	cfg.OIDCClientSecret = os.Getenv("TLSENTINEL_OIDC_CLIENT_SECRET")
 	cfg.OIDCRedirectURL = os.Getenv("TLSENTINEL_OIDC_REDIRECT_URL")
 	cfg.OIDCIssuer = os.Getenv("TLSENTINEL_OIDC_ISSUER")
-	cfg.OIDCDefaultRole = os.Getenv("TLSENTINEL_OIDC_DEFAULT_ROLE")
+	cfg.OIDCScopes = os.Getenv("TLSENTINEL_OIDC_SCOPES")
+	cfg.OIDCUsernameClaim = os.Getenv("TLSENTINEL_OIDC_USERNAME_CLAIM")
 	cfg.OIDCEnabled =
 		cfg.OIDCClientID != "" &&
 			cfg.OIDCClientSecret != "" &&
@@ -70,7 +72,7 @@ func LoadConfig() (*Config, error) {
 	return cfg, nil
 }
 
-func getEnv(key, fallback string) string {
+func envOr(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
@@ -119,8 +121,8 @@ func buildDBConnString() (string, error) {
 		)
 	}
 
-	port := getEnv("TLSENTINEL_DB_PORT", "5432")
-	sslmode := getEnv("TLSENTINEL_DB_SSLMODE", "require")
+	port := envOr("TLSENTINEL_DB_PORT", "5432")
+	sslmode := envOr("TLSENTINEL_DB_SSLMODE", "require")
 
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		username, password, host, port, name, sslmode,

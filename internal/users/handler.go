@@ -16,6 +16,7 @@ import (
 )
 
 var validRoles = map[string]bool{"admin": true, "viewer": true}
+var validProviders = map[string]bool{"local": true, "oidc": true}
 
 type Handler struct {
 	store *db.Store
@@ -28,7 +29,8 @@ func NewHandler(store *db.Store) *Handler {
 type CreateUserRequest struct {
 	Username  string  `json:"username"`
 	Password  string  `json:"password"`
-	Role      string  `json:"role"` // "admin" or "viewer"; defaults to "viewer"
+	Role      string  `json:"role"`     // "admin" or "viewer"; defaults to "viewer"
+	Provider  string  `json:"provider"` // "local" or "oidc"; defaults to "local"
 	FirstName *string `json:"firstName"`
 	LastName  *string `json:"lastName"`
 	Email     *string `json:"email"`
@@ -37,9 +39,14 @@ type CreateUserRequest struct {
 type UpdateUserRequest struct {
 	Username  string  `json:"username"`
 	Role      string  `json:"role"`
+	Provider  string  `json:"provider"` // "local" or "oidc"
 	FirstName *string `json:"firstName"`
 	LastName  *string `json:"lastName"`
 	Email     *string `json:"email"`
+}
+
+type SetEnabledRequest struct {
+	Enabled bool `json:"enabled"`
 }
 
 type ChangePasswordRequest struct {
@@ -54,7 +61,7 @@ type ChangePasswordRequest struct {
 // @Param        page_size  query  int     false  "Page size (default 20, max 100)"
 // @Param        search     query  string  false  "Search username, first name, or last name (partial match)"
 // @Param        role       query  string  false  "Filter by role: admin, viewer"
-// @Param        provider   query  string  false  "Filter by provider: local, OIDC"
+// @Param        provider   query  string  false  "Filter by provider: local, oidc"
 // @Param        sort       query  string  false  "Sort order: \"\" (newest first, default), username, name"
 // @Success      200  {object}  models.UserList
 // @Failure      500  {string}  string  "internal server error"
@@ -87,7 +94,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Create a user
-// @Description  Creates a new local user
+// @Description  Creates a new user. Provider "local" requires a password; "oidc" users authenticate via SSO only.
 // @Tags         users
 // @Accept       json
 // @Produce      json
@@ -103,8 +110,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" || req.Password == "" {
-		http.Error(w, "username and password are required", http.StatusBadRequest)
+	if req.Username == "" {
+		http.Error(w, "username is required", http.StatusBadRequest)
 		return
 	}
 	if req.Role == "" {
@@ -114,20 +121,35 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "role must be 'admin' or 'viewer'", http.StatusBadRequest)
 		return
 	}
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, "failed to process password", http.StatusInternalServerError)
+	if req.Provider == "" {
+		req.Provider = "local"
+	}
+	if !validProviders[req.Provider] {
+		http.Error(w, "provider must be 'local' or 'oidc'", http.StatusBadRequest)
+		return
+	}
+	if req.Provider == "local" && req.Password == "" {
+		http.Error(w, "password is required for local users", http.StatusBadRequest)
 		return
 	}
 
-	user, err := h.store.InsertUser(r.Context(), req.Username, string(hash), req.Role, req.FirstName, req.LastName, req.Email)
+	var passwordHash string
+	if req.Provider == "local" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			http.Error(w, "failed to process password", http.StatusInternalServerError)
+			return
+		}
+		passwordHash = string(hash)
+	}
+
+	user, err := h.store.InsertUser(r.Context(), req.Username, passwordHash, req.Role, req.Provider, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
 
-	response.JSON(w, http.StatusCreated, user)
+	response.JSON(w, http.StatusCreated, user.ToResponse())
 }
 
 // @Summary      Get a user
@@ -156,7 +178,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Update a user
-// @Description  Updates a user's username and role
+// @Description  Updates username, role, provider, and profile fields. Switching to "oidc" clears the password hash.
 // @Tags         users
 // @Accept       json
 // @Produce      json
@@ -184,8 +206,15 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "role must be 'admin' or 'viewer'", http.StatusBadRequest)
 		return
 	}
+	if req.Provider == "" {
+		req.Provider = "local"
+	}
+	if !validProviders[req.Provider] {
+		http.Error(w, "provider must be 'local' or 'oidc'", http.StatusBadRequest)
+		return
+	}
 
-	user, err := h.store.UpdateUser(r.Context(), userID, req.Username, req.Role, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.UpdateUser(r.Context(), userID, req.Username, req.Role, req.Provider, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)
@@ -195,11 +224,56 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, user)
+	response.JSON(w, http.StatusOK, user.ToResponse())
+}
+
+// @Summary      Set user enabled
+// @Description  Enables or disables a user account. An admin cannot disable their own account.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        userID   path  string            true  "User ID"
+// @Param        request  body  SetEnabledRequest true  "Enabled payload"
+// @Success      200      {object}  models.UserResponse
+// @Failure      400      {string}  string  "invalid request"
+// @Failure      404      {string}  string  "user not found"
+// @Failure      409      {string}  string  "cannot disable your own account"
+// @Failure      500      {string}  string  "internal server error"
+// @Router       /users/{userID}/enabled [patch]
+func (h *Handler) SetEnabled(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+
+	var req SetEnabledRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Prevent self-disable.
+	if !req.Enabled {
+		if identity, ok := auth.GetIdentity(r.Context()); ok {
+			if identity.UserID == userID {
+				http.Error(w, "cannot disable your own account", http.StatusConflict)
+				return
+			}
+		}
+	}
+
+	user, err := h.store.SetUserEnabled(r.Context(), userID, req.Enabled)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to update user", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
 // @Summary      Change password
-// @Description  Replaces a user's password
+// @Description  Replaces a user's password. Only valid for local-provider users.
 // @Tags         users
 // @Accept       json
 // @Param        userID   path  string                true  "User ID"

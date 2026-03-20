@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Trash2, ChevronLeft, ChevronRight, Search, FolderOpen, ChevronDown, Check } from 'lucide-react'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -438,8 +439,10 @@ export default function CertificatesPage() {
 
             {!loading && certs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  {debouncedSearch || statusFilter ? 'No certificates match your filters.' : 'No certificates yet.'}
+                <TableCell colSpan={6} className="py-10 text-center">
+                  {debouncedSearch || statusFilter
+                    ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+                    : <StrixEmpty message="No certificates yet." />}
                 </TableCell>
               </TableRow>
             )}

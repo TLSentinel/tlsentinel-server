@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -26,8 +27,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listUsers, createUser, updateUser, changePassword, deleteUser } from '@/api/users'
-import { isAdmin } from '@/api/client'
+import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser } from '@/api/users'
+import { isAdmin, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -66,6 +67,7 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
   const [username, setUsername] = useState(user?.username ?? '')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'admin' | 'viewer'>(user?.role ?? 'viewer')
+  const [provider, setProvider] = useState<'local' | 'oidc'>(user?.provider ?? 'local')
   const [firstName, setFirstName] = useState(user?.firstName ?? '')
   const [lastName, setLastName] = useState(user?.lastName ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
@@ -83,8 +85,8 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
       setError('Username is required.')
       return
     }
-    if (!isEdit && !password) {
-      setError('Password is required.')
+    if (!isEdit && provider === 'local' && !password) {
+      setError('Password is required for local users.')
       return
     }
 
@@ -96,6 +98,7 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
         await updateUser(user.id, {
           username: username.trim(),
           role,
+          provider,
           firstName: nullable(firstName),
           lastName: nullable(lastName),
           email: nullable(email),
@@ -103,8 +106,9 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
       } else {
         await createUser({
           username: username.trim(),
-          password,
+          password: provider === 'local' ? password : undefined,
           role,
+          provider,
           firstName: nullable(firstName),
           lastName: nullable(lastName),
           email: nullable(email),
@@ -176,7 +180,37 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
             />
           </div>
 
-          {!isEdit && (
+          <div className="space-y-1.5">
+            <Label>Provider</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={provider === 'local' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setProvider('local')}
+              >
+                Local
+              </Button>
+              <Button
+                type="button"
+                variant={provider === 'oidc' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setProvider('oidc')}
+              >
+                OIDC
+              </Button>
+            </div>
+            {provider === 'oidc' && (
+              <p className="text-xs text-muted-foreground">
+                OIDC users authenticate via SSO. No password is stored.
+                {isEdit && user?.provider === 'local' && (
+                  <span className="ml-1 text-amber-600">Switching will clear the existing password.</span>
+                )}
+              </p>
+            )}
+          </div>
+
+          {provider === 'local' && !isEdit && (
             <div className="space-y-1.5">
               <Label htmlFor="u-password">
                 Password <span className="text-destructive">*</span>
@@ -395,7 +429,7 @@ function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
 // ---------------------------------------------------------------------------
 
 type RoleFilter = '' | 'admin' | 'viewer'
-type ProviderFilter = '' | 'local' | 'OIDC'
+type ProviderFilter = '' | 'local' | 'oidc'
 type SortOption = '' | 'username' | 'name'
 
 const ROLE_OPTIONS: { value: RoleFilter; label: string }[] = [
@@ -407,7 +441,7 @@ const ROLE_OPTIONS: { value: RoleFilter; label: string }[] = [
 const PROVIDER_OPTIONS: { value: ProviderFilter; label: string }[] = [
   { value: '', label: 'All providers' },
   { value: 'local', label: 'Local' },
-  { value: 'OIDC', label: 'OIDC' },
+  { value: 'oidc', label: 'OIDC' },
 ]
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -424,6 +458,8 @@ const PAGE_SIZE = 20
 
 export default function UsersPage() {
   const admin = isAdmin()
+  const currentUserID = getIdentity()?.uid ?? ''
+
   const [users, setUsers] = useState<User[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -471,16 +507,13 @@ export default function UsersPage() {
     load()
   }, [load])
 
-  function handleRoleChange(value: RoleFilter) {
-    setRoleFilter(value)
-  }
-
-  function handleProviderChange(value: ProviderFilter) {
-    setProviderFilter(value)
-  }
-
-  function handleSortChange(value: SortOption) {
-    setSortOption(value)
+  async function handleToggleEnabled(user: User) {
+    try {
+      const updated = await setUserEnabled(user.id, !user.enabled)
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update user.')
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -544,7 +577,7 @@ export default function UsersPage() {
               <DropdownMenuItem
                 key={opt.value}
                 className="gap-2"
-                onSelect={() => handleRoleChange(opt.value)}
+                onSelect={() => setRoleFilter(opt.value)}
               >
                 <Check className={`h-4 w-4 ${roleFilter === opt.value ? 'opacity-100' : 'opacity-0'}`} />
                 {opt.label}
@@ -565,7 +598,7 @@ export default function UsersPage() {
               <DropdownMenuItem
                 key={opt.value}
                 className="gap-2"
-                onSelect={() => handleProviderChange(opt.value)}
+                onSelect={() => setProviderFilter(opt.value)}
               >
                 <Check className={`h-4 w-4 ${providerFilter === opt.value ? 'opacity-100' : 'opacity-0'}`} />
                 {opt.label}
@@ -586,7 +619,7 @@ export default function UsersPage() {
               <DropdownMenuItem
                 key={opt.value}
                 className="gap-2"
-                onSelect={() => handleSortChange(opt.value)}
+                onSelect={() => setSortOption(opt.value)}
               >
                 <Check className={`h-4 w-4 ${sortOption === opt.value ? 'opacity-100' : 'opacity-0'}`} />
                 {opt.label}
@@ -627,14 +660,15 @@ export default function UsersPage() {
               <TableHead>Role</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead className="w-28" />
+              {admin && <TableHead className="w-8">Enabled</TableHead>}
+              {admin && <TableHead className="w-28" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={admin ? 7 : 5}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   Loading…
@@ -645,7 +679,7 @@ export default function UsersPage() {
             {!loading && users.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={admin ? 7 : 5}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   {debouncedSearch || roleFilter || providerFilter
@@ -657,7 +691,10 @@ export default function UsersPage() {
 
             {!loading &&
               users.map((user) => (
-                <TableRow key={user.id}>
+                <TableRow
+                  key={user.id}
+                  className={!user.enabled ? 'opacity-50' : undefined}
+                >
                   {/* User: full name (if set) + username */}
                   <TableCell>
                     {(user.firstName || user.lastName) && (
@@ -680,23 +717,23 @@ export default function UsersPage() {
                     {user.role === 'admin' ? (
                       <Badge
                         variant="outline"
-                        className="border-blue-500 bg-blue-50 text-blue-700"
+                        className="border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
                       >
                         Admin
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="border-gray-400 text-gray-600">Viewer</Badge>
+                      <Badge variant="outline" className="border-gray-400 text-gray-600 dark:text-gray-400">Viewer</Badge>
                     )}
                   </TableCell>
 
                   {/* Provider */}
                   <TableCell>
-                    {user.provider === 'OIDC' ? (
-                      <Badge variant="outline" className="border-purple-500 bg-purple-50 text-purple-700">
+                    {user.provider === 'oidc' ? (
+                      <Badge variant="outline" className="border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
                         OIDC
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="border-gray-400 text-gray-600">
+                      <Badge variant="outline" className="border-gray-400 text-gray-600 dark:text-gray-400">
                         Local
                       </Badge>
                     )}
@@ -707,9 +744,21 @@ export default function UsersPage() {
                     {fmtDate(user.createdAt)}
                   </TableCell>
 
+                  {/* Enabled toggle — admin only */}
+                  {admin && (
+                    <TableCell>
+                      <Switch
+                        checked={user.enabled}
+                        disabled={user.id === currentUserID}
+                        onCheckedChange={() => handleToggleEnabled(user)}
+                        aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
+                      />
+                    </TableCell>
+                  )}
+
                   {/* Row actions — admin only */}
-                  <TableCell>
-                    {admin && (
+                  {admin && (
+                    <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
@@ -720,15 +769,17 @@ export default function UsersPage() {
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">Edit {user.username}</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          onClick={() => setPasswordTarget(user)}
-                        >
-                          <KeyRound className="h-4 w-4" />
-                          <span className="sr-only">Change password for {user.username}</span>
-                        </Button>
+                        {user.provider === 'local' && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground"
+                            onClick={() => setPasswordTarget(user)}
+                          >
+                            <KeyRound className="h-4 w-4" />
+                            <span className="sr-only">Change password for {user.username}</span>
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -739,8 +790,8 @@ export default function UsersPage() {
                           <span className="sr-only">Delete {user.username}</span>
                         </Button>
                       </div>
-                    )}
-                  </TableCell>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
           </TableBody>

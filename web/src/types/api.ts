@@ -24,7 +24,8 @@ export interface User {
   id: string
   username: string
   role: 'admin' | 'viewer'
-  provider: string
+  provider: 'local' | 'oidc'
+  enabled: boolean
   firstName: string | null
   lastName: string | null
   email: string | null

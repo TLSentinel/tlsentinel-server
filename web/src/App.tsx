@@ -15,6 +15,7 @@ import AboutPage from '@/pages/AboutPage'
 import ActivePage from '@/pages/ActivePage'
 import GeneralSettingsPage from '@/pages/GeneralSettingsPage'
 import AuthCallbackPage from '@/pages/AuthCallbackPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -64,10 +65,13 @@ export default function App() {
           {/* Backward-compat redirects for old top-level URLs */}
           <Route path="scanners" element={<Navigate to="/settings/scanners" replace />} />
           <Route path="users" element={<Navigate to="/settings/users" replace />} />
+
+          {/* 404 — authenticated unknown routes */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
 
-        {/* Catch-all — redirect unknown paths to root */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Catch-all for unauthenticated unknown paths — send to login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   )

@@ -19,8 +19,9 @@ export function getUser(id: string): Promise<User> {
 
 export function createUser(req: {
   username: string
-  password: string
+  password?: string
   role: string
+  provider: string
   firstName?: string | null
   lastName?: string | null
   email?: string | null
@@ -31,11 +32,16 @@ export function createUser(req: {
 export function updateUser(id: string, req: {
   username: string
   role: string
+  provider: string
   firstName?: string | null
   lastName?: string | null
   email?: string | null
 }): Promise<User> {
   return api.put<User>(`/users/${id}`, req)
+}
+
+export function setUserEnabled(id: string, enabled: boolean): Promise<User> {
+  return api.patch<User>(`/users/${id}/enabled`, { enabled })
 }
 
 export function changePassword(id: string, password: string): Promise<void> {

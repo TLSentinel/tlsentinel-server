@@ -2,11 +2,8 @@ package routes
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -41,21 +38,20 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 		TTL:       24 * time.Hour,
 	}
 
-	oidcHandler, err := buildOIDCHandler(context.Background(), store, jwtCfg)
+	r := chi.NewRouter()
+
+	authHandler := auth.NewHandler(store, cfg, jwtCfg)
+	oidcHandler, err := oidc.NewHandler(context.Background(), store, jwtCfg, cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	r := chi.NewRouter()
-
 	tokenHandler := scanners.NewHandler(store)
-	certHandler := certificates.NewHandler(store)
-	settingsHandler := settings.NewHandler(store)
-	hostHandler := hosts.NewHandler(store)
-	authHandler := auth.NewHandler(store, cfg, jwtCfg)
-	userHandler := users.NewHandler(store)
-	utilsHandler := utils.NewHandler()
 	scannerHandler := probe.NewHandler(store)
+	userHandler := users.NewHandler(store)
+	settingsHandler := settings.NewHandler(store)
+	certHandler := certificates.NewHandler(store)
+	hostHandler := hosts.NewHandler(store)
+	utilsHandler := utils.NewHandler()
 	mailHandler := mail.NewHandler(store, cfg)
 
 	r.Use(middleware.RequestID)
@@ -160,6 +156,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Put("/", userHandler.Update)
 					r.Delete("/", userHandler.Delete)
 					r.Patch("/password", userHandler.ChangePassword)
+					r.Patch("/enabled", userHandler.SetEnabled)
 				})
 			})
 
@@ -206,37 +203,4 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	}))
 
 	return r, nil
-}
-
-// buildOIDCHandler reads OIDC config from the environment and returns an
-// initialised handler. Returns (nil, nil) when OIDC is not configured.
-func buildOIDCHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig) (*oidc.Handler, error) {
-	issuer := os.Getenv("TLSENTINEL_OIDC_ISSUER")
-	if issuer == "" {
-		return nil, nil
-	}
-
-	clientID := os.Getenv("TLSENTINEL_OIDC_CLIENT_ID")
-	clientSecret := os.Getenv("TLSENTINEL_OIDC_CLIENT_SECRET")
-	redirectURL := os.Getenv("TLSENTINEL_OIDC_REDIRECT_URL")
-	if clientID == "" || clientSecret == "" || redirectURL == "" {
-		return nil, fmt.Errorf("TLSENTINEL_OIDC_ISSUER is set but CLIENT_ID, CLIENT_SECRET, or REDIRECT_URL is missing")
-	}
-
-	var scopes []string
-	if s := os.Getenv("TLSENTINEL_OIDC_SCOPES"); s != "" {
-		scopes = strings.Fields(s)
-	}
-
-	cfg := oidc.Config{
-		Issuer:        issuer,
-		ClientID:      clientID,
-		ClientSecret:  clientSecret,
-		RedirectURL:   redirectURL,
-		Scopes:        scopes,
-		DefaultRole:   os.Getenv("TLSENTINEL_OIDC_DEFAULT_ROLE"),
-		UsernameClaim: os.Getenv("TLSENTINEL_OIDC_USERNAME_CLAIM"),
-	}
-
-	return oidc.NewHandler(ctx, store, jwtCfg, cfg)
 }

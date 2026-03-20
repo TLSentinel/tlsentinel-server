@@ -15,7 +15,7 @@ func userToModel(u User) models.User {
 		Username:     u.Username,
 		PasswordHash: u.PasswordHash,
 		Provider:     u.Provider,
-		ProviderID:   u.ProviderID,
+		Enabled:      u.Enabled,
 		Role:         u.Role,
 		FirstName:    u.FirstName,
 		LastName:     u.LastName,
@@ -138,14 +138,17 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (models.
 	return userToModel(row), nil
 }
 
-// InsertUser creates a new local user. provider and provider_id are always set to "local" / username.
-func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role string, firstName, lastName, email *string) (models.User, error) {
-	hash := &passwordHash
+// InsertUser creates a new user. passwordHash may be empty for OIDC-only accounts.
+func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role, provider string, firstName, lastName, email *string) (models.User, error) {
+	var hash *string
+	if passwordHash != "" {
+		hash = &passwordHash
+	}
 	row := &User{
 		Username:     username,
 		PasswordHash: hash,
-		Provider:     "local",
-		ProviderID:   username,
+		Provider:     provider,
+		Enabled:      true,
 		Role:         role,
 		FirstName:    firstName,
 		LastName:     lastName,
@@ -160,18 +163,23 @@ func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role str
 	return userToModel(*row), nil
 }
 
-// UpdateUser updates mutable user fields (username, role, name, email).
-func (s *Store) UpdateUser(ctx context.Context, id, username, role string, firstName, lastName, email *string) (models.User, error) {
-	res, err := s.db.NewUpdate().
+// UpdateUser updates mutable user fields (username, role, provider, name, email).
+// Switching to "oidc" clears password_hash — OIDC users authenticate via SSO only.
+func (s *Store) UpdateUser(ctx context.Context, id, username, role, provider string, firstName, lastName, email *string) (models.User, error) {
+	q := s.db.NewUpdate().
 		TableExpr("tlsentinel.users").
 		Set("username = ?", username).
 		Set("role = ?", role).
+		Set("provider = ?", provider).
 		Set("first_name = ?", firstName).
 		Set("last_name = ?", lastName).
 		Set("email = ?", email).
 		Set("updated_at = NOW()").
-		Where("id = ?", id).
-		Exec(ctx)
+		Where("id = ?", id)
+	if provider == "oidc" {
+		q = q.Set("password_hash = NULL")
+	}
+	res, err := q.Exec(ctx)
 	if err != nil {
 		return models.User{}, fmt.Errorf("failed to update user: %w", err)
 	}
@@ -200,67 +208,41 @@ func (s *Store) UpdateUserPassword(ctx context.Context, id, passwordHash string)
 	return nil
 }
 
-// OIDCUserParams carries the identity information from an OIDC ID token.
-type OIDCUserParams struct {
-	ProviderID  string  // idToken.Subject — stored for reference
-	Username    string  // derived from email / preferred_username
-	Email       *string
-	FirstName   *string
-	LastName    *string
-	DefaultRole string // assigned only when creating a new user
+// GetUserForOIDCLogin looks up an existing, enabled user by username for OIDC login.
+// Users must be pre-provisioned by an admin — OIDC is an authentication mechanism only,
+// not an auto-provisioning path. Returns ErrNotFound if the user does not exist or is disabled.
+func (s *Store) GetUserForOIDCLogin(ctx context.Context, username string) (models.User, error) {
+	var row User
+	err := s.db.NewSelect().
+		Model(&row).
+		Where("username = ?", username).
+		Where("enabled = TRUE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.User{}, ErrNotFound
+		}
+		return models.User{}, fmt.Errorf("failed to look up oidc user: %w", err)
+	}
+	return userToModel(row), nil
 }
 
-// UpsertOIDCUser provisions a user from an OIDC login.
-// It matches by email so that an existing local account is automatically
-// linked when the email matches. If no match is found a new user is created.
-func (s *Store) UpsertOIDCUser(ctx context.Context, p OIDCUserParams) (models.User, error) {
-	role := p.DefaultRole
-	if role == "" {
-		role = "viewer"
+// SetUserEnabled enables or disables a user account.
+func (s *Store) SetUserEnabled(ctx context.Context, id string, enabled bool) (models.User, error) {
+	res, err := s.db.NewUpdate().
+		TableExpr("tlsentinel.users").
+		Set("enabled = ?", enabled).
+		Set("updated_at = NOW()").
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return models.User{}, fmt.Errorf("failed to set user enabled: %w", err)
 	}
-
-	// Try to find an existing user by email.
-	if p.Email != nil && *p.Email != "" {
-		var existing User
-		err := s.db.NewSelect().Model(&existing).
-			Where("email = ?", *p.Email).
-			Scan(ctx)
-		if err == nil {
-			// Update mutable profile fields from the latest claims.
-			_, updateErr := s.db.NewUpdate().
-				TableExpr("tlsentinel.users").
-				Set("username = ?", p.Username).
-				Set("first_name = ?", p.FirstName).
-				Set("last_name = ?", p.LastName).
-				Set("provider = 'OIDC'").
-				Set("provider_id = ?", p.ProviderID).
-				Set("updated_at = NOW()").
-				Where("id = ?", existing.ID).
-				Exec(ctx)
-			if updateErr != nil {
-				return models.User{}, fmt.Errorf("failed to update oidc user profile: %w", updateErr)
-			}
-			return s.GetUserByID(ctx, existing.ID)
-		}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return models.User{}, ErrNotFound
 	}
-
-	// No existing user — create one.
-	row := &User{
-		Username:   p.Username,
-		Provider:   "OIDC",
-		ProviderID: p.ProviderID,
-		Role:       role,
-		Email:      p.Email,
-		FirstName:  p.FirstName,
-		LastName:   p.LastName,
-	}
-	if _, err := s.db.NewInsert().Model(row).
-		ExcludeColumn("id", "created_at", "updated_at", "password_hash").
-		Returning("*").
-		Exec(ctx); err != nil {
-		return models.User{}, fmt.Errorf("failed to create oidc user: %w", err)
-	}
-	return userToModel(*row), nil
+	return s.GetUserByID(ctx, id)
 }
 
 // DeleteUser removes a user by ID.
