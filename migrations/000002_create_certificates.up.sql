@@ -47,6 +47,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_backfill_issuer_fingerprint ON tlsentinel.certificates;
 CREATE TRIGGER trg_backfill_issuer_fingerprint
 AFTER INSERT ON tlsentinel.certificates
 FOR EACH ROW EXECUTE FUNCTION tlsentinel.backfill_issuer_fingerprint();

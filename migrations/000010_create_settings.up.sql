@@ -15,6 +15,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_settings_updated_at ON tlsentinel.settings;
 CREATE TRIGGER trg_settings_updated_at
 BEFORE UPDATE ON tlsentinel.settings
 FOR EACH ROW EXECUTE FUNCTION tlsentinel.set_settings_updated_at();
