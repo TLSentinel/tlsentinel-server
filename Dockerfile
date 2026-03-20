@@ -47,6 +47,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /out/server /server
+COPY --from=builder /app/migrations /migrations
 
 EXPOSE 8080
 ENTRYPOINT ["/server"]
