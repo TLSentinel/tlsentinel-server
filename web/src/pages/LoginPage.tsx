@@ -8,7 +8,7 @@ import { login } from '@/api/auth'
 import { setToken } from '@/api/client'
 import { ApiError } from '@/types/api'
 
-async function fetchAuthConfig(): Promise<{ oidcEnabled: boolean }> {
+async function fetchAuthConfig(): Promise<{ oidcEnabled: boolean; providerHint?: string }> {
   const res = await fetch('/api/v1/auth/config')
   if (!res.ok) return { oidcEnabled: false }
   return res.json()
@@ -21,9 +21,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [oidcEnabled, setOidcEnabled] = useState(false)
+  const [providerHint, setProviderHint] = useState<string | undefined>()
 
   useEffect(() => {
-    fetchAuthConfig().then((cfg) => setOidcEnabled(cfg.oidcEnabled))
+    fetchAuthConfig().then((cfg) => {
+      setOidcEnabled(cfg.oidcEnabled)
+      setProviderHint(cfg.providerHint)
+    })
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -103,13 +107,26 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => { window.location.href = '/api/v1/auth/oidc/login' }}
-              >
-                Sign in with SSO
-              </Button>
+              {providerHint === 'microsoft' ? (
+                <button
+                  className="w-full cursor-pointer"
+                  onClick={() => { window.location.href = '/api/v1/auth/oidc/login' }}
+                >
+                  <img
+                    src="/ms-signin-light.svg"
+                    alt="Sign in with Microsoft"
+                    className="mx-auto h-10 w-auto"
+                  />
+                </button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => { window.location.href = '/api/v1/auth/oidc/login' }}
+                >
+                  Sign in with SSO
+                </Button>
+              )}
             </>
           )}
         </CardContent>

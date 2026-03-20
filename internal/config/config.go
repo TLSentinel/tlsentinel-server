@@ -7,13 +7,19 @@ import (
 )
 
 type Config struct {
-	Host          string
-	Port          string
-	DBConnString  string
-	JWTSecret     string
-	EncryptionKey []byte
-	AdminUsername string
-	AdminPassword string
+	Host             string
+	Port             string
+	DBConnString     string
+	JWTSecret        string
+	EncryptionKey    []byte
+	AdminUsername    string
+	AdminPassword    string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCRedirectURL  string
+	OIDCIssuer       string
+	OIDCDefaultRole  string
+	OIDCEnabled      bool
 }
 
 // Addr returns the combined host:port string for http.Server
@@ -49,6 +55,17 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	cfg.DBConnString = dbConnString
+
+	cfg.OIDCClientID = os.Getenv("TLSENTINEL_OIDC_CLIENT_ID")
+	cfg.OIDCClientSecret = os.Getenv("TLSENTINEL_OIDC_CLIENT_SECRET")
+	cfg.OIDCRedirectURL = os.Getenv("TLSENTINEL_OIDC_REDIRECT_URL")
+	cfg.OIDCIssuer = os.Getenv("TLSENTINEL_OIDC_ISSUER")
+	cfg.OIDCDefaultRole = os.Getenv("TLSENTINEL_OIDC_DEFAULT_ROLE")
+	cfg.OIDCEnabled =
+		cfg.OIDCClientID != "" &&
+			cfg.OIDCClientSecret != "" &&
+			cfg.OIDCRedirectURL != "" &&
+			cfg.OIDCIssuer != ""
 
 	return cfg, nil
 }

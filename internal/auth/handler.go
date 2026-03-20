@@ -3,20 +3,47 @@ package auth
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
 type Handler struct {
-	store  *db.Store
-	jwtCfg *JWTConfig
+	store        *db.Store
+	jwtCfg       *JWTConfig
+	oidcEnabled  bool
+	providerHint string
 }
 
-func NewHandler(store *db.Store, jwtCfg *JWTConfig) *Handler {
-	return &Handler{store: store, jwtCfg: jwtCfg}
+func NewHandler(store *db.Store, cfg *config.Config, jwtCfg *JWTConfig) *Handler {
+	return &Handler{
+		store:        store,
+		jwtCfg:       jwtCfg,
+		oidcEnabled:  cfg.OIDCEnabled,
+		providerHint: providerHintFromIssuer(cfg.OIDCIssuer),
+	}
+}
+
+func providerHintFromIssuer(issuer string) string {
+	switch {
+	case strings.Contains(issuer, "microsoftonline.com") || strings.Contains(issuer, "microsoft.com"):
+		return "microsoft"
+	case strings.Contains(issuer, "accounts.google.com"):
+		return "google"
+	case issuer != "":
+		return "generic"
+	default:
+		return ""
+	}
+}
+
+type authConfigResponse struct {
+	OIDCEnabled  bool   `json:"oidcEnabled"`
+	ProviderHint string `json:"providerHint,omitempty"`
 }
 
 type loginRequest struct {
@@ -26,6 +53,19 @@ type loginRequest struct {
 
 type loginResponse struct {
 	Token string `json:"token"`
+}
+
+// @Summary      Auth config
+// @Description  Returns authentication capabilities. When OIDC is enabled, providerHint indicates the identity provider ("microsoft", "google", or "generic") so the frontend can render the appropriate sign-in button.
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  authConfigResponse
+// @Router       /auth/config [get]
+func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
+	response.JSON(w, http.StatusOK, authConfigResponse{
+		OIDCEnabled:  h.oidcEnabled,
+		ProviderHint: h.providerHint,
+	})
 }
 
 // @Summary      Login

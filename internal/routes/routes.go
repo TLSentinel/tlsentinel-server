@@ -2,7 +2,6 @@ package routes
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -53,7 +52,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	certHandler := certificates.NewHandler(store)
 	settingsHandler := settings.NewHandler(store)
 	hostHandler := hosts.NewHandler(store)
-	authHandler := auth.NewHandler(store, jwtCfg)
+	authHandler := auth.NewHandler(store, cfg, jwtCfg)
 	userHandler := users.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	scannerHandler := probe.NewHandler(store)
@@ -73,13 +72,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 		r.Post("/auth/login", authHandler.Login)
 
 		// Auth capability discovery — lets the frontend show/hide SSO options.
-		r.Get("/auth/config", func(w http.ResponseWriter, r *http.Request) {
-			type authConfig struct {
-				OIDCEnabled bool `json:"oidcEnabled"`
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(authConfig{OIDCEnabled: oidcHandler != nil}) //nolint:errcheck
-		})
+		r.Get("/auth/config", authHandler.Config)
 
 		// OIDC routes — only registered when OIDC is configured.
 		if oidcHandler != nil {
