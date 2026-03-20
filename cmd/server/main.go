@@ -52,6 +52,10 @@ func main() {
 		zap.String("built", version.BuildTime),
 	)
 
+	if err := db.RunMigrations(cfg.DBConnString, log); err != nil {
+		log.Fatal("failed to run database migrations", zap.Error(err))
+	}
+
 	bunDB, err := db.NewDB(cfg.DBConnString)
 	if err != nil {
 		log.Fatal("failed to connect to database", zap.Error(err))
