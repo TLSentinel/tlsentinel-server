@@ -263,7 +263,7 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 			ResolvedIP:  req.ResolvedIP,
 			TLSVersion:  req.TLSVersion,
 			ScanError:   req.Error,
-		}).ExcludeColumn("id").Exec(ctx)
+		}).ExcludeColumn("id", "scanned_at").Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to insert scan history: %w", err)
 		}
