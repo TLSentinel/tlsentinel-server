@@ -18,6 +18,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+
+      - name: Generate Swagger docs
+        run: swag init -g cmd/server/main.go
+
       - name: Build
         run: go build ./...
 
