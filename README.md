@@ -28,6 +28,17 @@
 - **Distributed scanners** — multiple agents, each scoped to specific hosts
 - **Mail notifications** — SMTP alerts when certificates approach expiry
 
+## Screenshots
+
+<p align="center">
+  <picture>
+    <img src="https://tlsentinel.github.io/assets/screenshots/dashboard.png" width="400" alt="Dashboard" />
+  </picture>
+  <picture>
+    <img src="https://tlsentinel.github.io/assets/screenshots/host_detail.png" width="400" alt="Host" />
+  </picture>
+</p>
+
 ## Getting Started
 
 The recommended deployment is Docker.
