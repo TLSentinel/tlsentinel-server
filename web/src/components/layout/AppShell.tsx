@@ -115,9 +115,6 @@ export default function AppShell() {
               title={`Built: ${buildInfo.buildTime}`}
             >
               {buildInfo.version}
-              {!buildInfo.version.includes(buildInfo.commit) && (
-                <span className="ml-1.5 opacity-60">{buildInfo.commit}</span>
-              )}
             </p>
           )}
 
