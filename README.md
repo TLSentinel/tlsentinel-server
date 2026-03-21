@@ -4,13 +4,13 @@
   </picture>
 </p>
 
-<h1 align="center">TLSentinel — Server</h1>
+<h1>TLSentinel — Server</h1>
 
-<p align="center">
+<p>
   A self-hosted TLS certificate monitoring platform. Track expiry, TLS hygiene, and cipher suite health across your infrastructure.
 </p>
 
-<h3 align="center">
+<h3>
   <a href="#-getting-started">Getting Started</a>
   <span> · </span>
   <a href="#-environment-variables">Configuration</a>
@@ -30,10 +30,13 @@
 
 ## Getting Started
 
-The recommended deployment is Docker. Pull the image from GHCR:
+The recommended deployment is Docker.
 
 ```sh
-docker pull ghcr.io/tlsentinel/tlsentinel-server:latest
+git clone https://github.com/tlsentinel/tlsentinel-server.git
+cd tlsentinel-server
+cp .env.example .env
+docker compose up -d
 ```
 
 Configure the required environment variables below, point it at a PostgreSQL database, and start it. Migrations run automatically on startup.
@@ -54,7 +57,7 @@ Configure the required environment variables below, point it at a PostgreSQL dat
 | `TLSENTINEL_ADMIN_PASSWORD` | Bootstrapped admin password |
 | `TLSENTINEL_ENCRYPTION_KEY` | AES-256 key for encrypting SMTP passwords at rest. Generate: `openssl rand -base64 32` |
 
-## 🗂️ Project Layout
+## Project Layout
 
 ```
 cmd/server/             # Entry point
