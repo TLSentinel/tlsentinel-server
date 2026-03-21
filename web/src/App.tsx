@@ -16,6 +16,7 @@ import ActivePage from '@/pages/ActivePage'
 import GeneralSettingsPage from '@/pages/GeneralSettingsPage'
 import AuthCallbackPage from '@/pages/AuthCallbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import AccountPage from '@/pages/AccountPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="hosts/:id" element={<HostDetailPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
+          <Route path="account" element={<AccountPage />} />
 
           {/* Settings hub + sub-pages */}
           <Route path="settings">

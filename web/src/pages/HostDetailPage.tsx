@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ArrowLeft, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, Check, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { getHost, getTLSProfile, getScanHistory } from '@/api/hosts'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getHost, getTLSProfile, getScanHistory, updateHost } from '@/api/hosts'
 import { getCertificate } from '@/api/certificates'
+import { listScanners } from '@/api/scanners'
+import { resolve } from '@/api/utils'
 import { CertCard } from '@/components/CertCard'
-import type { Host, HostTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, HostScanHistoryItem } from '@/types/api'
+import type { Host, HostTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, HostScanHistoryItem, ScannerToken, UpdateHostRequest } from '@/types/api'
 import { ApiError } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -25,7 +32,7 @@ function fmtDateTime(iso: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Layout primitives (mirrors CertificateDetailPage)
+// Layout primitives
 // ---------------------------------------------------------------------------
 
 function SectionHeader({ title }: { title: string }) {
@@ -74,13 +81,7 @@ function SeverityBadge({ severity }: { severity: TLSSeverity }) {
 }
 
 // ---------------------------------------------------------------------------
-// Expiry badge (mirrors CertificateDetailPage)
-// ---------------------------------------------------------------------------
-
-
-
-// ---------------------------------------------------------------------------
-// Shared finding row — used for both TLS versions and cipher suites
+// Finding row
 // ---------------------------------------------------------------------------
 
 function FindingRow({ finding, preferred = false }: { finding: TLSFinding; preferred?: boolean }) {
@@ -92,9 +93,7 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
           <span className="font-mono text-sm font-medium">{finding.name}</span>
           <SeverityBadge severity={finding.severity} />
           {preferred && (
-            <Badge variant="secondary" className="text-xs">
-              Preferred
-            </Badge>
+            <Badge variant="secondary" className="text-xs">Preferred</Badge>
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{finding.reason}</p>
@@ -104,24 +103,164 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
 }
 
 // ---------------------------------------------------------------------------
+// Resolve button — inline in IP address field
+// ---------------------------------------------------------------------------
+
+function ResolveButton({ dnsName, onResolved }: { dnsName: string; onResolved: (ip: string) => void }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
+
+  async function handleResolve() {
+    if (!dnsName.trim()) return
+    setLoading(true)
+    setError(false)
+    try {
+      const res = await resolve(dnsName.trim())
+      if (res.addresses.length > 0) onResolved(res.addresses[0])
+    } catch {
+      setError(true)
+      setTimeout(() => setError(false), 2000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleResolve}
+      disabled={loading || !dnsName.trim()}
+      className={`absolute right-1 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40
+        ${error ? 'text-destructive' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+    >
+      {loading ? 'Resolving…' : error ? 'Failed' : 'Resolve'}
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Edit form — draft state for all editable fields
+// ---------------------------------------------------------------------------
+
+interface Draft {
+  name: string
+  dnsName: string
+  port: string
+  ipAddress: string
+  enabled: boolean
+  scannerId: string  // '__default__' when none
+  notes: string
+}
+
+function hostToDraft(host: Host): Draft {
+  return {
+    name:      host.name,
+    dnsName:   host.dnsName,
+    port:      String(host.port),
+    ipAddress: host.ipAddress ?? '',
+    enabled:   host.enabled,
+    scannerId: host.scannerId ?? '__default__',
+    notes:     host.notes ?? '',
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Host info section
 // ---------------------------------------------------------------------------
 
-function HostInfoSection({ host }: { host: Host }) {
+interface HostInfoSectionProps {
+  host: Host
+  editing: boolean
+  draft: Draft
+  scanners: ScannerToken[]
+  onChange: (patch: Partial<Draft>) => void
+}
+
+function HostInfoSection({ host, editing, draft, scanners, onChange }: HostInfoSectionProps) {
+  if (!editing) {
+    return (
+      <div className="space-y-3">
+        <SectionHeader title="Host" />
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+          <Field label="DNS Name">
+            <span className="font-mono">{host.dnsName}</span>
+          </Field>
+          <Field label="Port">{host.port}</Field>
+          <Field label="IP Address">
+            <span className="font-mono">{host.ipAddress ?? 'Auto'}</span>
+          </Field>
+          <div /> {/* spacer */}
+          <Field label="Scanner">{host.scannerName ?? 'Default'}</Field>
+          <Field label="Enabled">
+            {host.enabled
+              ? <span className="text-green-600 font-medium">Yes</span>
+              : <span className="text-muted-foreground">No</span>}
+          </Field>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
       <SectionHeader title="Host" />
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <Field label="DNS Name">
-          <span className="font-mono">{host.dnsName}</span>
-        </Field>
-        <Field label="Port">{host.port}</Field>
-        {host.ipAddress && (
-          <Field label="IP Override">
-            <span className="font-mono">{host.ipAddress}</span>
-          </Field>
-        )}
-        <Field label="Scanner">{host.scannerName ?? 'Default'}</Field>
+        {/* Row 1: DNS Name + Port */}
+        <div>
+          <p className="text-xs text-muted-foreground">DNS Name</p>
+          <Input
+            className="mt-0.5 h-8 font-mono text-sm"
+            value={draft.dnsName}
+            onChange={(e) => onChange({ dnsName: e.target.value })}
+          />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Port</p>
+          <Input
+            className="mt-0.5 h-8 text-sm"
+            type="number"
+            value={draft.port}
+            onChange={(e) => onChange({ port: e.target.value })}
+          />
+        </div>
+        {/* Row 2: IP Address */}
+        <div className="col-span-2">
+          <p className="text-xs text-muted-foreground">IP Address</p>
+          <div className="relative mt-0.5">
+            <Input
+              className="h-8 font-mono text-sm pr-20"
+              value={draft.ipAddress}
+              placeholder="Auto"
+              onChange={(e) => onChange({ ipAddress: e.target.value })}
+            />
+            <ResolveButton dnsName={draft.dnsName} onResolved={(ip) => onChange({ ipAddress: ip })} />
+          </div>
+        </div>
+        {/* Row 3: Scanner + Enabled */}
+        <div>
+          <p className="text-xs text-muted-foreground">Scanner</p>
+          <Select value={draft.scannerId} onValueChange={(v) => onChange({ scannerId: v })}>
+            <SelectTrigger className="mt-0.5 h-8 w-full text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__default__">Default</SelectItem>
+              {scanners.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="host-enabled" className="text-xs text-muted-foreground cursor-pointer">Enabled</Label>
+          <div className="mt-1.5">
+            <Switch
+              id="host-enabled"
+              checked={draft.enabled}
+              onCheckedChange={(v) => onChange({ enabled: v })}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -131,14 +270,39 @@ function HostInfoSection({ host }: { host: Host }) {
 // Notes section
 // ---------------------------------------------------------------------------
 
-function NotesSection({ notes }: { notes: string | null }) {
-  if (!notes) return null
+interface NotesSectionProps {
+  host: Host
+  editing: boolean
+  draft: Draft
+  onChange: (patch: Partial<Draft>) => void
+}
+
+function NotesSection({ host, editing, draft, onChange }: NotesSectionProps) {
+  if (!editing) {
+    return (
+      <div className="space-y-3">
+        <SectionHeader title="Notes" />
+        {host.notes ? (
+          <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
+            <ReactMarkdown>{host.notes}</ReactMarkdown>
+          </div>
+        ) : (
+          <p className="text-sm italic text-muted-foreground">No notes.</p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
       <SectionHeader title="Notes" />
-      <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
-        <ReactMarkdown>{notes}</ReactMarkdown>
-      </div>
+      <Textarea
+        value={draft.notes}
+        onChange={(e) => onChange({ notes: e.target.value })}
+        placeholder="Supports Markdown"
+        rows={6}
+        className="text-sm"
+      />
     </div>
   )
 }
@@ -165,13 +329,11 @@ function ScanStatusSection({ host }: { host: Host }) {
 }
 
 // ---------------------------------------------------------------------------
-// Security posture description — derived from classification findings
+// Security posture description
 // ---------------------------------------------------------------------------
 
 function postureDescription(c: TLSClassification): string {
-  if (c.overallSeverity === 'ok') {
-    return 'No known weaknesses detected — strong TLS configuration.'
-  }
+  if (c.overallSeverity === 'ok') return 'No known weaknesses detected — strong TLS configuration.'
 
   const criticalVersions = c.versions.filter((f) => f.severity === 'critical').map((f) => f.name)
   const criticalCiphers  = c.cipherSuites.filter((f) => f.severity === 'critical')
@@ -179,31 +341,16 @@ function postureDescription(c: TLSClassification): string {
   const warnCiphers      = c.cipherSuites.filter((f) => f.severity === 'warning')
 
   const issues: string[] = []
-  if (criticalVersions.length > 0) {
-    issues.push(
-      `${criticalVersions.join(' and ')} ${criticalVersions.length > 1 ? 'are' : 'is'} enabled`,
-    )
-  }
-  if (criticalCiphers.length > 0) {
-    issues.push(
-      `${criticalCiphers.length} critically weak cipher${criticalCiphers.length > 1 ? 's' : ''} accepted`,
-    )
-  }
-  if (warnVersions.length > 0) {
-    issues.push(
-      `${warnVersions.join(' and ')} ${warnVersions.length > 1 ? 'are' : 'is'} enabled`,
-    )
-  }
-  if (warnCiphers.length > 0) {
-    issues.push(
-      `${warnCiphers.length} cipher${warnCiphers.length > 1 ? 's' : ''} lacking forward secrecy accepted`,
-    )
-  }
+  if (criticalVersions.length > 0)
+    issues.push(`${criticalVersions.join(' and ')} ${criticalVersions.length > 1 ? 'are' : 'is'} enabled`)
+  if (criticalCiphers.length > 0)
+    issues.push(`${criticalCiphers.length} critically weak cipher${criticalCiphers.length > 1 ? 's' : ''} accepted`)
+  if (warnVersions.length > 0)
+    issues.push(`${warnVersions.join(' and ')} ${warnVersions.length > 1 ? 'are' : 'is'} enabled`)
+  if (warnCiphers.length > 0)
+    issues.push(`${warnCiphers.length} cipher${warnCiphers.length > 1 ? 's' : ''} lacking forward secrecy accepted`)
 
-  const summary = issues.length > 0
-    ? issues.join('; ') + '.'
-    : 'Weaknesses detected — see findings below.'
-
+  const summary = issues.length > 0 ? issues.join('; ') + '.' : 'Weaknesses detected — see findings below.'
   return c.overallSeverity === 'critical'
     ? `${summary} Immediate remediation recommended.`
     : `${summary} Consider upgrading to stronger settings.`
@@ -228,18 +375,14 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
       </div>
     )
   }
-
   if (tlsState.status === 'none') {
     return (
       <div className="space-y-3">
         <SectionHeader title="TLS Profile" />
-        <p className="text-sm italic text-muted-foreground">
-          No TLS profile yet — will be populated on the next scan cycle.
-        </p>
+        <p className="text-sm italic text-muted-foreground">No TLS profile yet — will be populated on the next scan cycle.</p>
       </div>
     )
   }
-
   if (tlsState.status === 'error') {
     return (
       <div className="space-y-3">
@@ -255,42 +398,30 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   return (
     <div className="space-y-5">
       <SectionHeader title="TLS Profile" />
-
-      {/* Security posture + last scanned — mirrors Scan Status field layout */}
       <div className="space-y-3">
         <div>
           <p className="text-xs text-muted-foreground">Security Posture</p>
           <div className="mt-1 space-y-1.5">
             <SeverityBadge severity={classification.overallSeverity} />
-            <p className="text-sm text-muted-foreground">
-              {postureDescription(classification)}
-            </p>
+            <p className="text-sm text-muted-foreground">{postureDescription(classification)}</p>
           </div>
         </div>
         <Field label="Last Scanned">{fmtDateTime(profile.scannedAt)}</Field>
       </div>
-
-      {/* Partial-error banner */}
       {profile.scanError && (
         <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{profile.scanError}</span>
         </div>
       )}
-
-      {/* TLS versions */}
       {classification.versions.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">Supported Versions</p>
           <div className="space-y-1.5">
-            {classification.versions.map((f) => (
-              <FindingRow key={f.name} finding={f} />
-            ))}
+            {classification.versions.map((f) => <FindingRow key={f.name} finding={f} />)}
           </div>
         </div>
       )}
-
-      {/* Cipher suites — one per line, server-preferred one marked */}
       {classification.cipherSuites.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">
@@ -298,11 +429,7 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
           </p>
           <div className="space-y-1.5">
             {classification.cipherSuites.map((f) => (
-              <FindingRow
-                key={f.name}
-                finding={f}
-                preferred={f.name === profile.selectedCipher}
-              />
+              <FindingRow key={f.name} finding={f} preferred={f.name === profile.selectedCipher} />
             ))}
           </div>
         </div>
@@ -312,8 +439,7 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
 }
 
 // ---------------------------------------------------------------------------
-// Active certificate card (right column)
-// Mirrors the chain-item cards in CertificateDetailPage.
+// Active certificate section
 // ---------------------------------------------------------------------------
 
 type CertState =
@@ -331,18 +457,14 @@ function ActiveCertSection({ certState }: { certState: CertState }) {
       </div>
     )
   }
-
   if (certState.status === 'none') {
     return (
       <div className="space-y-3">
         <SectionHeader title="Active Certificate" />
-        <p className="text-sm italic text-muted-foreground">
-          No certificate recorded yet.
-        </p>
+        <p className="text-sm italic text-muted-foreground">No certificate recorded yet.</p>
       </div>
     )
   }
-
   if (certState.status === 'error') {
     return (
       <div className="space-y-3">
@@ -353,11 +475,9 @@ function ActiveCertSection({ certState }: { certState: CertState }) {
   }
 
   const { cert } = certState
-
   return (
     <div className="space-y-3">
       <SectionHeader title="Active Certificate" />
-
       <CertCard
         fingerprint={cert.fingerprint}
         commonName={cert.commonName}
@@ -369,7 +489,7 @@ function ActiveCertSection({ certState }: { certState: CertState }) {
 }
 
 // ---------------------------------------------------------------------------
-// Scan history section (right column)
+// Scan history section
 // ---------------------------------------------------------------------------
 
 function ScanHistoryRow({ item }: { item: HostScanHistoryItem }) {
@@ -377,15 +497,11 @@ function ScanHistoryRow({ item }: { item: HostScanHistoryItem }) {
   return (
     <div className="flex items-start gap-3 px-1 py-2">
       <div className="mt-0.5 shrink-0">
-        {ok
-          ? <CheckCircle2 className="h-4 w-4 text-green-600" />
-          : <XCircle className="h-4 w-4 text-red-600" />}
+        {ok ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-600" />}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted-foreground">{fmtDateTime(item.scannedAt)}</p>
-        {item.tlsVersion && (
-          <p className="text-xs font-medium">{item.tlsVersion}</p>
-        )}
+        {item.tlsVersion && <p className="text-xs font-medium">{item.tlsVersion}</p>}
         {item.fingerprint && (
           <div>
             <p className="text-xs text-muted-foreground">Fingerprint</p>
@@ -397,9 +513,7 @@ function ScanHistoryRow({ item }: { item: HostScanHistoryItem }) {
             </Link>
           </div>
         )}
-        {item.scanError && (
-          <p className="text-xs text-destructive">{item.scanError}</p>
-        )}
+        {item.scanError && <p className="text-xs text-destructive">{item.scanError}</p>}
       </div>
     </div>
   )
@@ -414,11 +528,7 @@ function ScanHistorySection({ items }: { items: HostScanHistoryItem[] | null }) 
       ) : items.length === 0 ? (
         <p className="text-sm italic text-muted-foreground">No scan history yet.</p>
       ) : (
-        <div>
-          {items.map((item) => (
-            <ScanHistoryRow key={item.id} item={item} />
-          ))}
-        </div>
+        <div>{items.map((item) => <ScanHistoryRow key={item.id} item={item} />)}</div>
       )}
     </div>
   )
@@ -435,21 +545,31 @@ type HostState =
 
 export default function HostDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [hostState, setHostState] = useState<HostState>({ status: 'loading' })
-  const [tlsState, setTLSState] = useState<TLSState>({ status: 'loading' })
-  const [certState, setCertState] = useState<CertState>({ status: 'loading' })
-  const [history, setHistory] = useState<HostScanHistoryItem[] | null>(null)
+  const [searchParams] = useSearchParams()
+  const [hostState, setHostState]   = useState<HostState>({ status: 'loading' })
+  const [tlsState, setTLSState]     = useState<TLSState>({ status: 'loading' })
+  const [certState, setCertState]   = useState<CertState>({ status: 'loading' })
+  const [history, setHistory]       = useState<HostScanHistoryItem[] | null>(null)
+  const [scanners, setScanners]     = useState<ScannerToken[]>([])
+  const [editing, setEditing]       = useState(false)
+  const [draft, setDraft]           = useState<Draft | null>(null)
+  const [saving, setSaving]         = useState(false)
+
+  useEffect(() => {
+    listScanners().then(setScanners).catch(() => setScanners([]))
+  }, [])
 
   useEffect(() => {
     if (!id) return
     getHost(id)
-      .then((host) => setHostState({ status: 'ready', host }))
-      .catch((err) =>
-        setHostState({
-          status: 'error',
-          message: err instanceof ApiError ? err.message : 'Failed to load host.',
-        }),
-      )
+      .then((host) => {
+        setHostState({ status: 'ready', host })
+        if (searchParams.get('edit') === 'true') {
+          setDraft(hostToDraft(host))
+          setEditing(true)
+        }
+      })
+      .catch((err) => setHostState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load host.' }))
   }, [id])
 
   useEffect(() => {
@@ -457,68 +577,73 @@ export default function HostDetailPage() {
     getTLSProfile(id)
       .then((profile) => setTLSState({ status: 'ready', profile }))
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setTLSState({ status: 'none' })
-        } else {
-          setTLSState({
-            status: 'error',
-            message: err instanceof ApiError ? err.message : 'Failed to load TLS profile.',
-          })
-        }
+        if (err instanceof ApiError && err.status === 404) setTLSState({ status: 'none' })
+        else setTLSState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load TLS profile.' })
       })
   }, [id])
 
-  // Fetch the active certificate once the host is known.
   useEffect(() => {
     if (hostState.status !== 'ready') return
     const fp = hostState.host.activeFingerprint
-    if (!fp) {
-      setCertState({ status: 'none' })
-      return
-    }
+    if (!fp) { setCertState({ status: 'none' }); return }
     getCertificate(fp)
       .then((cert) => setCertState({ status: 'ready', cert }))
-      .catch((err) =>
-        setCertState({
-          status: 'error',
-          message: err instanceof ApiError ? err.message : 'Failed to load certificate.',
-        }),
-      )
+      .catch((err) => setCertState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load certificate.' }))
   }, [hostState])
 
   useEffect(() => {
     if (!id) return
-    getScanHistory(id)
-      .then((r) => setHistory(r.items))
-      .catch(() => setHistory([]))
+    getScanHistory(id).then((r) => setHistory(r.items)).catch(() => setHistory([]))
   }, [id])
 
+  function startEditing(host: Host) {
+    setDraft(hostToDraft(host))
+    setEditing(true)
+  }
+
+  function cancelEditing(host: Host) {
+    setDraft(hostToDraft(host))
+    setEditing(false)
+  }
+
+  function patchDraft(patch: Partial<Draft>) {
+    setDraft((prev) => prev ? { ...prev, ...patch } : prev)
+  }
+
+  async function save() {
+    if (!draft || !id || hostState.status !== 'ready') return
+    setSaving(true)
+    try {
+      const req: UpdateHostRequest = {
+        name:      draft.name,
+        dnsName:   draft.dnsName,
+        port:      Number(draft.port) || 443,
+        ipAddress: draft.ipAddress.trim() || undefined,
+        enabled:   draft.enabled,
+        scannerId: draft.scannerId === '__default__' ? undefined : draft.scannerId,
+        notes:     draft.notes.trim() || undefined,
+      }
+      const updated = await updateHost(id, req)
+      setHostState({ status: 'ready', host: updated })
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const backLink = (
-    <Link
-      to="/hosts"
-      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-    >
+    <Link to="/hosts" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
       <ArrowLeft className="h-4 w-4" />
       Hosts
     </Link>
   )
 
   if (hostState.status === 'loading') {
-    return (
-      <div className="space-y-4">
-        {backLink}
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      </div>
-    )
+    return <div className="space-y-4">{backLink}<p className="text-sm text-muted-foreground">Loading…</p></div>
   }
 
   if (hostState.status === 'error') {
-    return (
-      <div className="space-y-4">
-        {backLink}
-        <p className="text-sm text-destructive">{hostState.message}</p>
-      </div>
-    )
+    return <div className="space-y-4">{backLink}<p className="text-sm text-destructive">{hostState.message}</p></div>
   }
 
   const { host } = hostState
@@ -530,34 +655,78 @@ export default function HostDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{host.name}</h1>
+          {editing && draft ? (
+            <Input
+              className="h-9 text-2xl font-bold"
+              value={draft.name}
+              onChange={(e) => patchDraft({ name: e.target.value })}
+              autoFocus
+            />
+          ) : (
+            <h1 className="text-2xl font-bold">{host.name}</h1>
+          )}
           <p className="mt-1 font-mono text-sm text-muted-foreground">
             {host.dnsName}:{host.port}
           </p>
         </div>
-        {host.enabled ? (
-          <Badge variant="outline" className="border-green-500 bg-green-50 text-green-700">
-            Enabled
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground">
-            Disabled
-          </Badge>
-        )}
+
+        <div className="flex shrink-0 items-center gap-2 mt-1">
+
+          {/* Edit / Save / Cancel */}
+          {editing && draft ? (
+            <>
+              <button
+                onClick={() => save()}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                <Check className="h-3.5 w-3.5" />
+                Save
+              </button>
+              <button
+                onClick={() => cancelEditing(host)}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => startEditing(host)}
+              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Two-column body */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
 
-        {/* ── Left column — host info + TLS profile ── */}
+        {/* ── Left column ── */}
         <div className="space-y-6">
-          <HostInfoSection host={host} />
-          <NotesSection notes={host.notes} />
+          <HostInfoSection
+            host={host}
+            editing={editing}
+            draft={draft ?? hostToDraft(host)}
+            scanners={scanners}
+            onChange={patchDraft}
+          />
+          <NotesSection
+            host={host}
+            editing={editing}
+            draft={draft ?? hostToDraft(host)}
+            onChange={patchDraft}
+          />
           <ScanStatusSection host={host} />
           <TLSProfileSection tlsState={tlsState} />
         </div>
 
-        {/* ── Right column — active certificate card ── */}
+        {/* ── Right column ── */}
         <div className="space-y-6">
           <ActiveCertSection certState={certState} />
           <ScanHistorySection items={history} />

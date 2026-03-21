@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield } from 'lucide-react'
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
+import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield, User } from 'lucide-react'
 import { clearToken, getIdentity, isAdmin } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
@@ -146,6 +146,14 @@ export default function AppShell() {
                   <p className="mt-1 text-xs capitalize text-muted-foreground/60">{identity?.role}</p>
                 </div>
                 <div className="p-1">
+                  <Link
+                    to="/account"
+                    onClick={() => setPopoverOpen(false)}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <User className="h-4 w-4" />
+                    My Account
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"

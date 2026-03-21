@@ -110,21 +110,30 @@ func buildDBConnString() (string, error) {
 		return url, nil
 	}
 
-	host := os.Getenv("TLSENTINEL_DB_HOST")
-	username := os.Getenv("TLSENTINEL_DB_USERNAME") // Note: changed from 'user' for consistency
-	password := os.Getenv("TLSENTINEL_DB_PASSWORD")
-	name := os.Getenv("TLSENTINEL_DB_NAME")
-
-	if host == "" || username == "" || password == "" || name == "" {
-		return "", fmt.Errorf(
-			"set TLSENTINEL_DATABASE_URL, or provide host, username, password, and name",
-		)
+	// Required fields
+	required := map[string]string{
+		"TLSENTINEL_DB_HOST":     os.Getenv("TLSENTINEL_DB_HOST"),
+		"TLSENTINEL_DB_USERNAME": os.Getenv("TLSENTINEL_DB_USERNAME"),
+		"TLSENTINEL_DB_PASSWORD": os.Getenv("TLSENTINEL_DB_PASSWORD"),
+		"TLSENTINEL_DB_NAME":     os.Getenv("TLSENTINEL_DB_NAME"),
 	}
 
+	for key, val := range required {
+		if val == "" {
+			return "", fmt.Errorf("missing environment variable: %s", key)
+		}
+	}
+
+	// Optional fields with defaults
 	port := envOr("TLSENTINEL_DB_PORT", "5432")
 	sslmode := envOr("TLSENTINEL_DB_SSLMODE", "require")
 
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		username, password, host, port, name, sslmode,
+		required["TLSENTINEL_DB_USERNAME"],
+		required["TLSENTINEL_DB_PASSWORD"],
+		required["TLSENTINEL_DB_HOST"],
+		port,
+		required["TLSENTINEL_DB_NAME"],
+		sslmode,
 	), nil
 }

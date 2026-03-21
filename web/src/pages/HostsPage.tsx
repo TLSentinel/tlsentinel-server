@@ -684,10 +684,12 @@ export default function HostsPage() {
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground"
-                          onClick={() => setEditTarget(host)}
+                          asChild
                         >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {host.name}</span>
+                          <Link to={`/hosts/${host.id}?edit=true`}>
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Edit {host.name}</span>
+                          </Link>
                         </Button>
                         <Button
                           variant="ghost"
