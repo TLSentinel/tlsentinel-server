@@ -113,7 +113,7 @@ func main() {
 	enc := crypto.NewEncryptor(cfg.EncryptionKey)
 
 	sched := scheduler.New()
-	sched.Add("*/15 * * * *", "expiry-alerts", func() {
+	sched.Add("0 * * * *", "expiry-alerts", func() {
 		notifications.RunExpiryAlerts(context.Background(), store, enc, log)
 	})
 
