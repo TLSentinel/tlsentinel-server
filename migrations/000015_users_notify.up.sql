@@ -1,0 +1,1 @@
+ALTER TABLE tlsentinel.users ADD COLUMN IF NOT EXISTS notify BOOLEAN NOT NULL DEFAULT false;

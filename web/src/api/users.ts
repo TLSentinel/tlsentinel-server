@@ -22,6 +22,7 @@ export function createUser(req: {
   password?: string
   role: string
   provider: string
+  notify: boolean
   firstName?: string | null
   lastName?: string | null
   email?: string | null
@@ -33,6 +34,7 @@ export function updateUser(id: string, req: {
   username: string
   role: string
   provider: string
+  notify: boolean
   firstName?: string | null
   lastName?: string | null
   email?: string | null

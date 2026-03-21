@@ -298,7 +298,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
             <Textarea
               id="h-notes"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
               placeholder={"Owner, support contact, runbook link…\n\nMarkdown is supported."}
               rows={3}
             />

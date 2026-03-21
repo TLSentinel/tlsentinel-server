@@ -19,6 +19,11 @@ type Config struct {
 	TLSMode      string // none | starttls | tls
 }
 
+// Send dispatches an email with the given subject and plain-text body.
+func Send(cfg Config, to, subject, body string) error {
+	return send(cfg, to, subject, body)
+}
+
 // SendTestEmail sends a test message. If to is empty it falls back to the
 // configured FromAddress so there is always a valid recipient.
 func SendTestEmail(cfg Config, to string) error {

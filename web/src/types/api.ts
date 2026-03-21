@@ -26,6 +26,7 @@ export interface User {
   role: 'admin' | 'viewer'
   provider: 'local' | 'oidc'
   enabled: boolean
+  notify: boolean
   firstName: string | null
   lastName: string | null
   email: string | null

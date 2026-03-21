@@ -68,6 +68,7 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'admin' | 'viewer'>(user?.role ?? 'viewer')
   const [provider, setProvider] = useState<'local' | 'oidc'>(user?.provider ?? 'local')
+  const [notify, setNotify] = useState(user?.notify ?? false)
   const [firstName, setFirstName] = useState(user?.firstName ?? '')
   const [lastName, setLastName] = useState(user?.lastName ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
@@ -99,6 +100,7 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
           username: username.trim(),
           role,
           provider,
+          notify,
           firstName: nullable(firstName),
           lastName: nullable(lastName),
           email: nullable(email),
@@ -109,6 +111,7 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
           password: provider === 'local' ? password : undefined,
           role,
           provider,
+          notify,
           firstName: nullable(firstName),
           lastName: nullable(lastName),
           email: nullable(email),
@@ -246,6 +249,21 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
                 Admin
               </Button>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="u-notify">Receive alert emails</Label>
+              <p className="text-xs text-muted-foreground">
+                {email.trim() ? 'Send expiry alerts to this user.' : 'Requires an email address.'}
+              </p>
+            </div>
+            <Switch
+              id="u-notify"
+              checked={notify}
+              onCheckedChange={setNotify}
+              disabled={!email.trim()}
+            />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

@@ -31,6 +31,7 @@ type CreateUserRequest struct {
 	Password  string  `json:"password"`
 	Role      string  `json:"role"`     // "admin" or "viewer"; defaults to "viewer"
 	Provider  string  `json:"provider"` // "local" or "oidc"; defaults to "local"
+	Notify    bool    `json:"notify"`
 	FirstName *string `json:"firstName"`
 	LastName  *string `json:"lastName"`
 	Email     *string `json:"email"`
@@ -40,6 +41,7 @@ type UpdateUserRequest struct {
 	Username  string  `json:"username"`
 	Role      string  `json:"role"`
 	Provider  string  `json:"provider"` // "local" or "oidc"
+	Notify    bool    `json:"notify"`
 	FirstName *string `json:"firstName"`
 	LastName  *string `json:"lastName"`
 	Email     *string `json:"email"`
@@ -143,7 +145,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		passwordHash = string(hash)
 	}
 
-	user, err := h.store.InsertUser(r.Context(), req.Username, passwordHash, req.Role, req.Provider, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.InsertUser(r.Context(), req.Username, passwordHash, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
@@ -214,7 +216,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.store.UpdateUser(r.Context(), userID, req.Username, req.Role, req.Provider, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.UpdateUser(r.Context(), userID, req.Username, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)

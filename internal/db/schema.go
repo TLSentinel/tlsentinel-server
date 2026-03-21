@@ -69,6 +69,7 @@ type User struct {
 	PasswordHash *string   `bun:"password_hash"`
 	Provider     string    `bun:"provider"`
 	Enabled      bool      `bun:"enabled"`
+	Notify       bool      `bun:"notify"`
 	Role         string    `bun:"role"`
 	FirstName    *string   `bun:"first_name"`
 	LastName     *string   `bun:"last_name"`

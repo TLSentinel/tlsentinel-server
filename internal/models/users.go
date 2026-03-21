@@ -8,6 +8,7 @@ type User struct {
 	PasswordHash *string // nil for OIDC users
 	Provider     string
 	Enabled      bool
+	Notify       bool
 	Role         string
 	FirstName    *string
 	LastName     *string
@@ -23,6 +24,7 @@ type UserResponse struct {
 	Role      string    `json:"role"`
 	Provider  string    `json:"provider"`
 	Enabled   bool      `json:"enabled"`
+	Notify    bool      `json:"notify"`
 	FirstName *string   `json:"firstName"`
 	LastName  *string   `json:"lastName"`
 	Email     *string   `json:"email"`
@@ -46,6 +48,7 @@ func (u *User) ToResponse() UserResponse {
 		Role:      u.Role,
 		Provider:  u.Provider,
 		Enabled:   u.Enabled,
+		Notify:    u.Notify,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,
 		Email:     u.Email,

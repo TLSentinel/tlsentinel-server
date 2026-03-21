@@ -13,8 +13,10 @@ import (
 	_ "github.com/tlsentinel/tlsentinel-server/docs"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
+	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
+	"github.com/tlsentinel/tlsentinel-server/internal/notifications"
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 	"github.com/tlsentinel/tlsentinel-server/internal/version"
@@ -88,9 +90,6 @@ func main() {
 		log.Info("reconciled certificate chain links", zap.Int64("count", n))
 	}
 
-	sched := scheduler.New()
-	// Jobs are registered here as they are implemented — none yet.
-
 	r, err := routes.RegisterRoutes(store, cfg)
 	if err != nil {
 		log.Fatal("failed to initialise routes", zap.Error(err))
@@ -110,6 +109,13 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	enc := crypto.NewEncryptor(cfg.EncryptionKey)
+
+	sched := scheduler.New()
+	sched.Add("*/15 * * * *", "expiry-alerts", func() {
+		notifications.RunExpiryAlerts(context.Background(), store, enc, log)
+	})
 
 	schedCtx, schedCancel := context.WithCancel(context.Background())
 	defer schedCancel()

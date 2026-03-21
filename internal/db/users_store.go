@@ -16,6 +16,7 @@ func userToModel(u User) models.User {
 		PasswordHash: u.PasswordHash,
 		Provider:     u.Provider,
 		Enabled:      u.Enabled,
+		Notify:       u.Notify,
 		Role:         u.Role,
 		FirstName:    u.FirstName,
 		LastName:     u.LastName,
@@ -139,7 +140,7 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (models.
 }
 
 // InsertUser creates a new user. passwordHash may be empty for OIDC-only accounts.
-func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role, provider string, firstName, lastName, email *string) (models.User, error) {
+func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role, provider string, notify bool, firstName, lastName, email *string) (models.User, error) {
 	var hash *string
 	if passwordHash != "" {
 		hash = &passwordHash
@@ -149,6 +150,7 @@ func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role, pr
 		PasswordHash: hash,
 		Provider:     provider,
 		Enabled:      true,
+		Notify:       notify,
 		Role:         role,
 		FirstName:    firstName,
 		LastName:     lastName,
@@ -163,14 +165,15 @@ func (s *Store) InsertUser(ctx context.Context, username, passwordHash, role, pr
 	return userToModel(*row), nil
 }
 
-// UpdateUser updates mutable user fields (username, role, provider, name, email).
+// UpdateUser updates mutable user fields (username, role, provider, notify, name, email).
 // Switching to "oidc" clears password_hash — OIDC users authenticate via SSO only.
-func (s *Store) UpdateUser(ctx context.Context, id, username, role, provider string, firstName, lastName, email *string) (models.User, error) {
+func (s *Store) UpdateUser(ctx context.Context, id, username, role, provider string, notify bool, firstName, lastName, email *string) (models.User, error) {
 	q := s.db.NewUpdate().
 		TableExpr("tlsentinel.users").
 		Set("username = ?", username).
 		Set("role = ?", role).
 		Set("provider = ?", provider).
+		Set("notify = ?", notify).
 		Set("first_name = ?", firstName).
 		Set("last_name = ?", lastName).
 		Set("email = ?", email).
