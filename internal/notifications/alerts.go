@@ -8,6 +8,7 @@ package notifications
 import (
 	"context"
 	"errors"
+	"sort"
 
 	"go.uber.org/zap"
 
@@ -17,26 +18,18 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// thresholds lists alert levels in ascending urgency order.
-// The bucket function maps a cert's days_remaining to exactly one of these.
-var thresholds = []int{30, 14, 7, 1}
-
-// alertThreshold returns the single most-urgent threshold bucket that applies
-// to a cert with the given days_remaining value. Returns 0 if none apply
-// (cert has more than 30 days remaining and needs no alert).
-func alertThreshold(daysRemaining int) int {
-	switch {
-	case daysRemaining <= 1:
-		return 1
-	case daysRemaining <= 7:
-		return 7
-	case daysRemaining <= 14:
-		return 14
-	case daysRemaining <= 30:
-		return 30
-	default:
-		return 0
+// alertThreshold returns the single most-urgent threshold bucket for a cert
+// with the given days_remaining, using the configured threshold list.
+// thresholds must be sorted descending (largest first). Returns 0 if the cert
+// does not qualify for any threshold (days_remaining > max threshold).
+func alertThreshold(daysRemaining int, thresholds []int) int {
+	result := 0
+	for _, t := range thresholds {
+		if daysRemaining <= t {
+			result = t // keep updating — smallest qualifying threshold wins
+		}
 	}
+	return result
 }
 
 // RunExpiryAlerts checks for expiring certificates and sends alert emails to
@@ -78,6 +71,19 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 		TLSMode:      cfg.TLSMode,
 	}
 
+	// Load thresholds from the DB (falls back to defaults if not set).
+	thresholds, err := store.GetAlertThresholds(ctx)
+	if err != nil {
+		log.Error("expiry alerts: failed to load thresholds", zap.Error(err))
+		return
+	}
+	if len(thresholds) == 0 {
+		log.Debug("expiry alerts skipped: no thresholds configured")
+		return
+	}
+	// Sort descending so alertThreshold() can find the most urgent bucket.
+	sort.Sort(sort.Reverse(sort.IntSlice(thresholds)))
+
 	// Fetch all certs expiring within the widest threshold.
 	certs, err := store.ListExpiringActiveCerts(ctx, thresholds[0])
 	if err != nil {
@@ -102,7 +108,7 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 
 	sent, skipped := 0, 0
 	for _, cert := range certs {
-		threshold := alertThreshold(cert.DaysRemaining)
+		threshold := alertThreshold(cert.DaysRemaining, thresholds)
 		if threshold == 0 {
 			continue
 		}
