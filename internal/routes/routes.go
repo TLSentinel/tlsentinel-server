@@ -12,6 +12,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -53,12 +54,15 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	hostHandler := hosts.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	mailHandler := mail.NewHandler(store, cfg)
+	calendarHandler := calendar.NewHandler(store)
 
 	r.Use(middleware.RequestID)
 	r.Use(logger.RequestLogger)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/api-docs/*", httpSwagger.WrapHandler)
+
+	r.Get("/calendar/{token}", calendarHandler.ServeCalendar)
 
 	r.Route("/api/v1", func(r chi.Router) {
 
@@ -145,6 +149,14 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 						r.Delete("/", hostHandler.Delete)
 					})
 				})
+			})
+
+			// /me — any authenticated user, scoped to themselves.
+			r.Route("/me", func(r chi.Router) {
+				r.Use(auth.RequireRole("admin", "viewer"))
+				r.Get("/", userHandler.Me)
+				r.Put("/", userHandler.UpdateMe)
+				r.Patch("/password", userHandler.ChangeMyPassword)
 			})
 
 			r.Route("/users", func(r chi.Router) {

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -18,7 +19,7 @@ type Config struct {
 	OIDCClientSecret  string
 	OIDCRedirectURL   string
 	OIDCIssuer        string
-	OIDCScopes        string
+	OIDCScopes        []string
 	OIDCUsernameClaim string
 	OIDCEnabled       bool
 }
@@ -31,7 +32,6 @@ func (c *Config) Addr() string {
 // LoadConfig loads the configuration from environment variables.
 func LoadConfig() (*Config, error) {
 	cfg := &Config{}
-	var err error
 
 	cfg.Host = envOr("TLSENTINEL_HOST", "0.0.0.0")
 	cfg.Port = envOr("TLSENTINEL_PORT", "8080")
@@ -39,35 +39,36 @@ func LoadConfig() (*Config, error) {
 	cfg.AdminUsername = os.Getenv("TLSENTINEL_ADMIN_USERNAME")
 	cfg.AdminPassword = os.Getenv("TLSENTINEL_ADMIN_PASSWORD")
 
+	var err error
+	cfg.DBConnString, err = buildDBConnString()
+	if err != nil {
+		return nil, err
+	}
+
 	cfg.EncryptionKey, err = loadEncryptionKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load encryption key: %w", err)
 	}
 
-	if cfg.JWTSecret, err = getRequiredEnv("TLSENTINEL_JWT_SECRET"); err != nil {
-		return nil, err
-	}
+	cfg.JWTSecret = os.Getenv("TLSENTINEL_JWT_SECRET")
 	if len(cfg.JWTSecret) < 32 {
-		return nil, fmt.Errorf("TLSENTINEL_JWT_SECRET must be at least 32 characters")
+		return nil, fmt.Errorf("TLSENTINEL_JWT_SECRET must be >= 32 characters")
 	}
-
-	dbConnString, err := buildDBConnString()
-	if err != nil {
-		return nil, err
-	}
-	cfg.DBConnString = dbConnString
 
 	cfg.OIDCClientID = os.Getenv("TLSENTINEL_OIDC_CLIENT_ID")
 	cfg.OIDCClientSecret = os.Getenv("TLSENTINEL_OIDC_CLIENT_SECRET")
 	cfg.OIDCRedirectURL = os.Getenv("TLSENTINEL_OIDC_REDIRECT_URL")
 	cfg.OIDCIssuer = os.Getenv("TLSENTINEL_OIDC_ISSUER")
-	cfg.OIDCScopes = os.Getenv("TLSENTINEL_OIDC_SCOPES")
+
+	scopeStr := envOr("TLSENTINEL_OIDC_SCOPES", "openid,profile,email")
+	cfg.OIDCScopes = strings.Split(scopeStr, ",")
+
 	cfg.OIDCUsernameClaim = os.Getenv("TLSENTINEL_OIDC_USERNAME_CLAIM")
-	cfg.OIDCEnabled =
-		cfg.OIDCClientID != "" &&
-			cfg.OIDCClientSecret != "" &&
-			cfg.OIDCRedirectURL != "" &&
-			cfg.OIDCIssuer != ""
+
+	cfg.OIDCEnabled = cfg.OIDCClientID != "" &&
+		cfg.OIDCClientSecret != "" &&
+		cfg.OIDCRedirectURL != "" &&
+		cfg.OIDCIssuer != ""
 
 	return cfg, nil
 }
@@ -77,14 +78,6 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func getRequiredEnv(key string) (string, error) {
-	value, ok := os.LookupEnv(key)
-	if !ok {
-		return "", fmt.Errorf("missing required environment variable: %s", key)
-	}
-	return value, nil
 }
 
 func loadEncryptionKey() ([]byte, error) {

@@ -53,3 +53,21 @@ export function changePassword(id: string, password: string): Promise<void> {
 export function deleteUser(id: string): Promise<void> {
   return api.delete<void>(`/users/${id}`)
 }
+
+// /me — current user only, no admin required.
+export function getMe(): Promise<User> {
+  return api.get<User>('/me')
+}
+
+export function updateMe(req: {
+  notify: boolean
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+}): Promise<User> {
+  return api.put<User>('/me', req)
+}
+
+export function changeMyPassword(currentPassword: string, newPassword: string): Promise<void> {
+  return api.patch<void>('/me/password', { currentPassword, newPassword })
+}

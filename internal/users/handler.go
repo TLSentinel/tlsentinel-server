@@ -55,6 +55,154 @@ type ChangePasswordRequest struct {
 	Password string `json:"password"`
 }
 
+type UpdateMeRequest struct {
+	Notify    bool    `json:"notify"`
+	FirstName *string `json:"firstName"`
+	LastName  *string `json:"lastName"`
+	Email     *string `json:"email"`
+}
+
+type ChangeMyPasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// @Summary      Get current user
+// @Description  Returns the profile of the authenticated user
+// @Tags         me
+// @Produce      json
+// @Success      200  {object}  models.UserResponse
+// @Failure      401  {string}  string  "unauthorized"
+// @Failure      404  {string}  string  "user not found"
+// @Router       /me [get]
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	identity, ok := auth.GetIdentity(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.store.GetUserByID(r.Context(), identity.UserID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get user", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, user.ToResponse())
+}
+
+// @Summary      Update current user
+// @Description  Updates the authenticated user's name, email, and notification preference
+// @Tags         me
+// @Accept       json
+// @Produce      json
+// @Param        request  body      UpdateMeRequest  true  "Profile payload"
+// @Success      200      {object}  models.UserResponse
+// @Failure      400      {string}  string  "invalid request"
+// @Failure      401      {string}  string  "unauthorized"
+// @Failure      404      {string}  string  "user not found"
+// @Router       /me [put]
+func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	identity, ok := auth.GetIdentity(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	current, err := h.store.GetUserByID(r.Context(), identity.UserID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get user", http.StatusInternalServerError)
+		return
+	}
+
+	var req UpdateMeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Role, username, and provider are not self-serviceable.
+	user, err := h.store.UpdateUser(r.Context(), identity.UserID, current.Username, current.Role, current.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to update profile", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, user.ToResponse())
+}
+
+// @Summary      Change current user's password
+// @Description  Changes the authenticated user's password. Requires the current password for verification.
+// @Tags         me
+// @Accept       json
+// @Param        request  body  ChangeMyPasswordRequest  true  "Password payload"
+// @Success      204
+// @Failure      400  {string}  string  "invalid request"
+// @Failure      401  {string}  string  "unauthorized or wrong current password"
+// @Failure      404  {string}  string  "user not found"
+// @Router       /me/password [patch]
+func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
+	identity, ok := auth.GetIdentity(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req ChangeMyPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		http.Error(w, "currentPassword and newPassword are required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.store.GetUserByID(r.Context(), identity.UserID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get user", http.StatusInternalServerError)
+		return
+	}
+
+	if user.PasswordHash == nil {
+		http.Error(w, "password change not supported for this account", http.StatusBadRequest)
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		http.Error(w, "current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "failed to process password", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.store.UpdateUserPassword(r.Context(), identity.UserID, string(hash)); err != nil {
+		http.Error(w, "failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary      List users
 // @Description  Returns a paginated list of users with optional search, role, provider, and sort filters
 // @Tags         users

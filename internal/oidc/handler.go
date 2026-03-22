@@ -25,13 +25,13 @@ const (
 
 // Config holds the OIDC provider configuration loaded from environment variables.
 type Config struct {
-	Issuer        string
-	ClientID      string
-	ClientSecret  string
-	RedirectURL   string
-	Scopes        []string // defaults to [openid profile email]
-	
-	UsernameClaim string   // ID token claim used as username (default: upn)
+	Issuer       string
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+	Scopes       []string // defaults to [openid profile email]
+
+	UsernameClaim string // ID token claim used as username (default: upn)
 }
 
 // Handler handles the OIDC login and callback flows.
@@ -57,14 +57,6 @@ func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, ap
 		return nil, fmt.Errorf("oidc: failed to discover provider %q: %w", appCfg.OIDCIssuer, err)
 	}
 
-	var scopes []string
-	if appCfg.OIDCScopes != "" {
-		scopes = strings.Fields(appCfg.OIDCScopes)
-	}
-	if len(scopes) == 0 {
-		scopes = []string{gooidc.ScopeOpenID, "profile", "email"}
-	}
-
 	cfg := Config{
 		Issuer:        appCfg.OIDCIssuer,
 		ClientID:      appCfg.OIDCClientID,
@@ -74,17 +66,17 @@ func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, ap
 	}
 
 	return &Handler{
-		store:  store,
-		jwtCfg: jwtCfg,
-		cfg:    cfg,
-		log:    zap.L().With(zap.String("component", "oidc")),
+		store:    store,
+		jwtCfg:   jwtCfg,
+		cfg:      cfg,
+		log:      zap.L().With(zap.String("component", "oidc")),
 		provider: provider,
 		oauth2: oauth2.Config{
 			ClientID:     appCfg.OIDCClientID,
 			ClientSecret: appCfg.OIDCClientSecret,
 			RedirectURL:  appCfg.OIDCRedirectURL,
 			Endpoint:     provider.Endpoint(),
-			Scopes:       scopes,
+			Scopes:       appCfg.OIDCScopes,
 		},
 	}, nil
 }
