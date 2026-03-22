@@ -48,7 +48,7 @@ type Handler struct {
 // Returns (nil, nil) when OIDC is not configured in appCfg.
 // It contacts the issuer's discovery endpoint, so it requires network access.
 func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*Handler, error) {
-	if !appCfg.OIDCEnabled {
+	if !appCfg.OIDCEnabled() {
 		return nil, nil
 	}
 
@@ -65,9 +65,11 @@ func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*H
 		UsernameClaim: appCfg.OIDCUsernameClaim,
 	}
 
+	jwtCfg := appCfg.JWTSecret.Config()
+
 	return &Handler{
 		store:    store,
-		jwtCfg:   &appCfg.JWTConfig,
+		jwtCfg:   &jwtCfg,
 		cfg:      cfg,
 		log:      zap.L().With(zap.String("component", "oidc")),
 		provider: provider,

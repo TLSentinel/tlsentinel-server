@@ -22,10 +22,12 @@ type Handler struct {
 }
 
 func NewHandler(store *db.Store, cfg *config.Config) *Handler {
+	jwtCfg := cfg.JWTSecret.Config()
+
 	return &Handler{
 		store:        store,
-		jwtCfg:       &cfg.JWTConfig,
-		oidcEnabled:  cfg.OIDCEnabled,
+		jwtCfg:       &jwtCfg,
+		oidcEnabled:  cfg.OIDCEnabled(),
 		providerHint: providerHintFromIssuer(cfg.OIDCIssuer),
 	}
 }

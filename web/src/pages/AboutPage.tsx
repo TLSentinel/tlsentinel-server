@@ -27,6 +27,7 @@ const BACKEND_LIBS: LibEntry[] = [
   { name: 'joho/godotenv',            license: 'MIT',          url: 'https://github.com/joho/godotenv' },
   { name: 'uber-go/zap',              license: 'MIT',          url: 'https://github.com/uber-go/zap' },
   { name: 'golang.org/x/crypto',      license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/crypto' },
+  { name: 'github.com/caarlos0/env',  license: 'MIT',          url: 'https://github.com/caarlos0/env' },
 ]
 
 const FRONTEND_LIBS: LibEntry[] = [

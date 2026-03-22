@@ -29,7 +29,8 @@ func Authenticate(store *db.Store, cfg *config.Config) func(http.Handler) http.H
 			if IsScannerToken(raw) {
 				identity, err = verifyScannerToken(r.Context(), store, raw)
 			} else {
-				identity, err = verifyJWT(&cfg.JWTConfig, raw)
+				jwtCfg := cfg.JWTSecret.Config()
+				identity, err = verifyJWT(&jwtCfg, raw)
 			}
 
 			if err != nil {

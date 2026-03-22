@@ -30,7 +30,7 @@ func RunMigrations(cfg *config.Config, logger *zap.Logger) error {
 	if err != nil {
 		return err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, cfg.DBConnString)
+	m, err := migrate.NewWithSourceInstance("iofs", d, cfg.DBConnString())
 	if err != nil {
 		return err
 	}

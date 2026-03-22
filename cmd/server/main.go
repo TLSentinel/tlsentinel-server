@@ -95,12 +95,12 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    cfg.Addr(),
+		Addr:    cfg.ListenAddr(),
 		Handler: r,
 	}
 
 	go func() {
-		log.Info("server listening", zap.String("addr", cfg.Addr()))
+		log.Info("server listening", zap.String("addr", cfg.ListenAddr()))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal("server error", zap.Error(err))
 		}

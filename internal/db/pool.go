@@ -11,7 +11,7 @@ import (
 )
 
 func NewDB(cfg *config.Config) (*bun.DB, error) {
-	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(cfg.DBConnString)))
+	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(cfg.DBConnString())))
 
 	if err := sqldb.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
