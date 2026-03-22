@@ -10,13 +10,15 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/provider"
+	"github.com/tlsentinel/tlsentinel-server/internal/role"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
 )
 
-var validRoles = map[string]bool{"admin": true, "viewer": true}
-var validProviders = map[string]bool{"local": true, "oidc": true}
+var validRoles = map[string]bool{role.Admin: true, role.Viewer: true}
+var validProviders = map[string]bool{provider.Local: true, provider.OIDC: true}
 
 type Handler struct {
 	store *db.Store
@@ -265,26 +267,26 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Role == "" {
-		req.Role = "viewer"
+		req.Role = role.Viewer
 	}
 	if !validRoles[req.Role] {
 		http.Error(w, "role must be 'admin' or 'viewer'", http.StatusBadRequest)
 		return
 	}
 	if req.Provider == "" {
-		req.Provider = "local"
+		req.Provider = provider.Local
 	}
 	if !validProviders[req.Provider] {
 		http.Error(w, "provider must be 'local' or 'oidc'", http.StatusBadRequest)
 		return
 	}
-	if req.Provider == "local" && req.Password == "" {
+	if req.Provider == provider.Local && req.Password == "" {
 		http.Error(w, "password is required for local users", http.StatusBadRequest)
 		return
 	}
 
 	var passwordHash string
-	if req.Provider == "local" {
+	if req.Provider == provider.Local {
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			http.Error(w, "failed to process password", http.StatusInternalServerError)
@@ -357,7 +359,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Provider == "" {
-		req.Provider = "local"
+		req.Provider = provider.Local
 	}
 	if !validProviders[req.Provider] {
 		http.Error(w, "provider must be 'local' or 'oidc'", http.StatusBadRequest)
@@ -494,7 +496,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to get user", http.StatusInternalServerError)
 		return
 	}
-	if target.Role == "admin" {
+	if target.Role == role.Admin {
 		count, err := h.store.CountAdminUsers(r.Context())
 		if err != nil {
 			http.Error(w, "failed to verify admin count", http.StatusInternalServerError)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/provider"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -103,7 +104,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if user.Provider != "local" {
+	if user.Provider != provider.Local {
 		http.Error(w, "account requires SSO login", http.StatusUnauthorized)
 		return
 	}

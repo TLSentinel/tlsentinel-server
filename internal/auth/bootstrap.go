@@ -8,6 +8,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/provider"
+	"github.com/tlsentinel/tlsentinel-server/internal/role"
 )
 
 // EnsureAdminUser creates the initial admin user from the provided credentials
@@ -18,7 +20,7 @@ func EnsureAdminUser(ctx context.Context, store *db.Store, username, password st
 		return fmt.Errorf("failed to count users: %w", err)
 	}
 	if count > 0 {
-		return nil // already bootstrapped
+		return nil
 	}
 
 	if username == "" || password == "" {
@@ -30,8 +32,8 @@ func EnsureAdminUser(ctx context.Context, store *db.Store, username, password st
 		return fmt.Errorf("failed to hash admin password: %w", err)
 	}
 
-	firstName := "Admin" // Or whatever name you want
-	if _, err := store.InsertUser(ctx, username, string(hash), "admin", "local", false, &firstName, nil, nil); err != nil {
+	firstName := "Administrator"
+	if _, err := store.InsertUser(ctx, username, string(hash), role.Admin, provider.Local, false, &firstName, nil, nil); err != nil {
 		return fmt.Errorf("failed to create admin user: %w", err)
 	}
 
