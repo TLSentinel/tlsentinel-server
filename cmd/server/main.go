@@ -54,11 +54,11 @@ func main() {
 		zap.String("built", version.BuildTime),
 	)
 
-	if err := db.RunMigrations(cfg.DBConnString, log); err != nil {
+	if err := db.RunMigrations(cfg, log); err != nil {
 		log.Fatal("failed to run database migrations", zap.Error(err))
 	}
 
-	bunDB, err := db.NewDB(cfg.DBConnString)
+	bunDB, err := db.NewDB(cfg)
 	if err != nil {
 		log.Fatal("failed to connect to database", zap.Error(err))
 	}
@@ -69,8 +69,7 @@ func main() {
 	if err := auth.EnsureAdminUser(
 		context.Background(),
 		store,
-		cfg.AdminUsername,
-		cfg.AdminPassword,
+		cfg,
 	); err != nil {
 		log.Fatal("bootstrap failed", zap.Error(err))
 	}

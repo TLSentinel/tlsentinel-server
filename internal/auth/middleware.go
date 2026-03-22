@@ -6,13 +6,15 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
 )
 
 // Authenticate is Chi middleware that validates bearer tokens.
 // It handles both JWTs (users) and scanner tokens (prefixed with tlsentinel_).
 // Returns 401 immediately on failure.
-func Authenticate(store *db.Store, cfg *JWTConfig) func(http.Handler) http.Handler {
+func Authenticate(store *db.Store, cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := extractBearerToken(r)
@@ -27,7 +29,7 @@ func Authenticate(store *db.Store, cfg *JWTConfig) func(http.Handler) http.Handl
 			if IsScannerToken(raw) {
 				identity, err = verifyScannerToken(r.Context(), store, raw)
 			} else {
-				identity, err = verifyJWT(cfg, raw)
+				identity, err = verifyJWT(&cfg.JWTConfig, raw)
 			}
 
 			if err != nil {
@@ -71,7 +73,7 @@ func extractBearerToken(r *http.Request) string {
 	return strings.TrimPrefix(h, "Bearer ")
 }
 
-func verifyJWT(cfg *JWTConfig, raw string) (Identity, error) {
+func verifyJWT(cfg *jwt.JWTConfig, raw string) (Identity, error) {
 	claims, err := cfg.ValidateToken(raw)
 	if err != nil {
 		return Identity{}, err

@@ -4,7 +4,6 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -32,13 +31,8 @@ import (
 
 func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 
-	jwtCfg := &auth.JWTConfig{
-		SecretKey: []byte(cfg.JWTSecret),
-		TTL:       24 * time.Hour,
-	}
-
-	authHandler := auth.NewHandler(store, cfg, jwtCfg)
-	oidcHandler, err := oidc.NewHandler(context.Background(), store, jwtCfg, cfg)
+	authHandler := auth.NewHandler(store, cfg)
+	oidcHandler, err := oidc.NewHandler(context.Background(), store, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +73,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
-			r.Use(auth.Authenticate(store, jwtCfg))
+			r.Use(auth.Authenticate(store, cfg))
 
 			r.Route("/scanners", func(r chi.Router) {
 				r.Group(func(r chi.Router) {

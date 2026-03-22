@@ -9,21 +9,22 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
 type Handler struct {
 	store        *db.Store
-	jwtCfg       *JWTConfig
+	jwtCfg       *jwt.JWTConfig
 	oidcEnabled  bool
 	providerHint string
 }
 
-func NewHandler(store *db.Store, cfg *config.Config, jwtCfg *JWTConfig) *Handler {
+func NewHandler(store *db.Store, cfg *config.Config) *Handler {
 	return &Handler{
 		store:        store,
-		jwtCfg:       jwtCfg,
+		jwtCfg:       &cfg.JWTConfig,
 		oidcEnabled:  cfg.OIDCEnabled,
 		providerHint: providerHintFromIssuer(cfg.OIDCIssuer),
 	}

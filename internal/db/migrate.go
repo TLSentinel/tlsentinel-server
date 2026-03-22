@@ -7,6 +7,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/migrations"
 	"go.uber.org/zap"
 )
@@ -23,13 +24,13 @@ func (l *migrateLogger) Verbose() bool {
 	return true
 }
 
-func RunMigrations(connString string, logger *zap.Logger) error {
+func RunMigrations(cfg *config.Config, logger *zap.Logger) error {
 	logger.Info("running database migrations", zap.String("source", "embedded"))
 	d, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		return err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, connString)
+	m, err := migrate.NewWithSourceInstance("iofs", d, cfg.DBConnString)
 	if err != nil {
 		return err
 	}

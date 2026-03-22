@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
 )
 
 type Config struct {
@@ -12,6 +15,7 @@ type Config struct {
 	Port              string
 	DBConnString      string
 	JWTSecret         string
+	JWTConfig         jwt.JWTConfig
 	EncryptionKey     []byte
 	AdminUsername     string
 	AdminPassword     string
@@ -53,6 +57,11 @@ func LoadConfig() (*Config, error) {
 	cfg.JWTSecret = os.Getenv("TLSENTINEL_JWT_SECRET")
 	if len(cfg.JWTSecret) < 32 {
 		return nil, fmt.Errorf("TLSENTINEL_JWT_SECRET must be >= 32 characters")
+	}
+
+	cfg.JWTConfig = jwt.JWTConfig{
+		SecretKey: []byte(cfg.JWTSecret),
+		TTL:       24 * time.Hour,
 	}
 
 	cfg.OIDCClientID = os.Getenv("TLSENTINEL_OIDC_CLIENT_ID")

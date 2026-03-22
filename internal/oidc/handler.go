@@ -13,9 +13,9 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
-	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
 )
 
 const (
@@ -37,7 +37,7 @@ type Config struct {
 // Handler handles the OIDC login and callback flows.
 type Handler struct {
 	store    *db.Store
-	jwtCfg   *auth.JWTConfig
+	jwtCfg   *jwt.JWTConfig
 	provider *gooidc.Provider
 	oauth2   oauth2.Config
 	cfg      Config
@@ -47,7 +47,7 @@ type Handler struct {
 // NewHandler initialises the OIDC provider and returns a ready Handler.
 // Returns (nil, nil) when OIDC is not configured in appCfg.
 // It contacts the issuer's discovery endpoint, so it requires network access.
-func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, appCfg *config.Config) (*Handler, error) {
+func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*Handler, error) {
 	if !appCfg.OIDCEnabled {
 		return nil, nil
 	}
@@ -67,7 +67,7 @@ func NewHandler(ctx context.Context, store *db.Store, jwtCfg *auth.JWTConfig, ap
 
 	return &Handler{
 		store:    store,
-		jwtCfg:   jwtCfg,
+		jwtCfg:   &appCfg.JWTConfig,
 		cfg:      cfg,
 		log:      zap.L().With(zap.String("component", "oidc")),
 		provider: provider,
