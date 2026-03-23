@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -21,7 +23,8 @@ func userToModel(u User) models.User {
 		Role:         u.Role,
 		FirstName:    u.FirstName,
 		LastName:     u.LastName,
-		Email:        u.Email,
+		Email:         u.Email,
+		CalendarToken: u.CalendarToken,
 		CreatedAt:    u.CreatedAt,
 		UpdatedAt:    u.UpdatedAt,
 	}
@@ -247,6 +250,47 @@ func (s *Store) SetUserEnabled(ctx context.Context, id string, enabled bool) (mo
 		return models.User{}, ErrNotFound
 	}
 	return s.GetUserByID(ctx, id)
+}
+
+// RotateCalendarToken generates a new calendar token for the given user, persists it, and returns the token string.
+func (s *Store) RotateCalendarToken(ctx context.Context, id string) (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(buf)
+
+	res, err := s.db.NewUpdate().
+		TableExpr("tlsentinel.users").
+		Set("calendar_token = ?", token).
+		Set("updated_at = NOW()").
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to rotate calendar token: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return "", ErrNotFound
+	}
+	return token, nil
+}
+
+// GetUserByCalendarToken looks up an enabled user by their calendar token.
+func (s *Store) GetUserByCalendarToken(ctx context.Context, token string) (models.User, error) {
+	var row User
+	err := s.db.NewSelect().
+		Model(&row).
+		Where("calendar_token = ?", token).
+		Where("enabled = TRUE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.User{}, ErrNotFound
+		}
+		return models.User{}, fmt.Errorf("failed to look up calendar token: %w", err)
+	}
+	return userToModel(row), nil
 }
 
 // DeleteUser removes a user by ID.

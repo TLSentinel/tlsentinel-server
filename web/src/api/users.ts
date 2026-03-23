@@ -71,3 +71,7 @@ export function updateMe(req: {
 export function changeMyPassword(currentPassword: string, newPassword: string): Promise<void> {
   return api.patch<void>('/me/password', { currentPassword, newPassword })
 }
+
+export function rotateCalendarToken(): Promise<{ calendarToken: string }> {
+  return api.post<{ calendarToken: string }>('/me/calendar-token', {})
+}

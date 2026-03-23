@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -20,11 +21,21 @@ func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
 }
 
-// GET /calendar/{token}.ics
-func (h *Handler) ServeCalendar(w http.ResponseWriter, r *http.Request) {
-	// Strip .ics suffix from the token path param.
-	raw := chi.URLParam(r, "token")
-	_ = strings.TrimSuffix(raw, ".ics") // token validation will go here once the column exists
+// GET /calendar/u/{token}/*
+func (h *Handler) ServeUserCalendar(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	// feed =
+	_ = strings.TrimSuffix(chi.URLParam(r, "*"), ".ics")
+
+	_, err := h.store.GetUserByCalendarToken(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 
 	certs, err := h.store.ListExpiringActiveCerts(r.Context(), 365)
 	if err != nil {

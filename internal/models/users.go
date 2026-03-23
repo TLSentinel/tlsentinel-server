@@ -12,9 +12,10 @@ type User struct {
 	Role         string
 	FirstName    *string
 	LastName     *string
-	Email        *string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	Email         *string
+	CalendarToken *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // UserResponse is the safe public representation of a user (no password hash).
@@ -27,9 +28,10 @@ type UserResponse struct {
 	Notify    bool      `json:"notify"`
 	FirstName *string   `json:"firstName"`
 	LastName  *string   `json:"lastName"`
-	Email     *string   `json:"email"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Email         *string   `json:"email"`
+	CalendarToken *string   `json:"calendarToken"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // UserList is a paginated list of users.
@@ -51,8 +53,9 @@ func (u *User) ToResponse() UserResponse {
 		Notify:    u.Notify,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,
-		Email:     u.Email,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
+		Email:         u.Email,
+		CalendarToken: u.CalendarToken,
+		CreatedAt:     u.CreatedAt,
+		UpdatedAt:     u.UpdatedAt,
 	}
 }

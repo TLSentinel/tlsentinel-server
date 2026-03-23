@@ -205,6 +205,28 @@ func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// RotateCalendarToken generates a new calendar token for the authenticated user.
+func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
+	identity, ok := auth.GetIdentity(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	token, err := h.store.RotateCalendarToken(r.Context(), identity.UserID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to rotate token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"calendarToken": token})
+}
+
 // @Summary      List users
 // @Description  Returns a paginated list of users with optional search, role, provider, and sort filters
 // @Tags         users

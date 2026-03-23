@@ -73,9 +73,10 @@ type User struct {
 	Role         string    `bun:"role"`
 	FirstName    *string   `bun:"first_name"`
 	LastName     *string   `bun:"last_name"`
-	Email        *string   `bun:"email"`
-	CreatedAt    time.Time `bun:"created_at"`
-	UpdatedAt    time.Time `bun:"updated_at"`
+	Email         *string   `bun:"email"`
+	CalendarToken *string   `bun:"calendar_token"`
+	CreatedAt     time.Time `bun:"created_at"`
+	UpdatedAt     time.Time `bun:"updated_at"`
 }
 
 // MailConfig maps to tlsentinel.mail_config (singleton row, id = 1).

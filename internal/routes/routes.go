@@ -53,19 +53,16 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 
 	r.Get("/api-docs/*", httpSwagger.WrapHandler)
 
-	r.Get("/calendar/{token}", calendarHandler.ServeCalendar)
-
 	r.Route("/api/v1", func(r chi.Router) {
 
 		// Public routes
 		r.Get("/health", handlers.Health)
 		r.Get("/version", handlers.Version)
-		r.Post("/auth/login", authHandler.Login)
+		r.Get("/calendar/u/{token}/*", calendarHandler.ServeUserCalendar)
 
-		// Auth capability discovery — lets the frontend show/hide SSO options.
+		r.Post("/auth/login", authHandler.Login)
 		r.Get("/auth/config", authHandler.Config)
 
-		// OIDC routes — only registered when OIDC is configured.
 		if oidcHandler != nil {
 			r.Get("/auth/oidc/login", oidcHandler.Login)
 			r.Get("/auth/oidc/callback", oidcHandler.Callback)
@@ -148,6 +145,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Get("/", userHandler.Me)
 				r.Put("/", userHandler.UpdateMe)
 				r.Patch("/password", userHandler.ChangeMyPassword)
+				r.Post("/calendar-token", userHandler.RotateCalendarToken)
 			})
 
 			r.Route("/users", func(r chi.Router) {
