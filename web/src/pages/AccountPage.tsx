@@ -1,29 +1,5 @@
-import { Link } from 'react-router-dom'
-import { User, KeyRound, CalendarDays, ChevronRight } from 'lucide-react'
-
-interface AccountCardProps {
-  icon: React.ReactNode
-  title: string
-  description: string
-  to: string
-}
-
-function AccountCard({ icon, title, description, to }: AccountCardProps) {
-  return (
-    <Link to={to}>
-      <div className="group rounded-lg border p-5 space-y-3 transition-colors cursor-pointer hover:border-foreground/30 hover:bg-accent/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5 text-muted-foreground">
-            {icon}
-            <span className="text-sm font-semibold text-foreground">{title}</span>
-          </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-        </div>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-    </Link>
-  )
-}
+import { User, KeyRound, CalendarDays } from 'lucide-react'
+import { HubCard } from '@/components/ui/hub-card'
 
 export default function AccountPage() {
   return (
@@ -36,19 +12,19 @@ export default function AccountPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-3xl">
-        <AccountCard
+        <HubCard
           to="/account/profile"
           icon={<User className="h-4 w-4" />}
           title="Profile"
           description="Update your name, email address, and notification preferences."
         />
-        <AccountCard
+        <HubCard
           to="/account/password"
           icon={<KeyRound className="h-4 w-4" />}
           title="Password"
-          description="Change your login password."
+          description="Change your local account login password. This is not applicable to SSO users."
         />
-        <AccountCard
+        <HubCard
           to="/account/calendar"
           icon={<CalendarDays className="h-4 w-4" />}
           title="Calendar Feed"
