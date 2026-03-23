@@ -33,7 +33,7 @@ function StatCard({ icon, label, value, sub, soon }: StatCardProps) {
           </Badge>
         )}
       </div>
-      <p className="text-3xl font-bold tracking-tight">{value}</p>
+      <p className="text-3xl font-bold tracking-tight text-blue-600">{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
