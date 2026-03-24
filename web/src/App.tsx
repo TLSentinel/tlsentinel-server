@@ -22,6 +22,7 @@ import AccountPasswordPage from '@/pages/AccountPasswordPage'
 import AccountCalendarPage from '@/pages/AccountCalendarPage'
 import GroupsPage from '@/pages/GroupsPage'
 import GroupFormPage from '@/pages/GroupFormPage'
+import ToolboxPage from '@/pages/ToolboxPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="active" element={<ActivePage />} />
           <Route path="hosts" element={<HostsPage />} />
           <Route path="hosts/:id" element={<HostDetailPage />} />
+          <Route path="toolbox" element={<ToolboxPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
           <Route path="account">

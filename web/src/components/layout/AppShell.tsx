@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield, User } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield, User, Wrench } from 'lucide-react'
 import { clearToken, getIdentity, isAdmin } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
@@ -91,6 +91,7 @@ export default function AppShell() {
           <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
           <NavItem to="/certificates" icon={<Shield className="h-4 w-4" />} label="Certificates" />
           <NavItem to="/hosts" icon={<Server className="h-4 w-4" />} label="Hosts" />
+          <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
         </nav>
 
         {/* Bottom nav — settings (admin only) + API docs */}
