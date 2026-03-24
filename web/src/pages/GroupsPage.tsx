@@ -114,19 +114,23 @@ export default function GroupsPage() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Page {page} of {totalPages}</span>
-          <div className="flex gap-1">
-            <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page <= 1}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          {total === 0
+            ? 'No groups'
+            : `Page ${page} of ${totalPages} · ${total} total`}
+        </span>
+        <div className="flex gap-1">
+          <Button variant="outline" size="icon-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+            <span className="sr-only">Previous page</span>
+          </Button>
+          <Button variant="outline" size="icon-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+            <ChevronRight className="h-4 w-4" />
+            <span className="sr-only">Next page</span>
+          </Button>
         </div>
-      )}
+      </div>
 
       {/* Delete confirmation */}
       <Dialog open={deleteTarget !== null} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
