@@ -5,7 +5,9 @@ import type { Group } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronRight, ChevronLeft } from 'lucide-react'
+
+const PAGE_SIZE = 20
 
 // ---------------------------------------------------------------------------
 // Page
@@ -15,14 +17,17 @@ export default function GroupsPage() {
   const navigate = useNavigate()
   const [groups, setGroups]             = useState<Group[]>([])
   const [total, setTotal]               = useState(0)
+  const [page, setPage]                 = useState(1)
   const [loading, setLoading]           = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
   const [deleting, setDeleting]         = useState(false)
 
-  const load = useCallback(async () => {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const load = useCallback(async (p: number) => {
     setLoading(true)
     try {
-      const res = await listGroups()
+      const res = await listGroups(p, PAGE_SIZE)
       setGroups(res.items)
       setTotal(res.totalCount)
     } finally {
@@ -30,7 +35,7 @@ export default function GroupsPage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(page) }, [load, page])
 
   async function handleDelete() {
     if (!deleteTarget) return
@@ -38,7 +43,10 @@ export default function GroupsPage() {
     try {
       await deleteGroup(deleteTarget.id)
       setDeleteTarget(null)
-      load()
+      // If we deleted the last item on a page > 1, step back
+      const newPage = groups.length === 1 && page > 1 ? page - 1 : page
+      setPage(newPage)
+      load(newPage)
     } finally {
       setDeleting(false)
     }
@@ -104,6 +112,21 @@ export default function GroupsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Page {page} of {totalPages}</span>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page <= 1}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       <Dialog open={deleteTarget !== null} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>

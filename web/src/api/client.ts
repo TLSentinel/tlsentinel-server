@@ -18,8 +18,20 @@ export function clearToken(): void {
   localStorage.removeItem('token')
 }
 
+/** Returns true only when a token exists and has not expired. */
 export function hasToken(): boolean {
-  return _token !== null
+  if (!_token) return false
+  try {
+    const payload = JSON.parse(atob(_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      clearToken()
+      return false
+    }
+    return true
+  } catch {
+    clearToken()
+    return false
+  }
 }
 
 export interface TokenIdentity {
@@ -69,6 +81,11 @@ async function request<T>(
   })
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = '/login'
+      return undefined as T
+    }
     // The Go server returns plain-text error messages.
     const text = await res.text()
     throw new ApiError(res.status, text.trim() || res.statusText)
