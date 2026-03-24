@@ -23,6 +23,12 @@ import AccountCalendarPage from '@/pages/account/AccountCalendarPage'
 import GroupsPage from '@/pages/settings/GroupsPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
 import ToolboxPage from '@/pages/toolbox/ToolboxPage'
+import CertDecoderPage from '@/pages/toolbox/CertDecoderPage'
+import CsrDecoderPage from '@/pages/toolbox/CsrDecoderPage'
+import CsrGeneratorPage from '@/pages/toolbox/CsrGeneratorPage'
+import CertDiffPage from '@/pages/toolbox/CertDiffPage'
+import PemDerPage from '@/pages/toolbox/PemDerPage'
+import CertChainPage from '@/pages/toolbox/CertChainPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -57,6 +63,12 @@ export default function App() {
           <Route path="hosts" element={<HostsPage />} />
           <Route path="hosts/:id" element={<HostDetailPage />} />
           <Route path="toolbox" element={<ToolboxPage />} />
+          <Route path="toolbox/cert-decoder" element={<CertDecoderPage />} />
+          <Route path="toolbox/csr-decoder" element={<CsrDecoderPage />} />
+          <Route path="toolbox/csr-generator" element={<CsrGeneratorPage />} />
+          <Route path="toolbox/cert-diff" element={<CertDiffPage />} />
+          <Route path="toolbox/pem-der" element={<PemDerPage />} />
+          <Route path="toolbox/cert-chain" element={<CertChainPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
           <Route path="account">

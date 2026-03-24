@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
+    "@peculiar/asn1-schema": "^2.6.0",
+    "@peculiar/x509": "^2.0.0",
     "@radix-ui/react-select": "^2.2.6",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.1",
@@ -22,6 +24,7 @@
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.1",
+    "reflect-metadata": "^0.2.2",
     "shadcn": "^4.0.5",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
