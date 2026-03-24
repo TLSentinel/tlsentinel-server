@@ -9,6 +9,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
+	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 )
 
 // Authenticate is Chi middleware that validates bearer tokens.
@@ -58,6 +59,25 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 				return
 			}
 			if _, permitted := allowed[id.Role]; !permitted {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequirePermission returns middleware that allows only users whose role grants
+// the specified permission. Must be used inside an Authenticate-protected group.
+func RequirePermission(perm string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id, ok := GetIdentity(r.Context())
+			if !ok || id.Kind != KindUser {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			if !permission.Has(id.Role, perm) {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}

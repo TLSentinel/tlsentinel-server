@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
-	"github.com/tlsentinel/tlsentinel-server/internal/role"
+	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 )
 
 func userToModel(u User) models.User {
@@ -49,7 +49,7 @@ func (s *Store) CountAdminUsers(ctx context.Context) (int64, error) {
 	err := s.db.NewSelect().
 		TableExpr("tlsentinel.users").
 		ColumnExpr("COUNT(*)").
-		Where("role = ?", role.Admin).
+		Where("role = ?", permission.RoleAdmin).
 		Scan(ctx, &count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count admin users: %w", err)

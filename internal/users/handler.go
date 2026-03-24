@@ -10,14 +10,14 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
-	"github.com/tlsentinel/tlsentinel-server/internal/role"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
 )
 
-var validRoles = map[string]bool{role.Admin: true, role.Viewer: true}
+var validRoles = map[string]bool{permission.RoleAdmin: true, permission.RoleViewer: true}
 var validProviders = map[string]bool{provider.Local: true, provider.OIDC: true}
 
 type Handler struct {
@@ -289,7 +289,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Role == "" {
-		req.Role = role.Viewer
+		req.Role = permission.RoleViewer
 	}
 	if !validRoles[req.Role] {
 		http.Error(w, "role must be 'admin' or 'viewer'", http.StatusBadRequest)
@@ -518,7 +518,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to get user", http.StatusInternalServerError)
 		return
 	}
-	if target.Role == role.Admin {
+	if target.Role == permission.RoleAdmin {
 		count, err := h.store.CountAdminUsers(r.Context())
 		if err != nil {
 			http.Error(w, "failed to verify admin count", http.StatusInternalServerError)

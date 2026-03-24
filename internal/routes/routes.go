@@ -13,16 +13,16 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
-	"github.com/tlsentinel/tlsentinel-server/internal/groups"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/groups"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/hosts"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
 	"github.com/tlsentinel/tlsentinel-server/internal/oidc"
+	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
-	"github.com/tlsentinel/tlsentinel-server/internal/role"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
@@ -76,11 +76,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 
 			r.Route("/scanners", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequireRole(role.Admin, role.Viewer))
+					r.Use(auth.RequirePermission(permission.ScannersView))
 					r.Get("/", tokenHandler.List)
 				})
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequireRole(role.Admin))
+					r.Use(auth.RequirePermission(permission.ScannersEdit))
 					r.Post("/", tokenHandler.Create)
 					r.Route("/{scannerID}", func(r chi.Router) {
 						r.Put("/", tokenHandler.Update)
@@ -89,29 +89,30 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					})
 				})
 			})
+
 			r.Route("/alerts", func(r chi.Router) {
 				// TODO IGNORE FOR NOW
 			})
 
 			r.Route("/certificates", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequireRole(role.Admin, role.Viewer))
+					r.Use(auth.RequirePermission(permission.CertsView))
 					r.Get("/", certHandler.List)
 					r.Get("/active", certHandler.Active)
 					r.Get("/expiring", certHandler.Expiring)
 				})
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequireRole(role.Admin))
+					r.Use(auth.RequirePermission(permission.CertsEdit))
 					r.Post("/", certHandler.Create)
 				})
 				r.Route("/{fingerprint}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(auth.RequireRole(role.Admin, role.Viewer))
+						r.Use(auth.RequirePermission(permission.CertsView))
 						r.Get("/", certHandler.Get)
 						r.Get("/hosts", certHandler.GetHosts)
 					})
 					r.Group(func(r chi.Router) {
-						r.Use(auth.RequireRole(role.Admin))
+						r.Use(auth.RequirePermission(permission.CertsEdit))
 						r.Delete("/", certHandler.Delete)
 					})
 				})
@@ -119,22 +120,22 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 
 			r.Route("/hosts", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequireRole(role.Admin, role.Viewer))
+					r.Use(auth.RequirePermission(permission.HostsView))
 					r.Get("/", hostHandler.List)
 				})
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequireRole(role.Admin))
+					r.Use(auth.RequirePermission(permission.HostsEdit))
 					r.Post("/", hostHandler.Create)
 				})
 				r.Route("/{hostID}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(auth.RequireRole(role.Admin, role.Viewer))
+						r.Use(auth.RequirePermission(permission.HostsView))
 						r.Get("/", hostHandler.Get)
 						r.Get("/tls-profile", hostHandler.GetTLSProfile)
 						r.Get("/history", hostHandler.History)
 					})
 					r.Group(func(r chi.Router) {
-						r.Use(auth.RequireRole(role.Admin))
+						r.Use(auth.RequirePermission(permission.HostsEdit))
 						r.Put("/", hostHandler.Update)
 						r.Delete("/", hostHandler.Delete)
 					})
@@ -143,7 +144,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 
 			// /me — any authenticated user, scoped to themselves.
 			r.Route("/me", func(r chi.Router) {
-				r.Use(auth.RequireRole(role.Admin, role.Viewer))
+				r.Use(auth.RequirePermission(permission.SelfRead))
 				r.Get("/", userHandler.Me)
 				r.Put("/", userHandler.UpdateMe)
 				r.Patch("/password", userHandler.ChangeMyPassword)
@@ -151,43 +152,76 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 			})
 
 			r.Route("/users", func(r chi.Router) {
-				r.Use(auth.RequireRole(role.Admin))
-				r.Get("/", userHandler.List)
-				r.Post("/", userHandler.Create)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.UsersView))
+					r.Get("/", userHandler.List)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.UsersEdit))
+					r.Post("/", userHandler.Create)
+				})
 				r.Route("/{userID}", func(r chi.Router) {
-					r.Get("/", userHandler.Get)
-					r.Put("/", userHandler.Update)
-					r.Delete("/", userHandler.Delete)
-					r.Patch("/password", userHandler.ChangePassword)
-					r.Patch("/enabled", userHandler.SetEnabled)
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.UsersView))
+						r.Get("/", userHandler.Get)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.UsersEdit))
+						r.Put("/", userHandler.Update)
+						r.Delete("/", userHandler.Delete)
+						r.Patch("/password", userHandler.ChangePassword)
+						r.Patch("/enabled", userHandler.SetEnabled)
+					})
 				})
 			})
 
 			r.Route("/groups", func(r chi.Router) {
-				r.Use(auth.RequireRole(role.Admin))
-				r.Get("/", groupHandler.List)
-				r.Post("/", groupHandler.Create)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.GroupsView))
+					r.Get("/", groupHandler.List)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.GroupsEdit))
+					r.Post("/", groupHandler.Create)
+				})
 				r.Route("/{groupID}", func(r chi.Router) {
-					r.Get("/", groupHandler.Get)
-					r.Put("/", groupHandler.Update)
-					r.Delete("/", groupHandler.Delete)
-					r.Get("/hosts", groupHandler.GetHosts)
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.GroupsView))
+						r.Get("/", groupHandler.Get)
+						r.Get("/hosts", groupHandler.GetHosts)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.GroupsEdit))
+						r.Put("/", groupHandler.Update)
+						r.Delete("/", groupHandler.Delete)
+					})
 				})
 			})
 
 			r.Route("/settings", func(r chi.Router) {
-				r.Use(auth.RequireRole(role.Admin))
-				r.Route("/mail", func(r chi.Router) {
-					r.Get("/", mailHandler.Get)
-					r.Put("/", mailHandler.Save)
-					r.Post("/test", mailHandler.Test)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.SettingsView))
+					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
 				})
-				r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
-				r.Put("/alert-thresholds", settingsHandler.SetAlertThresholds)
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.SettingsEdit))
+					r.Put("/alert-thresholds", settingsHandler.SetAlertThresholds)
+				})
+				r.Route("/mail", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.SettingsView))
+						r.Get("/", mailHandler.Get)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.SettingsEdit))
+						r.Put("/", mailHandler.Save)
+						r.Post("/test", mailHandler.Test)
+					})
+				})
 			})
 
 			r.Route("/utils", func(r chi.Router) {
-				r.Use(auth.RequireRole(role.Admin, role.Viewer))
+				r.Use(auth.RequirePermission(permission.HostsView))
 				r.Get("/resolve", utilsHandler.Resolve)
 			})
 

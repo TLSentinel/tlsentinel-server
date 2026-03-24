@@ -9,8 +9,8 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
-	"github.com/tlsentinel/tlsentinel-server/internal/role"
 )
 
 // EnsureAdminUser creates the initial admin user from the provided credentials
@@ -34,7 +34,7 @@ func EnsureAdminUser(ctx context.Context, store *db.Store, cfg *config.Config) e
 	}
 
 	firstName := "Administrator"
-	if _, err := store.InsertUser(ctx, cfg.AdminUsername, string(hash), role.Admin, provider.Local, false, &firstName, nil, nil); err != nil {
+	if _, err := store.InsertUser(ctx, cfg.AdminUsername, string(hash), permission.RoleAdmin, provider.Local, false, &firstName, nil, nil); err != nil {
 		return fmt.Errorf("failed to create admin user: %w", err)
 	}
 
