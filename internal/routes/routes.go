@@ -13,6 +13,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
+	"github.com/tlsentinel/tlsentinel-server/internal/groups"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
@@ -45,6 +46,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	utilsHandler := utils.NewHandler()
 	mailHandler := mail.NewHandler(store, cfg)
 	calendarHandler := calendar.NewHandler(store)
+	groupHandler := groups.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -158,6 +160,18 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Delete("/", userHandler.Delete)
 					r.Patch("/password", userHandler.ChangePassword)
 					r.Patch("/enabled", userHandler.SetEnabled)
+				})
+			})
+
+			r.Route("/groups", func(r chi.Router) {
+				r.Use(auth.RequireRole(role.Admin))
+				r.Get("/", groupHandler.List)
+				r.Post("/", groupHandler.Create)
+				r.Route("/{groupID}", func(r chi.Router) {
+					r.Get("/", groupHandler.Get)
+					r.Put("/", groupHandler.Update)
+					r.Delete("/", groupHandler.Delete)
+					r.Get("/hosts", groupHandler.GetHosts)
 				})
 			})
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ArrowLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ChevronRight } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -422,13 +422,11 @@ export default function ScannersPage() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/settings"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Settings
-      </Link>
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/settings" className="hover:text-foreground">Settings</Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="text-foreground">Scanners</span>
+      </nav>
 
       {/* Header */}
       <div className="flex items-center justify-between">

@@ -4,7 +4,7 @@ import { getMe, rotateCalendarToken } from '@/api/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 export default function AccountCalendarPage() {
   const [token, setToken]       = useState<string | null>(null)
@@ -30,12 +30,11 @@ export default function AccountCalendarPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-2">
-        <Link to="/account" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ChevronLeft className="h-4 w-4" />
-          My Account
-        </Link>
-      </div>
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/account" className="hover:text-foreground">My Account</Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="text-foreground">Calendar Feed</span>
+      </nav>
 
       <div>
         <h1 className="text-2xl font-semibold">Calendar Feed</h1>

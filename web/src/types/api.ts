@@ -237,6 +237,24 @@ export interface MailConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Groups
+// ---------------------------------------------------------------------------
+export interface Group {
+  id: string
+  name: string
+  description: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GroupList {
+  items: Group[]
+  page: number
+  pageSize: number
+  totalCount: number
+}
+
+// ---------------------------------------------------------------------------
 // Utils
 // ---------------------------------------------------------------------------
 export interface ResolveResponse {

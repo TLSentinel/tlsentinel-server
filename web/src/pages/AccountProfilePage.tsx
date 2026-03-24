@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { User } from '@/types/api'
 
 export default function AccountProfilePage() {
@@ -52,12 +52,11 @@ export default function AccountProfilePage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-2">
-        <Link to="/account" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ChevronLeft className="h-4 w-4" />
-          My Account
-        </Link>
-      </div>
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/account" className="hover:text-foreground">My Account</Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="text-foreground">Profile</span>
+      </nav>
 
       <div>
         <h1 className="text-2xl font-semibold">Profile</h1>

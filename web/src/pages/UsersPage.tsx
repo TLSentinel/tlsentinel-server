@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, ArrowLeft, Search, ChevronDown, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, Search, ChevronDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -543,13 +543,11 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/settings"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Settings
-      </Link>
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/settings" className="hover:text-foreground">Settings</Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="text-foreground">Users</span>
+      </nav>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

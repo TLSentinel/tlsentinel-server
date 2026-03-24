@@ -145,6 +145,34 @@ type CertificateExpiryAlert struct {
 	AlertedAt     time.Time `bun:"alerted_at"`
 }
 
+// Group maps to tlsentinel.groups.
+type Group struct {
+	bun.BaseModel `bun:"table:tlsentinel.groups"`
+
+	ID          string    `bun:"id,pk,type:uuid"`
+	Name        string    `bun:"name"`
+	Description *string   `bun:"description"`
+	CreatedAt   time.Time `bun:"created_at"`
+	UpdatedAt   time.Time `bun:"updated_at"`
+}
+
+// HostGroup maps to tlsentinel.host_groups.
+type HostGroup struct {
+	bun.BaseModel `bun:"table:tlsentinel.host_groups"`
+
+	HostID  string `bun:"host_id,pk,type:uuid"`
+	GroupID string `bun:"group_id,pk,type:uuid"`
+}
+
+// UserGroup maps to tlsentinel.user_groups.
+type UserGroup struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_groups"`
+
+	UserID  string `bun:"user_id,pk,type:uuid"`
+	GroupID string `bun:"group_id,pk,type:uuid"`
+	Role    string `bun:"role"`
+}
+
 // VActiveCertificate maps to the read-only tlsentinel.v_active_certificates view.
 type VActiveCertificate struct {
 	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates"`

@@ -1,4 +1,4 @@
-import { User, KeyRound, CalendarDays } from 'lucide-react'
+import { User, KeyRound, CalendarDays, Users } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 export default function AccountPage() {
@@ -29,6 +29,12 @@ export default function AccountPage() {
           icon={<CalendarDays className="h-4 w-4" />}
           title="Calendar Feed"
           description="Subscribe to a live .ics feed of certificate expiry events in Outlook or Google Calendar."
+        />
+        <HubCard
+          icon={<Users className="h-4 w-4" />}
+          title="Groups"
+          description="Manage your group memberships and notification subscriptions."
+          soon
         />
       </div>
     </div>

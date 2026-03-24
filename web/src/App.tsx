@@ -20,6 +20,8 @@ import AccountPage from '@/pages/AccountPage'
 import AccountProfilePage from '@/pages/AccountProfilePage'
 import AccountPasswordPage from '@/pages/AccountPasswordPage'
 import AccountCalendarPage from '@/pages/AccountCalendarPage'
+import GroupsPage from '@/pages/GroupsPage'
+import GroupFormPage from '@/pages/GroupFormPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -67,6 +69,9 @@ export default function App() {
             <Route index element={<SettingsPage />} />
             <Route path="scanners" element={<ScannersPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="groups" element={<GroupsPage />} />
+            <Route path="groups/new" element={<GroupFormPage />} />
+            <Route path="groups/:id/edit" element={<GroupFormPage />} />
             <Route path="mail" element={<MailConfigPage />} />
             <Route path="general" element={<GeneralSettingsPage />} />
             <Route path="about" element={<AboutPage />} />
