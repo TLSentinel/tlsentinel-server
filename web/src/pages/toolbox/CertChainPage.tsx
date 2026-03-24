@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ChevronDown, ChevronRight, CheckCircle2,
-  AlertTriangle, XCircle, ShieldCheck, ShieldAlert,
+  AlertTriangle, XCircle, ShieldCheck, ShieldAlert, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -82,7 +82,19 @@ interface ChainResult {
   chain: X509Certificate[]          // ordered leaf → root
   valid: boolean
   incomplete: boolean
+  wasReordered: boolean
   errors: string[]
+}
+
+function downloadChain(chain: X509Certificate[]) {
+  const pem = chain.map((c) => c.toString()).join('\n')
+  const blob = new Blob([pem], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'chain.pem'
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 async function buildChain(certs: X509Certificate[]): Promise<ChainResult> {
@@ -100,7 +112,7 @@ async function buildChain(certs: X509Certificate[]): Promise<ChainResult> {
     chain = Array.from(built)
   } catch (e) {
     errors.push(e instanceof Error ? e.message : 'Chain build failed.')
-    return { chain: certs, valid: false, incomplete: true, errors }
+    return { chain: certs, valid: false, incomplete: true, wasReordered: false, errors }
   }
 
   // Check for expiry in chain
@@ -123,7 +135,12 @@ async function buildChain(certs: X509Certificate[]): Promise<ChainResult> {
   const incomplete = chain.length > 0 && !isSelfSigned(root)
   if (incomplete) errors.push('Chain is incomplete — root certificate not found.')
 
-  return { chain, valid: errors.length === 0, incomplete, errors }
+  // Detect if input order differed from the built chain order
+  const chainPemSet = new Set(chain.map((c) => c.toString()))
+  const inputInChain = certs.filter((c) => chainPemSet.has(c.toString()))
+  const wasReordered = inputInChain.some((c, i) => c.toString() !== chain[i]?.toString())
+
+  return { chain, valid: errors.length === 0, incomplete, wasReordered, errors }
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +305,12 @@ export default function CertChainPage() {
       {result && (
         <div className="space-y-4">
           {/* Status banner */}
+          {result.wasReordered && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>Certificates were pasted out of order — the chain below reflects the correct order.</span>
+            </div>
+          )}
           {result.valid ? (
             <div className="flex items-start gap-2 rounded-md border border-green-500/30 bg-green-500/5 p-3 text-sm text-green-700 dark:text-green-400">
               <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
@@ -344,13 +367,26 @@ export default function CertChainPage() {
             )
           })()}
 
-          {/* Chain is valid with root */}
-          {result.valid && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-              <span>All signatures verified · Chain terminates at a self-signed root.</span>
-            </div>
-          )}
+          {/* Footer: valid note + download */}
+          <div className="flex items-center justify-between gap-4">
+            {result.valid ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                <span>All signatures verified · Chain terminates at a self-signed root.</span>
+              </div>
+            ) : (
+              <div />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => downloadChain(result.chain)}
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              Download PEM
+            </Button>
+          </div>
         </div>
       )}
     </div>
