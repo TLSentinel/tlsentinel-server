@@ -3,8 +3,10 @@ package scanners
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
@@ -18,6 +20,30 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
+}
+
+func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
+	identity, _ := auth.GetIdentity(r.Context())
+	ip := audit.IPFromRequest(r)
+	resType := resourceType
+	resID := resourceID
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:       ptrIfNonEmpty(identity.UserID),
+		Username:     identity.Username,
+		Action:       action,
+		ResourceType: &resType,
+		ResourceID:   &resID,
+		IPAddress:    &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // createScannerTokenRequest is the payload for creating a new scanner token.
@@ -91,6 +117,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.ScannerCreate, "scanner", token.ID)
 	response.JSON(w, http.StatusCreated, createScannerTokenResponse{
 		ID:         token.ID,
 		Name:       token.Name,
@@ -141,6 +168,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.ScannerUpdate, "scanner", scannerID)
 	response.JSON(w, http.StatusOK, token)
 }
 
@@ -164,6 +192,7 @@ func (h *Handler) SetDefault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.ScannerSetDefault, "scanner", scannerID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -187,5 +216,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.ScannerDelete, "scanner", scannerID)
 	w.WriteHeader(http.StatusNoContent)
 }

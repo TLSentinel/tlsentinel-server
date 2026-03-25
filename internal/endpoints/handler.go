@@ -3,10 +3,13 @@ package endpoints
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
+	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
@@ -21,6 +24,28 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
+}
+
+func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
+	identity, _ := auth.GetIdentity(r.Context())
+	ip := audit.IPFromRequest(r)
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:       ptrIfNonEmpty(identity.UserID),
+		Username:     identity.Username,
+		Action:       action,
+		ResourceType: &resourceType,
+		ResourceID:   &resourceID,
+		IPAddress:    &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // CreateEndpointRequest is the payload for creating a new endpoint.
@@ -132,6 +157,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.EndpointCreate, "endpoint", endpoint.ID)
 	response.JSON(w, http.StatusCreated, endpoint)
 }
 
@@ -213,6 +239,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -236,6 +263,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.EndpointDelete, "endpoint", endpointID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
