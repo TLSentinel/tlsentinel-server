@@ -11,7 +11,7 @@ export function getGroup(id: string): Promise<Group> {
 }
 
 export function getGroupHostIDs(id: string): Promise<string[]> {
-  return api.get<string[]>(`/groups/${id}/hosts`)
+  return api.get<string[]>(`/groups/${id}/endpoints`)
 }
 
 export function createGroup(req: { name: string; description?: string | null; hostIds: string[] }): Promise<Group> {

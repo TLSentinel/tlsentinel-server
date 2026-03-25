@@ -235,24 +235,24 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, detail)
 }
 
-// @Summary      Get hosts using a certificate
-// @Description  Returns all hosts whose active certificate matches the given fingerprint
+// @Summary      Get endpoints using a certificate
+// @Description  Returns all endpoints whose active certificate matches the given fingerprint
 // @Tags         certificates
 // @Produce      json
 // @Param        fingerprint  path      string  true  "Certificate fingerprint"
-// @Success      200          {array}   models.HostListItem
+// @Success      200          {array}   models.EndpointListItem
 // @Failure      500          {string}  string  "internal server error"
-// @Router       /certificates/{fingerprint}/hosts [get]
-func (h *Handler) GetHosts(w http.ResponseWriter, r *http.Request) {
+// @Router       /certificates/{fingerprint}/endpoints [get]
+func (h *Handler) GetEndpoints(w http.ResponseWriter, r *http.Request) {
 	fingerprint := chi.URLParam(r, "fingerprint")
 
-	hosts, err := h.store.GetCertificateHosts(r.Context(), fingerprint)
+	endpoints, err := h.store.GetCertificateHosts(r.Context(), fingerprint)
 	if err != nil {
-		http.Error(w, "failed to get certificate hosts", http.StatusInternalServerError)
+		http.Error(w, "failed to get certificate endpoints", http.StatusInternalServerError)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, hosts)
+	response.JSON(w, http.StatusOK, endpoints)
 }
 
 // @Summary      Delete a certificate

@@ -34,18 +34,11 @@ import {
 import { isAdmin } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
+import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus

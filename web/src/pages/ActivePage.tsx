@@ -13,6 +13,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { ApiError } from '@/types/api'
+import { fmtDate } from '@/lib/utils'
+import { fmtDays } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -59,20 +61,6 @@ function StatusBadge({ daysRemaining }: { daysRemaining: number }) {
       {label}
     </span>
   )
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function fmtDays(days: number): string {
-  if (days < 0) return `${Math.abs(days)}d ago`
-  if (days === 0) return 'Today'
-  return `${days}d`
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +237,7 @@ export default function ActivePage() {
               items.map((item) => (
                 <TableRow key={`${item.hostId}-${item.fingerprint}`}>
                   <TableCell className="font-medium">
-                    <Link to={`/hosts/${item.hostId}`} className="hover:underline">
+                    <Link to={`/endpoints/${item.hostId}`} className="hover:underline">
                       {item.hostName}
                     </Link>
                   </TableCell>

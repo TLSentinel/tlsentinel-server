@@ -1,18 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Shield } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // ExpiryBadge — exported for use in page headers

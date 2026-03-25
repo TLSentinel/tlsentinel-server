@@ -54,7 +54,7 @@ export function deleteCertificate(fingerprint: string): Promise<void> {
 }
 
 export function getCertificateHosts(fingerprint: string): Promise<HostListItem[]> {
-  return api.get<HostListItem[]>(`/certificates/${fingerprint}/hosts`)
+  return api.get<HostListItem[]>(`/certificates/${fingerprint}/endpoints`)
 }
 
 export function listActive(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<ExpiringCertList> {

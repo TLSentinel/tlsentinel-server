@@ -7,28 +7,8 @@ import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, HostListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { CertCard, ExpiryBadge } from '@/components/CertCard'
+import { fmtDate, fmtDateTime } from '@/lib/utils'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function fmtDateTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 // ---------------------------------------------------------------------------
 // Layout primitives
 // ---------------------------------------------------------------------------
@@ -351,7 +331,7 @@ function HostsSection({ fingerprint }: { fingerprint: string }) {
             >
               <div className="min-w-0">
                 <Link
-                  to={`/hosts/${h.id}`}
+                  to={`/endpoints/${h.id}`}
                   className="font-medium hover:underline"
                 >
                   {h.name}

@@ -90,7 +90,7 @@ export default function AppShell() {
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
           <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
           <NavItem to="/certificates" icon={<Shield className="h-4 w-4" />} label="Certificates" />
-          <NavItem to="/hosts" icon={<Server className="h-4 w-4" />} label="Hosts" />
+          <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
           <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
         </nav>
 

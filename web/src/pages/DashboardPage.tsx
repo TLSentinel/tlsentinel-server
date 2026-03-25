@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Server, Shield, Clock, AlertCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
-import { listHosts, listErrorHosts } from '@/api/hosts'
+import { listHosts, listErrorHosts } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import type { HostListItem } from '@/types/api'
@@ -59,7 +59,7 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
     <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
       <div className="min-w-0">
         <Link
-          to={`/hosts/${item.hostId}`}
+          to={`/endpoints/${item.hostId}`}
           className="text-sm font-medium hover:underline truncate block"
         >
           {item.hostName}
@@ -97,7 +97,7 @@ function ErrorRow({ host }: { host: HostListItem }) {
     <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
       <div className="min-w-0">
         <Link
-          to={`/hosts/${host.id}`}
+          to={`/endpoints/${host.id}`}
           className="text-sm font-medium hover:underline truncate block"
         >
           {host.name}

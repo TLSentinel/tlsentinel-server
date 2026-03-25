@@ -1,9 +1,9 @@
 package permission
 
 const (
-	// Hosts
-	HostsView = "hosts:view"
-	HostsEdit = "hosts:edit"
+	// Endpoints
+	EndpointsView = "endpoints:view"
+	EndpointsEdit = "endpoints:edit"
 
 	// Certificates
 	CertsView = "certs:view"
@@ -45,14 +45,14 @@ var RolePermissions = map[string][]string{
 		Wildcard,
 	},
 	RoleViewer: {
-		HostsView,
+		EndpointsView,
 		CertsView,
 		GroupsView,
 		SelfRead,
 	},
 	RoleOperator: {
-		HostsView,
-		HostsEdit,
+		EndpointsView,
+		EndpointsEdit,
 		CertsView,
 		ScannersView,
 		GroupsView,

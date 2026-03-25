@@ -31,18 +31,7 @@ import { listUsers, createUser, updateUser, setUserEnabled, changePassword, dele
 import { isAdmin, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Add / Edit dialog

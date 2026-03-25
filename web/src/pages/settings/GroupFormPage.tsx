@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getGroup, getGroupHostIDs, createGroup, updateGroup } from '@/api/groups'
-import { listHosts } from '@/api/hosts'
+import { listHosts } from '@/api/endpoints'
 import type { HostListItem } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

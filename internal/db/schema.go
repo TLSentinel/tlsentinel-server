@@ -26,12 +26,13 @@ type Certificate struct {
 	CreatedAt         time.Time `bun:"created_at"`
 }
 
-// Host maps to tlsentinel.hosts.
-type Host struct {
-	bun.BaseModel `bun:"table:tlsentinel.hosts,alias:h"`
+// Endpoint maps to tlsentinel.endpoints.
+type Endpoint struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoints,alias:h"`
 
 	ID                string     `bun:"id,pk,type:uuid"`
 	Name              string     `bun:"name"`
+	Type              string     `bun:"type"`
 	DNSName           string     `bun:"dns_name"`
 	IPAddress         *string    `bun:"ip_address"`
 	Port              int        `bun:"port"`
@@ -96,12 +97,12 @@ type MailConfig struct {
 	UpdatedAt    time.Time `bun:"updated_at"`
 }
 
-// HostScanHistory maps to tlsentinel.host_scan_history.
-type HostScanHistory struct {
-	bun.BaseModel `bun:"table:tlsentinel.host_scan_history"`
+// EndpointScanHistory maps to tlsentinel.endpoint_scan_history.
+type EndpointScanHistory struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoint_scan_history"`
 
-	ID          string     `bun:"id,pk,type:uuid"`
-	HostID      string     `bun:"host_id,type:uuid"`
+	ID         string     `bun:"id,pk,type:uuid"`
+	EndpointID string     `bun:"endpoint_id,type:uuid"`
 	ScannedAt   time.Time  `bun:"scanned_at"`
 	Fingerprint *string    `bun:"fingerprint"`
 	ResolvedIP  *string    `bun:"resolved_ip"`
@@ -109,11 +110,11 @@ type HostScanHistory struct {
 	ScanError   *string    `bun:"scan_error"`
 }
 
-// HostTLSProfile maps to tlsentinel.host_tls_profiles.
-type HostTLSProfile struct {
-	bun.BaseModel `bun:"table:tlsentinel.host_tls_profiles"`
+// EndpointTLSProfile maps to tlsentinel.host_tls_profiles.
+type EndpointTLSProfile struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoint_tls_profiles"`
 
-	HostID         string    `bun:"host_id,pk,type:uuid"`
+	EndpointID     string    `bun:"endpoint_id,pk,type:uuid"`
 	ScannedAt      time.Time `bun:"scanned_at"`
 	TLS10          bool      `bun:"tls10"`
 	TLS11          bool      `bun:"tls11"`

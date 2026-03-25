@@ -25,18 +25,11 @@ import { listScanners, createScanner, updateScanner, setDefaultScanner, deleteSc
 import { isAdmin } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
+import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 function fmtRelative(iso: string, now: number): string {
   const diff = now - new Date(iso).getTime()
