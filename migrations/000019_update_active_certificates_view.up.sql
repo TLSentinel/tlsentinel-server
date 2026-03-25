@@ -1,6 +1,6 @@
 DROP VIEW IF EXISTS tlsentinel.v_active_certificates;
 
-CREATE VIEW tlsentinel.v_active_certificates AS
+CREATE OR REPLACE VIEW tlsentinel.v_active_certificates AS
 SELECT
     e.id                                                              AS endpoint_id,
     e.name                                                            AS endpoint_name,
