@@ -3,10 +3,10 @@ import { hasToken } from '@/api/client'
 import AppShell from '@/components/layout/AppShell'
 import LoginPage from '@/pages/LoginPage'
 import ScannersPage from '@/pages/settings/ScannersPage'
-import HostsPage from '@/pages/hosts/HostsPage'
+import EndpointPage from '@/pages/endpoint/EndpointPage'
 import CertificatesPage from '@/pages/certificates/CertificatesPage'
 import CertificateDetailPage from '@/pages/certificates/CertificateDetailPage'
-import HostDetailPage from '@/pages/hosts/HostDetailPage'
+import EndpointDetailPage from '@/pages/endpoint/EndpointDetailPage'
 import UsersPage from '@/pages/settings/UsersPage'
 import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
@@ -60,8 +60,8 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="active" element={<ActivePage />} />
-          <Route path="hosts" element={<HostsPage />} />
-          <Route path="hosts/:id" element={<HostDetailPage />} />
+          <Route path="endpoints" element={<EndpointPage />} />
+          <Route path="endpoints/:id" element={<EndpointDetailPage />} />
           <Route path="toolbox" element={<ToolboxPage />} />
           <Route path="toolbox/cert-decoder" element={<CertDecoderPage />} />
           <Route path="toolbox/csr-decoder" element={<CsrDecoderPage />} />

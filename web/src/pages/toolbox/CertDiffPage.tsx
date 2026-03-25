@@ -12,6 +12,7 @@ import {
   DN_LABELS,
   type DecodedCert,
 } from '@/lib/cert-utils'
+import { plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Diff row primitives
@@ -354,7 +355,7 @@ export default function CertDiffPage() {
               </Badge>
             ) : (
               <Badge variant="secondary" className="text-amber-600 dark:text-amber-400 bg-amber-500/10 border-0">
-                {differences} difference{differences !== 1 ? 's' : ''}
+                {plural(differences ?? 0, 'difference')}
               </Badge>
             )}
             <span className="text-xs text-muted-foreground">

@@ -25,18 +25,11 @@ import { listScanners, createScanner, updateScanner, setDefaultScanner, deleteSc
 import { isAdmin } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
+import { fmtDate, plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 function fmtRelative(iso: string, now: number): string {
   const diff = now - new Date(iso).getTime()
@@ -433,7 +426,7 @@ export default function ScannersPage() {
         <div>
           <h1 className="text-2xl font-semibold">Scanners</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {scanners.length} scanner{scanners.length !== 1 ? 's' : ''} registered
+            {scanners.length} {plural(scanners.length, 'scanner')} registered
           </p>
         </div>
         {admin && (

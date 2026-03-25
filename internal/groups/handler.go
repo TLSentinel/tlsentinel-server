@@ -63,8 +63,8 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(group)
 }
 
-// GetHosts returns the host IDs assigned to a group.
-func (h *Handler) GetHosts(w http.ResponseWriter, r *http.Request) {
+// GetEndpoints returns the endpoint IDs assigned to a group.
+func (h *Handler) GetEndpoints(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "groupID")
 	ids, err := h.store.ListGroupHostIDs(r.Context(), id)
 	if err != nil {

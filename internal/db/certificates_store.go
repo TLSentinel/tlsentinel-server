@@ -203,10 +203,10 @@ func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.
 	}, nil
 }
 
-func (s *Store) GetCertificateHosts(ctx context.Context, fingerprint string) ([]models.HostListItem, error) {
-	var rows []hostWithScanner
+func (s *Store) GetCertificateHosts(ctx context.Context, fingerprint string) ([]models.EndpointListItem, error) {
+	var rows []endpointWithScanner
 	err := s.db.NewSelect().
-		TableExpr("tlsentinel.hosts AS h").
+		TableExpr("tlsentinel.endpoints AS h").
 		ColumnExpr("h.*").
 		ColumnExpr("at.name AS scanner_name").
 		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
@@ -217,11 +217,11 @@ func (s *Store) GetCertificateHosts(ctx context.Context, fingerprint string) ([]
 		return nil, fmt.Errorf("failed to query certificate hosts: %w", err)
 	}
 
-	hosts := make([]models.HostListItem, len(rows))
+	endpoints := make([]models.EndpointListItem, len(rows))
 	for i, r := range rows {
-		hosts[i] = hostRowToListItem(r)
+		endpoints[i] = endpointRowToListItem(r)
 	}
-	return hosts, nil
+	return endpoints, nil
 }
 
 func (s *Store) InsertCertificate(ctx context.Context, rec models.CertificateRecord) (inserted bool, err error) {

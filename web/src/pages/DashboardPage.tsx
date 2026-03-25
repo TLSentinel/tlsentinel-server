@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { Server, Shield, Clock, AlertCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
-import { listHosts, listErrorHosts } from '@/api/hosts'
+import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
-import type { HostListItem } from '@/types/api'
+import type { EndpointListItem } from '@/types/api'
+import { plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -59,7 +60,7 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
     <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
       <div className="min-w-0">
         <Link
-          to={`/hosts/${item.hostId}`}
+          to={`/endpoints/${item.hostId}`}
           className="text-sm font-medium hover:underline truncate block"
         >
           {item.hostName}
@@ -92,21 +93,21 @@ function errorAge(since: string): string {
   return `${mins}m`
 }
 
-function ErrorRow({ host }: { host: HostListItem }) {
+function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
       <div className="min-w-0">
         <Link
-          to={`/hosts/${host.id}`}
+          to={`/endpoints/${endpoint.id}`}
           className="text-sm font-medium hover:underline truncate block"
         >
-          {host.name}
+          {endpoint.name}
         </Link>
-        <p className="text-xs text-muted-foreground truncate">{host.lastScanError}</p>
+        <p className="text-xs text-muted-foreground truncate">{endpoint.lastScanError}</p>
       </div>
       <div className="ml-4 shrink-0">
         <Badge variant="destructive">
-          {host.errorSince ? errorAge(host.errorSince) : '?'}
+          {endpoint.errorSince ? errorAge(endpoint.errorSince) : '?'}
         </Badge>
       </div>
     </div>
@@ -121,17 +122,17 @@ export default function DashboardPage() {
   const [hostCount, setHostCount] = useState<number | null>(null)
   const [certCount, setCertCount] = useState<number | null>(null)
   const [expiring, setExpiring] = useState<ExpiringCertItem[] | null>(null)
-  const [errorHosts, setErrorHosts] = useState<HostListItem[] | null>(null)
+  const [errorHosts, setErrorHosts] = useState<EndpointListItem[] | null>(null)
   const [errorCount, setErrorCount] = useState<number | null>(null)
 
   useEffect(() => {
-    listHosts(1, 1)
+    listEndpoints(1, 1)
       .then((r) => setHostCount(r.totalCount))
       .catch(() => setHostCount(0))
   }, [])
 
   useEffect(() => {
-    listErrorHosts(1, 10)
+    listErrorEndpoints(1, 10)
       .then((r) => { setErrorHosts(r.items); setErrorCount(r.totalCount) })
       .catch(() => { setErrorHosts([]); setErrorCount(0) })
   }, [])
@@ -164,9 +165,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={<Server className="h-4 w-4" />}
-          label="Hosts Monitored"
+          label="Endpoints Monitored"
           value={hostCount ?? '—'}
-          sub="Total configured hosts"
+          sub="Total configured endpoints"
         />
         <StatCard
           icon={<Shield className="h-4 w-4" />}
@@ -182,9 +183,9 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={<AlertCircle className="h-4 w-4" />}
-          label="Hosts with Scan Errors"
+          label="Endpoints with Scan Errors"
           value={errorCount ?? '—'}
-          sub="Currently failing hosts"
+          sub="Currently failing endpoints"
         />
       </div>
 
@@ -218,19 +219,19 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="text-sm font-semibold">Scan Errors</h2>
             {errorCount !== null && errorCount > 0 && (
-              <span className="text-xs text-muted-foreground">{errorCount} host{errorCount !== 1 ? 's' : ''} failing</span>
+              <span className="text-xs text-muted-foreground">{plural(errorCount, 'endpoint')} failing</span>
             )}
           </div>
           {errorHosts === null ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : errorHosts.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No scan errors. All hosts are healthy.
+              No scan errors. All endpoints are healthy.
             </div>
           ) : (
             <div>
               {errorHosts.map((h) => (
-                <ErrorRow key={h.id} host={h} />
+                <ErrorRow key={h.id} endpoint={h} />
               ))}
             </div>
           )}

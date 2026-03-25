@@ -187,7 +187,7 @@ func (h *Handler) TLSProfile(w http.ResponseWriter, r *http.Request) {
 		req.SelectedCipher = &norm
 	}
 
-	if err := h.store.UpsertHostTLSProfile(r.Context(), hostID, req); err != nil {
+	if err := h.store.UpsertEndpointTLSProfile(r.Context(), hostID, req); err != nil {
 		http.Error(w, "failed to record TLS profile", http.StatusInternalServerError)
 		return
 	}

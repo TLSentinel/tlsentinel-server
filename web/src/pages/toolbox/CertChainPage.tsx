@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { plural } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import {
   ChevronDown, ChevronRight, CheckCircle2,
@@ -314,7 +315,7 @@ export default function CertChainPage() {
           {result.valid ? (
             <div className="flex items-start gap-2 rounded-md border border-green-500/30 bg-green-500/5 p-3 text-sm text-green-700 dark:text-green-400">
               <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Chain is valid — {result.chain.length} certificate{result.chain.length !== 1 ? 's' : ''}, trusted to root.</span>
+              <span>Chain is valid — {plural(result.chain.length, 'certificate')}, trusted to root.</span>
             </div>
           ) : result.incomplete ? (
             <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
@@ -361,7 +362,7 @@ export default function CertChainPage() {
               <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>{unused.length} pasted certificate{unused.length !== 1 ? 's were' : ' was'} not used in the chain.</span>
+                  <span>{unused.length} pasted {plural(unused.length, 'certificate')} {plural(unused.length, 'was', 'were')} not used in the chain.</span>
                 </div>
               </div>
             )

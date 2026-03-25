@@ -15,9 +15,9 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/endpoints"
 	"github.com/tlsentinel/tlsentinel-server/internal/groups"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
-	"github.com/tlsentinel/tlsentinel-server/internal/hosts"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
 	"github.com/tlsentinel/tlsentinel-server/internal/oidc"
@@ -42,7 +42,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	userHandler := users.NewHandler(store)
 	settingsHandler := settings.NewHandler(store)
 	certHandler := certificates.NewHandler(store)
-	hostHandler := hosts.NewHandler(store)
+	endpointHandler := endpoints.NewHandler(store)
 	utilsHandler := utils.NewHandler()
 	mailHandler := mail.NewHandler(store, cfg)
 	calendarHandler := calendar.NewHandler(store)
@@ -109,7 +109,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.CertsView))
 						r.Get("/", certHandler.Get)
-						r.Get("/hosts", certHandler.GetHosts)
+						r.Get("/endpoints", certHandler.GetEndpoints)
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.CertsEdit))
@@ -118,26 +118,26 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				})
 			})
 
-			r.Route("/hosts", func(r chi.Router) {
+			r.Route("/endpoints", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.HostsView))
-					r.Get("/", hostHandler.List)
+					r.Use(auth.RequirePermission(permission.EndpointsView))
+					r.Get("/", endpointHandler.List)
 				})
 				r.Group(func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.HostsEdit))
-					r.Post("/", hostHandler.Create)
+					r.Use(auth.RequirePermission(permission.EndpointsEdit))
+					r.Post("/", endpointHandler.Create)
 				})
-				r.Route("/{hostID}", func(r chi.Router) {
+				r.Route("/{endpointID}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(auth.RequirePermission(permission.HostsView))
-						r.Get("/", hostHandler.Get)
-						r.Get("/tls-profile", hostHandler.GetTLSProfile)
-						r.Get("/history", hostHandler.History)
+						r.Use(auth.RequirePermission(permission.EndpointsView))
+						r.Get("/", endpointHandler.Get)
+						r.Get("/tls-profile", endpointHandler.GetTLSProfile)
+						r.Get("/history", endpointHandler.History)
 					})
 					r.Group(func(r chi.Router) {
-						r.Use(auth.RequirePermission(permission.HostsEdit))
-						r.Put("/", hostHandler.Update)
-						r.Delete("/", hostHandler.Delete)
+						r.Use(auth.RequirePermission(permission.EndpointsEdit))
+						r.Put("/", endpointHandler.Update)
+						r.Delete("/", endpointHandler.Delete)
 					})
 				})
 			})
@@ -188,7 +188,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.GroupsView))
 						r.Get("/", groupHandler.Get)
-						r.Get("/hosts", groupHandler.GetHosts)
+						r.Get("/endpoints", groupHandler.GetEndpoints)
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.GroupsEdit))
@@ -221,7 +221,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 			})
 
 			r.Route("/utils", func(r chi.Router) {
-				r.Use(auth.RequirePermission(permission.HostsView))
+				r.Use(auth.RequirePermission(permission.EndpointsView))
 				r.Get("/resolve", utilsHandler.Resolve)
 			})
 

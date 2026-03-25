@@ -13,6 +13,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { ApiError } from '@/types/api'
+import { fmtDate } from '@/lib/utils'
+import { fmtDays } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -47,7 +49,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: '',            label: 'Expiring soonest' },
   { value: 'days_desc',   label: 'Most time left' },
-  { value: 'host_name',   label: 'Host name A→Z' },
+  { value: 'host_name',   label: 'Endpoint name A→Z' },
   { value: 'common_name', label: 'Common name A→Z' },
 ]
 
@@ -59,20 +61,6 @@ function StatusBadge({ daysRemaining }: { daysRemaining: number }) {
       {label}
     </span>
   )
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function fmtDays(days: number): string {
-  if (days < 0) return `${Math.abs(days)}d ago`
-  if (days === 0) return 'Today'
-  return `${days}d`
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +128,7 @@ export default function ActivePage() {
       <div>
         <h1 className="text-2xl font-semibold">Active</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Active certificates across all monitored hosts
+          Active certificates across all monitored endpoints
         </p>
       </div>
 
@@ -150,7 +138,7 @@ export default function ActivePage() {
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-8"
-            placeholder="Search host or cert name…"
+            placeholder="Search endpoint or cert name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -218,7 +206,7 @@ export default function ActivePage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Host</TableHead>
+              <TableHead>Endpoint</TableHead>
               <TableHead>Address</TableHead>
               <TableHead className="w-28">Status</TableHead>
               <TableHead>Common Name</TableHead>
@@ -240,7 +228,7 @@ export default function ActivePage() {
                 <TableCell colSpan={6} className="py-10 text-center">
                   {debouncedSearch || statusFilter
                     ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                    : <StrixEmpty message="No hosts with active certificates yet." />}
+                    : <StrixEmpty message="No endpoints with active certificates yet." />}
                 </TableCell>
               </TableRow>
             )}
@@ -249,7 +237,7 @@ export default function ActivePage() {
               items.map((item) => (
                 <TableRow key={`${item.hostId}-${item.fingerprint}`}>
                   <TableCell className="font-medium">
-                    <Link to={`/hosts/${item.hostId}`} className="hover:underline">
+                    <Link to={`/endpoints/${item.hostId}`} className="hover:underline">
                       {item.hostName}
                     </Link>
                   </TableCell>

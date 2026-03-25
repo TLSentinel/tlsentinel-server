@@ -31,18 +31,7 @@ import { listUsers, createUser, updateUser, setUserEnabled, changePassword, dele
 import { isAdmin, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+import { fmtDate, plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Add / Edit dialog
@@ -553,7 +542,7 @@ export default function UsersPage() {
         <div>
           <h1 className="text-2xl font-semibold">Users</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} user{totalCount !== 1 ? 's' : ''}
+            {totalCount} {plural(totalCount, 'user')}
           </p>
         </div>
         {admin && (

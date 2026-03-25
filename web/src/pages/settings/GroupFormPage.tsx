@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getGroup, getGroupHostIDs, createGroup, updateGroup } from '@/api/groups'
-import { listHosts } from '@/api/hosts'
-import type { HostListItem } from '@/types/api'
+import { listEndpoints } from '@/api/endpoints'
+import type { EndpointListItem } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,12 +20,12 @@ interface AddHostsDialogProps {
   open: boolean
   onClose: () => void
   selectedIDs: Set<string>
-  onAdd: (host: HostListItem) => void
+  onAdd: (host: EndpointListItem) => void
 }
 
 function AddHostsDialog({ open, onClose, selectedIDs, onAdd }: AddHostsDialogProps) {
   const [search, setSearch]     = useState('')
-  const [results, setResults]   = useState<HostListItem[]>([])
+  const [results, setResults]   = useState<EndpointListItem[]>([])
   const [loading, setLoading]   = useState(false)
   const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -40,7 +40,7 @@ function AddHostsDialog({ open, onClose, selectedIDs, onAdd }: AddHostsDialogPro
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const res = await listHosts(1, 50, search.trim())
+        const res = await listEndpoints(1, 50, search.trim())
         setResults(res.items.filter(h => !selectedIDs.has(h.id)))
       } finally {
         setLoading(false)
@@ -106,7 +106,7 @@ export default function GroupFormPage() {
 
   const [name, setName]                   = useState('')
   const [description, setDescription]     = useState('')
-  const [selectedHosts, setSelectedHosts] = useState<HostListItem[]>([])
+  const [selectedHosts, setSelectedHosts] = useState<EndpointListItem[]>([])
   const [pickerOpen, setPickerOpen]       = useState(false)
   const [saving, setSaving]               = useState(false)
   const [error, setError]                 = useState<string | null>(null)
@@ -118,7 +118,7 @@ export default function GroupFormPage() {
       const [group, hostIDs, hostList] = await Promise.all([
         getGroup(id!),
         getGroupHostIDs(id!),
-        listHosts(1, 200),
+        listEndpoints(1, 200),
       ])
       setName(group.name)
       setDescription(group.description ?? '')
@@ -130,7 +130,7 @@ export default function GroupFormPage() {
 
   useEffect(() => { load() }, [load])
 
-  function addHost(host: HostListItem) {
+  function addHost(host: EndpointListItem) {
     setSelectedHosts(prev => prev.some(h => h.id === host.id) ? prev : [...prev, host])
   }
 

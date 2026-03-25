@@ -34,18 +34,11 @@ import {
 import { isAdmin } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
+import { fmtDate, plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
@@ -335,7 +328,7 @@ export default function CertificatesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Certificates</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} certificate{totalCount !== 1 ? 's' : ''} stored
+            {totalCount} {plural(totalCount, 'certificate')} stored
           </p>
         </div>
         {admin && (
