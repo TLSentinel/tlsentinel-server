@@ -67,7 +67,11 @@ func (c *Config) ListenAddr() string {
 }
 
 func (cfg *Config) DBConnString() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	// search_path=public pins schema_migrations to public so it is found
+	// consistently across restarts. Without this, Postgres resolves "$user"
+	// to the tlsentinel schema (created by migration 1), causing golang-migrate
+	// to create a second schema_migrations there and re-run all migrations.
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public",
 		cfg.DBUsername, cfg.DBPassword,
 		cfg.DBHost, cfg.DBPort,
 		cfg.DBName, cfg.DBSSLMode,
