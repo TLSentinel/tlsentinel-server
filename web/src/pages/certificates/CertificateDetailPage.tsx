@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Copy, Check, Download, AlertCircle } from 'lucide-react'
+import { ChevronRight, Copy, Check, Download, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
-import type { CertificateDetail, HostListItem } from '@/types/api'
+import type { CertificateDetail, EndpointListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { CertCard, ExpiryBadge } from '@/components/CertCard'
 import { fmtDate, fmtDateTime } from '@/lib/utils'
@@ -296,7 +296,7 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
 // ---------------------------------------------------------------------------
 
 function HostsSection({ fingerprint }: { fingerprint: string }) {
-  const [hosts, setHosts] = useState<HostListItem[]>([])
+  const [hosts, setHosts] = useState<EndpointListItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -427,13 +427,11 @@ export default function CertificateDetailPage() {
   }, [fingerprint])
 
   const backLink = (
-    <Link
-      to="/certificates"
-      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <ArrowLeft className="h-4 w-4" />
-      Certificates
-    </Link>
+    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <Link to="/certificates" className="hover:text-foreground">Certificates</Link>
+      <ChevronRight className="h-3.5 w-3.5" />
+      <span className="text-foreground">{state.status === 'success' ? state.cert.commonName || fingerprint : '…'}</span>
+    </nav>
   )
 
   if (state.status === 'loading') {

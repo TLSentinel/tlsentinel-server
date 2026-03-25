@@ -38,11 +38,11 @@ export interface User {
 export type UserList = PaginatedList<User>
 
 // ---------------------------------------------------------------------------
-// Hosts
+// Endpoints
 // ---------------------------------------------------------------------------
 
-/** Returned in GET /hosts list items (no ipAddress, createdAt, updatedAt). */
-export interface HostListItem {
+/** Returned in GET /endpoints list items (no ipAddress, createdAt, updatedAt). */
+export interface EndpointListItem {
   id: string
   name: string
   dnsName: string
@@ -56,8 +56,8 @@ export interface HostListItem {
   errorSince: string | null
 }
 
-/** Returned by GET/POST/PUT /hosts/{id} (full detail). */
-export interface Host {
+/** Returned by GET/POST/PUT /endpoints/{id} (full detail). */
+export interface Endpoint {
   id: string
   name: string
   dnsName: string
@@ -75,7 +75,7 @@ export interface Host {
   updatedAt: string
 }
 
-export interface CreateHostRequest {
+export interface CreateEndpointRequest {
   name: string
   dnsName: string
   ipAddress?: string
@@ -84,7 +84,7 @@ export interface CreateHostRequest {
   notes?: string
 }
 
-export interface UpdateHostRequest {
+export interface UpdateEndpointRequest {
   name: string
   dnsName: string
   ipAddress?: string
@@ -94,11 +94,11 @@ export interface UpdateHostRequest {
   notes?: string
 }
 
-export type HostList = PaginatedList<HostListItem>
+export type EndpointList = PaginatedList<EndpointListItem>
 
-export interface HostScanHistoryItem {
+export interface EndpointScanHistoryItem {
   id: string
-  hostId: string
+  endpointId: string
   scannedAt: string
   fingerprint: string | null
   resolvedIp: string | null
@@ -106,8 +106,8 @@ export interface HostScanHistoryItem {
   scanError: string | null
 }
 
-export interface HostScanHistoryList {
-  items: HostScanHistoryItem[]
+export interface EndpointScanHistoryList {
+  items: EndpointScanHistoryItem[]
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +181,7 @@ export interface ScannerTokenCreated extends ScannerToken {
 }
 
 // ---------------------------------------------------------------------------
-// TLS profiles — returned by GET /hosts/{id}/tls-profile
+// TLS profiles — returned by GET /endpoints/{id}/tls-profile
 // ---------------------------------------------------------------------------
 
 export type TLSSeverity = 'ok' | 'warning' | 'critical'
@@ -198,8 +198,8 @@ export interface TLSClassification {
   overallSeverity: TLSSeverity
 }
 
-export interface HostTLSProfile {
-  hostId: string
+export interface EndpointTLSProfile {
+  endpointId: string
   scannedAt: string
   tls10: boolean
   tls11: boolean

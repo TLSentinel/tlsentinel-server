@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ArrowLeft, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, Check, X } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, Check, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
@@ -9,12 +9,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getHost, getTLSProfile, getScanHistory, updateHost } from '@/api/endpoints'
+import { getEndpoint, getTLSProfile, getScanHistory, updateEndpoint } from '@/api/endpoints'
 import { getCertificate } from '@/api/certificates'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
 import { CertCard } from '@/components/CertCard'
-import type { Host, HostTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, HostScanHistoryItem, ScannerToken, UpdateHostRequest } from '@/types/api'
+import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem, ScannerToken, UpdateEndpointRequest } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 
@@ -139,47 +139,47 @@ interface Draft {
   notes: string
 }
 
-function hostToDraft(host: Host): Draft {
+function endpointToDraft(endpoint: Endpoint): Draft {
   return {
-    name:      host.name,
-    dnsName:   host.dnsName,
-    port:      String(host.port),
-    ipAddress: host.ipAddress ?? '',
-    enabled:   host.enabled,
-    scannerId: host.scannerId ?? '__default__',
-    notes:     host.notes ?? '',
+    name:      endpoint.name,
+    dnsName:   endpoint.dnsName,
+    port:      String(endpoint.port),
+    ipAddress: endpoint.ipAddress ?? '',
+    enabled:   endpoint.enabled,
+    scannerId: endpoint.scannerId ?? '__default__',
+    notes:     endpoint.notes ?? '',
   }
 }
 
 // ---------------------------------------------------------------------------
-// Host info section
+// Endpoint info section
 // ---------------------------------------------------------------------------
 
-interface HostInfoSectionProps {
-  host: Host
+interface EndpointInfoSectionProps {
+  endpoint: Endpoint
   editing: boolean
   draft: Draft
   scanners: ScannerToken[]
   onChange: (patch: Partial<Draft>) => void
 }
 
-function HostInfoSection({ host, editing, draft, scanners, onChange }: HostInfoSectionProps) {
+function EndpointInfoSection({ endpoint, editing, draft, scanners, onChange }: EndpointInfoSectionProps) {
   if (!editing) {
     return (
       <div className="space-y-3">
-        <SectionHeader title="Host" />
+        <SectionHeader title="Endpoint" />
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
           <Field label="DNS Name">
-            <span className="font-mono">{host.dnsName}</span>
+            <span className="font-mono">{endpoint.dnsName}</span>
           </Field>
-          <Field label="Port">{host.port}</Field>
+          <Field label="Port">{endpoint.port}</Field>
           <Field label="IP Address">
-            <span className="font-mono">{host.ipAddress ?? 'Auto'}</span>
+            <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
           </Field>
           <div /> {/* spacer */}
-          <Field label="Scanner">{host.scannerName ?? 'Default'}</Field>
+          <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
           <Field label="Enabled">
-            {host.enabled
+            {endpoint.enabled
               ? <span className="text-green-600 font-medium">Yes</span>
               : <span className="text-muted-foreground">No</span>}
           </Field>
@@ -190,7 +190,7 @@ function HostInfoSection({ host, editing, draft, scanners, onChange }: HostInfoS
 
   return (
     <div className="space-y-3">
-      <SectionHeader title="Host" />
+      <SectionHeader title="Endpoint" />
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         {/* Row 1: DNS Name + Port */}
         <div>
@@ -239,10 +239,10 @@ function HostInfoSection({ host, editing, draft, scanners, onChange }: HostInfoS
           </Select>
         </div>
         <div>
-          <Label htmlFor="host-enabled" className="text-xs text-muted-foreground cursor-pointer">Enabled</Label>
+          <Label htmlFor="endpoint-enabled" className="text-xs text-muted-foreground cursor-pointer">Enabled</Label>
           <div className="mt-1.5">
             <Switch
-              id="host-enabled"
+              id="endpoint-enabled"
               checked={draft.enabled}
               onCheckedChange={(v) => onChange({ enabled: v })}
             />
@@ -257,21 +257,21 @@ function HostInfoSection({ host, editing, draft, scanners, onChange }: HostInfoS
 // Notes section
 // ---------------------------------------------------------------------------
 
-interface NotesSectionProps {
-  host: Host
+interface EndpointNotesSectionProps {
+  endpoint: Endpoint
   editing: boolean
   draft: Draft
   onChange: (patch: Partial<Draft>) => void
 }
 
-function NotesSection({ host, editing, draft, onChange }: NotesSectionProps) {
+function NotesSection({ endpoint, editing, draft, onChange }: EndpointNotesSectionProps) {
   if (!editing) {
     return (
       <div className="space-y-3">
         <SectionHeader title="Notes" />
-        {host.notes ? (
+        {endpoint.notes ? (
           <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
-            <ReactMarkdown>{host.notes}</ReactMarkdown>
+            <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
           </div>
         ) : (
           <p className="text-sm italic text-muted-foreground">No notes.</p>
@@ -298,17 +298,17 @@ function NotesSection({ host, editing, draft, onChange }: NotesSectionProps) {
 // Scan status section
 // ---------------------------------------------------------------------------
 
-function ScanStatusSection({ host }: { host: Host }) {
+function ScanStatusSection({ endpoint }: { endpoint: Endpoint }) {
   return (
     <div className="space-y-3">
       <SectionHeader title="Scan Status" />
       <Field label="Last Scanned">
-        {host.lastScannedAt ? fmtDateTime(host.lastScannedAt) : '—'}
+        {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
       </Field>
-      {host.lastScanError && (
+      {endpoint.lastScanError && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{host.lastScanError}</span>
+          <span>{endpoint.lastScanError}</span>
         </div>
       )}
     </div>
@@ -351,7 +351,7 @@ type TLSState =
   | { status: 'loading' }
   | { status: 'none' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; profile: HostTLSProfile }
+  | { status: 'ready'; profile: EndpointTLSProfile }
 
 function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status === 'loading') {
@@ -479,7 +479,7 @@ function ActiveCertSection({ certState }: { certState: CertState }) {
 // Scan history section
 // ---------------------------------------------------------------------------
 
-function ScanHistoryRow({ item }: { item: HostScanHistoryItem }) {
+function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
   const ok = !item.scanError
   return (
     <div className="flex items-start gap-3 px-1 py-2">
@@ -506,7 +506,7 @@ function ScanHistoryRow({ item }: { item: HostScanHistoryItem }) {
   )
 }
 
-function ScanHistorySection({ items }: { items: HostScanHistoryItem[] | null }) {
+function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null }) {
   return (
     <div className="space-y-3">
       <SectionHeader title="Scan History" />
@@ -525,18 +525,18 @@ function ScanHistorySection({ items }: { items: HostScanHistoryItem[] | null }) 
 // Page
 // ---------------------------------------------------------------------------
 
-type HostState =
+type EndpointState =
   | { status: 'loading' }
-  | { status: 'ready'; host: Host }
+  | { status: 'ready'; endpoint: Endpoint }
   | { status: 'error'; message: string }
 
-export default function HostDetailPage() {
+export default function EndpointDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
-  const [hostState, setHostState]   = useState<HostState>({ status: 'loading' })
+  const [endpointState, setEndpointState]   = useState<EndpointState>({ status: 'loading' })
   const [tlsState, setTLSState]     = useState<TLSState>({ status: 'loading' })
   const [certState, setCertState]   = useState<CertState>({ status: 'loading' })
-  const [history, setHistory]       = useState<HostScanHistoryItem[] | null>(null)
+  const [history, setHistory]       = useState<EndpointScanHistoryItem[] | null>(null)
   const [scanners, setScanners]     = useState<ScannerToken[]>([])
   const [editing, setEditing]       = useState(false)
   const [draft, setDraft]           = useState<Draft | null>(null)
@@ -548,15 +548,15 @@ export default function HostDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    getHost(id)
-      .then((host) => {
-        setHostState({ status: 'ready', host })
+    getEndpoint(id)
+      .then((endpoint) => {
+        setEndpointState({ status: 'ready', endpoint })
         if (searchParams.get('edit') === 'true') {
-          setDraft(hostToDraft(host))
+          setDraft(endpointToDraft(endpoint))
           setEditing(true)
         }
       })
-      .catch((err) => setHostState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load host.' }))
+      .catch((err) => setEndpointState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load endpoint.' }))
   }, [id])
 
   useEffect(() => {
@@ -570,26 +570,26 @@ export default function HostDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (hostState.status !== 'ready') return
-    const fp = hostState.host.activeFingerprint
+    if (endpointState.status !== 'ready') return
+    const fp = endpointState.endpoint.activeFingerprint
     if (!fp) { setCertState({ status: 'none' }); return }
     getCertificate(fp)
       .then((cert) => setCertState({ status: 'ready', cert }))
       .catch((err) => setCertState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load certificate.' }))
-  }, [hostState])
+  }, [endpointState])
 
   useEffect(() => {
     if (!id) return
     getScanHistory(id).then((r) => setHistory(r.items)).catch(() => setHistory([]))
   }, [id])
 
-  function startEditing(host: Host) {
-    setDraft(hostToDraft(host))
+  function startEditing(endpoint: Endpoint) {
+    setDraft(endpointToDraft(endpoint))
     setEditing(true)
   }
 
-  function cancelEditing(host: Host) {
-    setDraft(hostToDraft(host))
+  function cancelEditing(endpoint: Endpoint) {
+    setDraft(endpointToDraft(endpoint))
     setEditing(false)
   }
 
@@ -598,10 +598,10 @@ export default function HostDetailPage() {
   }
 
   async function save() {
-    if (!draft || !id || hostState.status !== 'ready') return
+    if (!draft || !id || endpointState.status !== 'ready') return
     setSaving(true)
     try {
-      const req: UpdateHostRequest = {
+      const req: UpdateEndpointRequest = {
         name:      draft.name,
         dnsName:   draft.dnsName,
         port:      Number(draft.port) || 443,
@@ -610,8 +610,8 @@ export default function HostDetailPage() {
         scannerId: draft.scannerId === '__default__' ? undefined : draft.scannerId,
         notes:     draft.notes.trim() || undefined,
       }
-      const updated = await updateHost(id, req)
-      setHostState({ status: 'ready', host: updated })
+      const updated = await updateEndpoint(id, req)
+      setEndpointState({ status: 'ready', endpoint: updated })
       setEditing(false)
     } finally {
       setSaving(false)
@@ -619,21 +619,22 @@ export default function HostDetailPage() {
   }
 
   const backLink = (
-    <Link to="/endpoints" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-      <ArrowLeft className="h-4 w-4" />
-      Hosts
-    </Link>
+    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
+      <ChevronRight className="h-3.5 w-3.5" />
+      <span className="text-foreground">{endpointState.status === 'ready' ? endpointState.endpoint.name : '…'}</span>
+    </nav>
   )
 
-  if (hostState.status === 'loading') {
+  if (endpointState.status === 'loading') {
     return <div className="space-y-4">{backLink}<p className="text-sm text-muted-foreground">Loading…</p></div>
   }
 
-  if (hostState.status === 'error') {
-    return <div className="space-y-4">{backLink}<p className="text-sm text-destructive">{hostState.message}</p></div>
+  if (endpointState.status === 'error') {
+    return <div className="space-y-4">{backLink}<p className="text-sm text-destructive">{endpointState.message}</p></div>
   }
 
-  const { host } = hostState
+  const { endpoint } = endpointState
 
   return (
     <div className="space-y-5">
@@ -650,10 +651,10 @@ export default function HostDetailPage() {
               autoFocus
             />
           ) : (
-            <h1 className="text-2xl font-bold">{host.name}</h1>
+            <h1 className="text-2xl font-bold">{endpoint.name}</h1>
           )}
           <p className="mt-1 font-mono text-sm text-muted-foreground">
-            {host.dnsName}:{host.port}
+            {endpoint.dnsName}:{endpoint.port}
           </p>
         </div>
 
@@ -671,7 +672,7 @@ export default function HostDetailPage() {
                 Save
               </button>
               <button
-                onClick={() => cancelEditing(host)}
+                onClick={() => cancelEditing(endpoint)}
                 disabled={saving}
                 className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
               >
@@ -681,7 +682,7 @@ export default function HostDetailPage() {
             </>
           ) : (
             <button
-              onClick={() => startEditing(host)}
+              onClick={() => startEditing(endpoint)}
               className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -696,20 +697,20 @@ export default function HostDetailPage() {
 
         {/* ── Left column ── */}
         <div className="space-y-6">
-          <HostInfoSection
-            host={host}
+          <EndpointInfoSection
+            endpoint={endpoint}
             editing={editing}
-            draft={draft ?? hostToDraft(host)}
+            draft={draft ?? endpointToDraft(endpoint)}
             scanners={scanners}
             onChange={patchDraft}
           />
           <NotesSection
-            host={host}
+            endpoint={endpoint}
             editing={editing}
-            draft={draft ?? hostToDraft(host)}
+            draft={draft ?? endpointToDraft(endpoint)}
             onChange={patchDraft}
           />
-          <ScanStatusSection host={host} />
+          <ScanStatusSection endpoint={endpoint} />
           <TLSProfileSection tlsState={tlsState} />
         </div>
 

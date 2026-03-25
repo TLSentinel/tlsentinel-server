@@ -28,11 +28,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listHosts, getHost, createHost, updateHost, deleteHost } from '@/api/endpoints'
+import { listEndpoints, getEndpoint, createEndpoint, updateEndpoint, deleteEndpoint } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
 import { isAdmin } from '@/api/client'
-import type { HostListItem, ScannerToken } from '@/types/api'
+import type { EndpointListItem, ScannerToken } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 
@@ -73,9 +73,9 @@ function fmtRelative(iso: string, now: number): string {
 // Add / Edit dialog
 // ---------------------------------------------------------------------------
 
-interface HostDialogProps {
+interface EndpointDialogProps {
   /** null = create mode; non-null = edit mode (pre-fills from list item). */
-  host: HostListItem | null
+  endpoint: EndpointListItem | null
   scanners: ScannerToken[]
   open: boolean
   onClose: () => void
@@ -87,15 +87,15 @@ interface HostDialogProps {
  * Initial state is derived from the `host` prop at mount time — no
  * useEffect reset needed.
  */
-function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps) {
-  const isEdit = host !== null
+function EndpointDialog({ endpoint, scanners, open, onClose, onSaved }: EndpointDialogProps) {
+  const isEdit = endpoint !== null
 
-  const [name, setName] = useState(host?.name ?? '')
-  const [dnsName, setDnsName] = useState(host?.dnsName ?? '')
-  const [port, setPort] = useState(String(host?.port ?? 443))
+  const [name, setName] = useState(endpoint?.name ?? '')
+  const [dnsName, setDnsName] = useState(endpoint?.dnsName ?? '')
+  const [port, setPort] = useState(String(endpoint?.port ?? 443))
   const [ipAddress, setIpAddress] = useState('')
-  const [enabled, setEnabled] = useState(host?.enabled ?? true)
-  const [scannerID, setScannerID] = useState(host?.scannerId ?? '')
+  const [enabled, setEnabled] = useState(endpoint?.enabled ?? true)
+  const [scannerID, setScannerID] = useState(endpoint?.scannerId ?? '')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -104,8 +104,8 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
 
   // In edit mode, HostListItem omits ipAddress/notes — fetch the full record once on mount.
   useEffect(() => {
-    if (!host) return
-    getHost(host.id).then((full) => {
+    if (!endpoint) return
+    getEndpoint(endpoint.id).then((full) => {
       if (full.ipAddress) setIpAddress(full.ipAddress)
       if (full.notes) setNotes(full.notes)
     }).catch(() => {})
@@ -152,7 +152,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
 
     try {
       if (isEdit) {
-        await updateHost(host.id, {
+        await updateEndpoint(endpoint.id, {
           name: name.trim(),
           dnsName: dnsName.trim(),
           port: parsedPort,
@@ -162,7 +162,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
           notes: notesVal,
         })
       } else {
-        await createHost({
+        await createEndpoint({
           name: name.trim(),
           dnsName: dnsName.trim(),
           port: parsedPort,
@@ -177,7 +177,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
       setError(
         err instanceof ApiError
           ? err.message
-          : `Failed to ${isEdit ? 'update' : 'create'} host.`,
+          : `Failed to ${isEdit ? 'update' : 'create'} endpoint.`,
       )
     } finally {
       setSubmitting(false)
@@ -188,7 +188,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Host' : 'Add Host'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit Endpoint' : 'Add Endpoint'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -332,7 +332,7 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
                   : 'Adding…'
                 : isEdit
                   ? 'Save Changes'
-                  : 'Add Host'}
+                  : 'Add Endpoint'}
             </Button>
           </DialogFooter>
         </form>
@@ -346,41 +346,41 @@ function HostDialog({ host, scanners, open, onClose, onSaved }: HostDialogProps)
 // ---------------------------------------------------------------------------
 
 interface DeleteDialogProps {
-  host: HostListItem | null
+  endpoint: EndpointListItem | null
   onClose: () => void
   onDeleted: () => void
 }
 
-function DeleteDialog({ host, onClose, onDeleted }: DeleteDialogProps) {
+function DeleteDialog({ endpoint, onClose, onDeleted }: DeleteDialogProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleDelete() {
-    if (!host) return
+    if (!endpoint) return
     setLoading(true)
     setError(null)
     try {
-      await deleteHost(host.id)
+      await deleteEndpoint(endpoint.id)
       onDeleted()
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to delete host.')
+      setError(err instanceof ApiError ? err.message : 'Failed to delete endpoint.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Dialog open={host !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={endpoint !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Host</DialogTitle>
+          <DialogTitle>Delete Endpoint</DialogTitle>
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground">
           Are you sure you want to delete{' '}
-          <span className="font-medium text-foreground">{host?.name}</span> (
-          {host?.dnsName})? This action cannot be undone.
+          <span className="font-medium text-foreground">{endpoint?.name}</span> (
+          {endpoint?.dnsName})? This action cannot be undone.
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -410,7 +410,7 @@ export default function HostsPage() {
   // Captured once at mount — avoids calling the impure Date.now() during render.
   const [now] = useState(Date.now)
 
-  const [hosts, setHosts] = useState<HostListItem[]>([])
+  const [endpoints, setEndpoints] = useState<EndpointListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -422,11 +422,11 @@ export default function HostsPage() {
 
   const [scanners, setScanners] = useState<ScannerToken[]>([])
 
-  // Incremented each time "Add Host" is clicked so the dialog remounts fresh.
+  // Incremented each time "Add Endpoint" is clicked so the dialog remounts fresh.
   const [addSeq, setAddSeq] = useState(0)
   const [addOpen, setAddOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<HostListItem | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<HostListItem | null>(null)
+  const [editTarget, setEditTarget] = useState<EndpointListItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<EndpointListItem | null>(null)
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -441,11 +441,11 @@ export default function HostsPage() {
     setLoading(true)
     setError(null)
     try {
-      const result = await listHosts(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
-      setHosts(result.items ?? [])
+      const result = await listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
+      setEndpoints(result.items ?? [])
       setTotalCount(result.totalCount)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load hosts.')
+      setError(err instanceof ApiError ? err.message : 'Failed to load endpoints.')
     } finally {
       setLoading(false)
     }
@@ -484,7 +484,7 @@ export default function HostsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Hosts</h1>
+          <h1 className="text-2xl font-semibold">Endpoints</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {totalCount} {plural(totalCount, 'endpoint')} monitored
           </p>
@@ -497,7 +497,7 @@ export default function HostsPage() {
             }}
           >
             <Plus className="mr-1.5 h-4 w-4" />
-            Add Host
+            Add Endpoint
           </Button>
         )}
       </div>
@@ -597,34 +597,34 @@ export default function HostsPage() {
               </TableRow>
             )}
 
-            {!loading && hosts.length === 0 && (
+            {!loading && endpoints.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="py-10 text-center">
                   {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No hosts match your filters.</span>
-                    : <StrixEmpty message={<>No hosts yet. Click <strong>Add Host</strong> to get started.</>} />}
+                    ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
+                    : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
                 </TableCell>
               </TableRow>
             )}
 
             {!loading &&
-              hosts.map((host) => (
-                <TableRow key={host.id}>
+              endpoints.map((endpoint) => (
+                <TableRow key={endpoint.id}>
                   {/* Name — links to host detail page */}
                   <TableCell className="font-medium">
-                    <Link to={`/endpoints/${host.id}`} className="hover:underline">
-                      {host.name}
+                    <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
+                      {endpoint.name}
                     </Link>
                   </TableCell>
 
                   {/* DNS + port */}
                   <TableCell className="font-mono text-sm text-muted-foreground">
-                    {host.dnsName}:{host.port}
+                    {endpoint.dnsName}:{endpoint.port}
                   </TableCell>
 
                   {/* Enabled / Disabled */}
                   <TableCell>
-                    {host.enabled ? (
+                    {endpoint.enabled ? (
                       <Badge
                         variant="outline"
                         className="border-blue-500 bg-blue-50 text-blue-700"
@@ -640,8 +640,8 @@ export default function HostsPage() {
 
                   {/* Scanner assignment */}
                   <TableCell className="text-sm">
-                    {host.scannerName ? (
-                      host.scannerName
+                    {endpoint.scannerName ? (
+                      endpoint.scannerName
                     ) : (
                       <span className="text-muted-foreground">Default</span>
                     )}
@@ -649,11 +649,11 @@ export default function HostsPage() {
 
                   {/* Last scanned + error indicator */}
                   <TableCell className="text-sm">
-                    {host.lastScannedAt ? (
+                    {endpoint.lastScannedAt ? (
                       <span className="flex items-center gap-1.5">
-                        {fmtRelative(host.lastScannedAt, now)}
-                        {host.lastScanError && (
-                          <span title={host.lastScanError}>
+                        {fmtRelative(endpoint.lastScannedAt, now)}
+                        {endpoint.lastScanError && (
+                          <span title={endpoint.lastScanError}>
                             <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
                           </span>
                         )}
@@ -665,12 +665,12 @@ export default function HostsPage() {
 
                   {/* Active certificate link */}
                   <TableCell className="font-mono text-xs">
-                    {host.activeFingerprint ? (
+                    {endpoint.activeFingerprint ? (
                       <Link
-                        to={`/certificates/${host.activeFingerprint}`}
+                        to={`/certificates/${endpoint.activeFingerprint}`}
                         className="text-primary hover:underline"
                       >
-                        {host.activeFingerprint.slice(0, 16)}…
+                        {endpoint.activeFingerprint.slice(0, 16)}…
                       </Link>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -687,19 +687,19 @@ export default function HostsPage() {
                           className="text-muted-foreground"
                           asChild
                         >
-                          <Link to={`/endpoints/${host.id}?edit=true`}>
+                          <Link to={`/endpoints/${endpoint.id}?edit=true`}>
                             <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit {host.name}</span>
+                            <span className="sr-only">Edit {endpoint.name}</span>
                           </Link>
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(host)}
+                          onClick={() => setDeleteTarget(endpoint)}
                         >
                           <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {host.name}</span>
+                          <span className="sr-only">Delete {endpoint.name}</span>
                         </Button>
                       </div>
                     )}
@@ -714,7 +714,7 @@ export default function HostsPage() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
           {totalCount === 0
-            ? 'No hosts'
+            ? 'No endpoints'
             : `Page ${page} of ${totalPages} · ${totalCount} total`}
         </span>
         <div className="flex gap-1">
@@ -742,11 +742,11 @@ export default function HostsPage() {
       {/*
         HostDialog is keyed so it remounts with fresh form state on every open:
         – Add mode: addSeq increments on each click, giving a unique key.
-        – Edit mode: key is the host ID, so switching hosts also remounts.
+        – Edit mode: key is the endpoint ID, so switching endpoints also remounts.
       */}
-      <HostDialog
+      <EndpointDialog
         key={editTarget ? editTarget.id : `add-${addSeq}`}
-        host={editTarget}
+        endpoint={editTarget}
         scanners={scanners}
         open={addOpen || editTarget !== null}
         onClose={handleCloseDialog}
@@ -754,7 +754,7 @@ export default function HostsPage() {
       />
 
       <DeleteDialog
-        host={deleteTarget}
+        endpoint={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={load}
       />

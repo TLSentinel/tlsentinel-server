@@ -1,7 +1,7 @@
 import { api } from './client'
-import type { Host, HostList, HostTLSProfile, HostScanHistoryList, CreateHostRequest, UpdateHostRequest } from '@/types/api'
+import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest } from '@/types/api'
 
-export function listHosts(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<HostList> {
+export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<EndpointList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -9,38 +9,38 @@ export function listHosts(page = 1, pageSize = 20, name = '', status = '', sort 
   if (name) params.set('name', name)
   if (status) params.set('status', status)
   if (sort) params.set('sort', sort)
-  return api.get<HostList>(`/endpoints?${params}`)
+  return api.get<EndpointList>(`/endpoints?${params}`)
 }
 
-export function listErrorHosts(page = 1, pageSize = 20): Promise<HostList> {
+export function listErrorEndpoints(page = 1, pageSize = 20): Promise<EndpointList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
     has_error: 'true',
   })
-  return api.get<HostList>(`/endpoints?${params}`)
+  return api.get<EndpointList>(`/endpoints?${params}`)
 }
 
-export function getHost(id: string): Promise<Host> {
-  return api.get<Host>(`/endpoints/${id}`)
+export function getEndpoint(id: string): Promise<Endpoint> {
+  return api.get<Endpoint>(`/endpoints/${id}`)
 }
 
-export function createHost(req: CreateHostRequest): Promise<Host> {
-  return api.post<Host>('/endpoints', req)
+export function createEndpoint(req: CreateEndpointRequest): Promise<Endpoint> {
+  return api.post<Endpoint>('/endpoints', req)
 }
 
-export function updateHost(id: string, req: UpdateHostRequest): Promise<Host> {
-  return api.put<Host>(`/endpoints/${id}`, req)
+export function updateEndpoint(id: string, req: UpdateEndpointRequest): Promise<Endpoint> {
+  return api.put<Endpoint>(`/endpoints/${id}`, req)
 }
 
-export function deleteHost(id: string): Promise<void> {
+export function deleteEndpoint(id: string): Promise<void> {
   return api.delete<void>(`/endpoints/${id}`)
 }
 
-export function getTLSProfile(id: string): Promise<HostTLSProfile> {
-  return api.get<HostTLSProfile>(`/endpoints/${id}/tls-profile`)
+export function getTLSProfile(id: string): Promise<EndpointTLSProfile> {
+  return api.get<EndpointTLSProfile>(`/endpoints/${id}/tls-profile`)
 }
 
-export function getScanHistory(id: string, limit = 20): Promise<HostScanHistoryList> {
-  return api.get<HostScanHistoryList>(`/endpoints/${id}/history?limit=${limit}`)
+export function getScanHistory(id: string, limit = 20): Promise<EndpointScanHistoryList> {
+  return api.get<EndpointScanHistoryList>(`/endpoints/${id}/history?limit=${limit}`)
 }

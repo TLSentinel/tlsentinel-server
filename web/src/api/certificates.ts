@@ -2,7 +2,7 @@ import { api } from './client'
 import type {
   CertificateDetail,
   CertificateList,
-  HostListItem,
+  EndpointListItem,
   IngestCertificateRequest,
 } from '@/types/api'
 
@@ -53,8 +53,8 @@ export function deleteCertificate(fingerprint: string): Promise<void> {
   return api.delete<void>(`/certificates/${fingerprint}`)
 }
 
-export function getCertificateHosts(fingerprint: string): Promise<HostListItem[]> {
-  return api.get<HostListItem[]>(`/certificates/${fingerprint}/endpoints`)
+export function getCertificateHosts(fingerprint: string): Promise<EndpointListItem[]> {
+  return api.get<EndpointListItem[]>(`/certificates/${fingerprint}/endpoints`)
 }
 
 export function listActive(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<ExpiringCertList> {
