@@ -3,8 +3,14 @@
 -- schema_migrations tracking is ever lost while the schema data persists.
 
 DO $$ BEGIN
-  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'tlsentinel' AND tablename = 'hosts') THEN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'tlsentinel' AND tablename = 'hosts')
+     AND NOT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'tlsentinel' AND tablename = 'endpoints') THEN
     ALTER TABLE tlsentinel.hosts RENAME TO endpoints;
+  ELSIF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'tlsentinel' AND tablename = 'hosts')
+        AND EXISTS (SELECT FROM pg_tables WHERE schemaname = 'tlsentinel' AND tablename = 'endpoints') THEN
+    -- hosts is a stale empty table re-created by migration 5 when schema_migrations tracking was
+    -- lost but the volume already had endpoints from a previous completed run — drop it.
+    DROP TABLE tlsentinel.hosts;
   END IF;
 END $$;
 
