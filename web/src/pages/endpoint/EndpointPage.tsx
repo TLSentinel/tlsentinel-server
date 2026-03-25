@@ -34,6 +34,7 @@ import { resolve } from '@/api/utils'
 import { isAdmin } from '@/api/client'
 import type { HostListItem, ScannerToken } from '@/types/api'
 import { ApiError } from '@/types/api'
+import { plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Filter / sort options
@@ -485,7 +486,7 @@ export default function HostsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Hosts</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} host{totalCount !== 1 ? 's' : ''} monitored
+            {totalCount} {plural(totalCount, 'endpoint')} monitored
           </p>
         </div>
         {admin && (

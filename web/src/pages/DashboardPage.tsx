@@ -6,6 +6,7 @@ import { listHosts, listErrorHosts } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import type { HostListItem } from '@/types/api'
+import { plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -218,7 +219,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="text-sm font-semibold">Scan Errors</h2>
             {errorCount !== null && errorCount > 0 && (
-              <span className="text-xs text-muted-foreground">{errorCount} host{errorCount !== 1 ? 's' : ''} failing</span>
+              <span className="text-xs text-muted-foreground">{plural(errorCount, 'endpoint')} failing</span>
             )}
           </div>
           {errorHosts === null ? (

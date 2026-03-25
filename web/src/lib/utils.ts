@@ -23,6 +23,11 @@ export function fmtDateTime(iso: string): string {
   })
 }
 
+/** Returns `word` pluralized based on count. Optionally supply a custom plural form. */
+export function plural(count: number, word: string, pluralForm?: string): string {
+  return count === 1 ? word : (pluralForm ?? `${word}s`)
+}
+
 export function fmtDays(days: number): string {
   if (days < 0) return `${Math.abs(days)}d ago`
   if (days === 0) return 'Today'
