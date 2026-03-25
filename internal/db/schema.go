@@ -178,8 +178,8 @@ type UserGroup struct {
 type VActiveCertificate struct {
 	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates"`
 
-	HostID        string    `bun:"host_id"`
-	HostName      string    `bun:"host_name"`
+	EndpointID   string    `bun:"endpoint_id"`
+	EndpointName string    `bun:"endpoint_name"`
 	DNSName       string    `bun:"dns_name"`
 	Port          int       `bun:"port"`
 	Fingerprint   string    `bun:"fingerprint"`

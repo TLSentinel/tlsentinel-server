@@ -7,8 +7,8 @@ import type {
 } from '@/types/api'
 
 export interface ExpiringCertItem {
-  hostId: string
-  hostName: string
+  endpointId: string
+  endpointName: string
   dnsName: string
   port: number
   fingerprint: string
