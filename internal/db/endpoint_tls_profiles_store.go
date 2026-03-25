@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
@@ -13,6 +14,7 @@ import (
 func (s *Store) UpsertEndpointTLSProfile(ctx context.Context, endpointID string, req models.TLSProfileIngestRequest) error {
 	row := &EndpointTLSProfile{
 		EndpointID:     endpointID,
+		ScannedAt:      time.Now(),
 		TLS10:          req.TLS10,
 		TLS11:          req.TLS11,
 		TLS12:          req.TLS12,
