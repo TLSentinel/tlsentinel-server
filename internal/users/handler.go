@@ -3,11 +3,13 @@ package users
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/permission"
@@ -26,6 +28,30 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
+}
+
+func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
+	identity, _ := auth.GetIdentity(r.Context())
+	ip := audit.IPFromRequest(r)
+	resType := resourceType
+	resID := resourceID
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:       ptrIfNonEmpty(identity.UserID),
+		Username:     identity.Username,
+		Action:       action,
+		ResourceType: &resType,
+		ResourceID:   &resID,
+		IPAddress:    &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 type CreateUserRequest struct {
@@ -202,6 +228,7 @@ func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.MyPasswordChange, "user", identity.UserID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -323,6 +350,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.UserCreate, "user", user.ID)
 	response.JSON(w, http.StatusCreated, user.ToResponse())
 }
 
@@ -398,6 +426,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.UserUpdate, "user", userID)
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
@@ -443,6 +472,7 @@ func (h *Handler) SetEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.UserEnabledChange, "user", userID)
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
@@ -485,6 +515,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.UserPasswordChange, "user", userID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -539,5 +570,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.UserDelete, "user", userID)
 	w.WriteHeader(http.StatusNoContent)
 }

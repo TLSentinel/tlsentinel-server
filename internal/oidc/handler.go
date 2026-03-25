@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
@@ -81,6 +83,26 @@ func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*H
 			Scopes:       appCfg.OIDCScopes,
 		},
 	}, nil
+}
+
+func (h *Handler) logAudit(r *http.Request, userID, username, action string) {
+	ip := audit.IPFromRequest(r)
+	uid := ptrIfNonEmpty(userID)
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:    uid,
+		Username:  username,
+		Action:    action,
+		IPAddress: &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // Login redirects the browser to the provider's authorization endpoint.
@@ -197,6 +219,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to issue token", http.StatusInternalServerError)
 		return
 	}
+	h.logAudit(r, user.ID, user.Username, audit.OIDCLogin)
 
 	// Redirect the SPA to the callback page with the token in the URL fragment
 	// so it never appears in server logs or the Referrer header.

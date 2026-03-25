@@ -3,8 +3,11 @@ package mail
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
+	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -27,6 +30,26 @@ type Handler struct {
 func NewHandler(store *db.Store, cfg *config.Config) *Handler {
 	key := cfg.EncryptionKey
 	return &Handler{store: store, enc: crypto.NewEncryptor(key)}
+}
+
+func (h *Handler) logAudit(r *http.Request, action string) {
+	identity, _ := auth.GetIdentity(r.Context())
+	ip := audit.IPFromRequest(r)
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:    ptrIfNonEmpty(identity.UserID),
+		Username:  identity.Username,
+		Action:    action,
+		IPAddress: &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // @Summary      Get mail config
@@ -144,6 +167,7 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.MailConfigUpdate)
 	response.JSON(w, http.StatusOK, cfg.ToResponse())
 }
 

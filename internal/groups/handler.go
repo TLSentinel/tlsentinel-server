@@ -3,11 +3,14 @@ package groups
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
+	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
 
@@ -17,6 +20,30 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
+}
+
+func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
+	identity, _ := auth.GetIdentity(r.Context())
+	ip := audit.IPFromRequest(r)
+	resType := resourceType
+	resID := resourceID
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:       ptrIfNonEmpty(identity.UserID),
+		Username:     identity.Username,
+		Action:       action,
+		ResourceType: &resType,
+		ResourceID:   &resID,
+		IPAddress:    &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 type CreateGroupRequest struct {
@@ -104,6 +131,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.logAudit(r, audit.GroupCreate, "group", group.ID)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(group)
@@ -138,6 +166,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.GroupUpdate, "group", id)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(group)
 }
@@ -155,5 +184,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.GroupDelete, "group", id)
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -2,9 +2,12 @@ package settings
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"sort"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
+	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
@@ -18,6 +21,26 @@ type Handler struct {
 // NewHandler creates a new Handler.
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
+}
+
+func (h *Handler) logAudit(r *http.Request, action string) {
+	identity, _ := auth.GetIdentity(r.Context())
+	ip := audit.IPFromRequest(r)
+	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
+		UserID:   ptrIfNonEmpty(identity.UserID),
+		Username: identity.Username,
+		Action:   action,
+		IPAddress: &ip,
+	}); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // alertThresholdsResponse is the response envelope for alert threshold endpoints.
@@ -86,6 +109,7 @@ func (h *Handler) SetAlertThresholds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, audit.AlertThresholdsUpdate)
 	response.JSON(w, http.StatusOK, alertThresholdsResponse{Thresholds: sorted})
 }
 

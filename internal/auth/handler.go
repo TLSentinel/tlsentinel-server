@@ -2,11 +2,13 @@ package auth
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
@@ -94,30 +96,37 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip := audit.IPFromRequest(r)
+
 	user, err := h.store.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
 		// Always do a bcrypt comparison to prevent timing-based username enumeration.
 		bcrypt.CompareHashAndPassword([]byte("$2a$10$dummydummydummydummydummydummydummydummydummy"), []byte(req.Password)) //nolint:errcheck
+		h.logAudit(r, db.AuditLog{Username: req.Username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	if !user.Enabled {
+		h.logAudit(r, db.AuditLog{Username: user.Username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "account disabled", http.StatusUnauthorized)
 		return
 	}
 
 	if user.Provider != provider.Local {
+		h.logAudit(r, db.AuditLog{Username: user.Username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "account requires SSO login", http.StatusUnauthorized)
 		return
 	}
 
 	if user.PasswordHash == nil {
+		h.logAudit(r, db.AuditLog{Username: user.Username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
+		h.logAudit(r, db.AuditLog{Username: user.Username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
@@ -128,5 +137,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logAudit(r, db.AuditLog{UserID: &user.ID, Username: user.Username, Action: audit.Login, IPAddress: &ip})
 	response.JSON(w, http.StatusOK, loginResponse{Token: token})
+}
+
+func (h *Handler) logAudit(r *http.Request, entry db.AuditLog) {
+	if err := h.store.LogAuditEvent(r.Context(), entry); err != nil {
+		slog.Error("audit log failed", "err", err)
+	}
 }
