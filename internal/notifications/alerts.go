@@ -135,7 +135,7 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 		if sendErr == 0 {
 			sent++
 			log.Info("expiry alert sent",
-				zap.String("host", cert.HostName),
+				zap.String("endpoint", cert.EndpointName),
 				zap.String("dns_name", cert.DNSName),
 				zap.Int("port", cert.Port),
 				zap.Int("days_remaining", cert.DaysRemaining),

@@ -18,9 +18,9 @@ import (
 
 // ListAllActiveCerts returns a paginated list of active host-certificate pairs.
 //
-// search filters on host_name, dns_name, or common_name (case-insensitive contains).
+// search filters on endpoint_name, dns_name, or common_name (case-insensitive contains).
 // status restricts results by expiry bucket: "expired" (<0), "critical" (0–7), "warning" (8–30), "ok" (>30).
-// sort controls ordering: "" or "days_asc" (default), "days_desc", "host_name", "common_name".
+// sort controls ordering: "" or "days_asc" (default), "days_desc", "endpoint_name", "common_name".
 // An empty status returns all entries.
 func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, search, status, sort string) (models.ExpiringCertList, error) {
 	var rows []VActiveCertificate
@@ -29,8 +29,8 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 	switch sort {
 	case "days_desc":
 		orderExpr = "days_remaining DESC"
-	case "host_name":
-		orderExpr = "host_name ASC"
+	case "endpoint_name":
+		orderExpr = "endpoint_name ASC"
 	case "common_name":
 		orderExpr = "common_name ASC"
 	default:
@@ -45,7 +45,7 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 
 	if search != "" {
 		pattern := "%" + search + "%"
-		q = q.Where("(host_name ILIKE ? OR dns_name ILIKE ? OR common_name ILIKE ?)", pattern, pattern, pattern)
+		q = q.Where("(endpoint_name ILIKE ? OR dns_name ILIKE ? OR common_name ILIKE ?)", pattern, pattern, pattern)
 	}
 
 	switch status {
@@ -67,8 +67,8 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 	items := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
 		items[i] = models.ExpiringCertItem{
-			HostID:        r.HostID,
-			HostName:      r.HostName,
+			EndpointID:   r.EndpointID,
+			EndpointName: r.EndpointName,
 			DNSName:       r.DNSName,
 			Port:          r.Port,
 			Fingerprint:   r.Fingerprint,
@@ -101,8 +101,8 @@ func (s *Store) ListExpiringCerts(ctx context.Context, daysRemaining int) ([]mod
 	items := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
 		items[i] = models.ExpiringCertItem{
-			HostID:        r.HostID,
-			HostName:      r.HostName,
+			EndpointID:   r.EndpointID,
+			EndpointName: r.EndpointName,
 			DNSName:       r.DNSName,
 			Port:          r.Port,
 			Fingerprint:   r.Fingerprint,

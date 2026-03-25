@@ -60,10 +60,10 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
     <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
       <div className="min-w-0">
         <Link
-          to={`/endpoints/${item.hostId}`}
+          to={`/endpoints/${item.endpointId}`}
           className="text-sm font-medium hover:underline truncate block"
         >
-          {item.hostName}
+          {item.endpointName}
         </Link>
         <Link
           to={`/certificates/${item.fingerprint}`}
@@ -208,7 +208,7 @@ export default function DashboardPage() {
           ) : (
             <div>
               {expiring.map((item) => (
-                <ExpiringRow key={`${item.hostId}-${item.fingerprint}`} item={item} />
+                <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
               ))}
             </div>
           )}

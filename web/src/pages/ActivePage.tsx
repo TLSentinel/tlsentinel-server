@@ -22,7 +22,7 @@ import { fmtDays } from '@/lib/utils'
 
 type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
-type SortOption = '' | 'days_desc' | 'host_name' | 'common_name'
+type SortOption = '' | 'days_desc' | 'endpoint_name' | 'common_name'
 
 function getStatus(daysRemaining: number): CertStatus {
   if (daysRemaining < 0) return 'expired'
@@ -49,7 +49,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: '',            label: 'Expiring soonest' },
   { value: 'days_desc',   label: 'Most time left' },
-  { value: 'host_name',   label: 'Endpoint name A→Z' },
+  { value: 'endpoint_name', label: 'Endpoint name A→Z' },
   { value: 'common_name', label: 'Common name A→Z' },
 ]
 
@@ -235,10 +235,10 @@ export default function ActivePage() {
 
             {!loading &&
               items.map((item) => (
-                <TableRow key={`${item.hostId}-${item.fingerprint}`}>
+                <TableRow key={`${item.endpointId}-${item.fingerprint}`}>
                   <TableCell className="font-medium">
-                    <Link to={`/endpoints/${item.hostId}`} className="hover:underline">
-                      {item.hostName}
+                    <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
+                      {item.endpointName}
                     </Link>
                   </TableCell>
 

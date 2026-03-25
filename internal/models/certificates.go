@@ -76,11 +76,11 @@ type CertificateList struct {
 	TotalCount int                   `json:"totalCount"`
 }
 
-// ExpiringCertItem represents a certificate that is active on a host,
+// ExpiringCertItem represents a certificate that is active on an endpoint,
 // used by the /certificates/active and /certificates/expiring endpoints.
 type ExpiringCertItem struct {
-	HostID        string    `json:"hostId"`
-	HostName      string    `json:"hostName"`
+	EndpointID   string    `json:"endpointId"`
+	EndpointName string    `json:"endpointName"`
 	DNSName       string    `json:"dnsName"`
 	Port          int       `json:"port"`
 	Fingerprint   string    `json:"fingerprint"`

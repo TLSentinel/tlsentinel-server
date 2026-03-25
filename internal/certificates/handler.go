@@ -64,9 +64,9 @@ func (h *Handler) Expiring(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        page       query  int     false  "Page number (default 1)"
 // @Param        page_size  query  int     false  "Page size (default 20, max 100)"
-// @Param        name       query  string  false  "Search host name, DNS name, or common name (partial match)"
+// @Param        name       query  string  false  "Search endpoint name, DNS name, or common name (partial match)"
 // @Param        status     query  string  false  "Filter by status: expired, critical, warning, ok"
-// @Param        sort       query  string  false  "Sort order: \"\" (expiring soonest, default), days_desc, host_name, common_name"
+// @Param        sort       query  string  false  "Sort order: \"\" (expiring soonest, default), days_desc, endpoint_name, common_name"
 // @Success      200  {object}  models.ExpiringCertList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/active [get]
