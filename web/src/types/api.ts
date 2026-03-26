@@ -255,6 +255,22 @@ export interface GroupList {
 }
 
 // ---------------------------------------------------------------------------
+// Audit Log
+// ---------------------------------------------------------------------------
+export interface AuditLog {
+  id: string
+  userId?: string
+  username: string
+  action: string
+  resourceType?: string
+  resourceId?: string
+  ipAddress?: string
+  createdAt: string
+}
+
+export type AuditLogList = PaginatedList<AuditLog>
+
+// ---------------------------------------------------------------------------
 // Utils
 // ---------------------------------------------------------------------------
 export interface ResolveResponse {

@@ -41,10 +41,10 @@ export default function SettingsPage() {
           description="Send certificate expiry warnings and scan error alerts via email."
         />
         <HubCard
+          to="/settings/audit-logs"
           icon={<ScrollText className="h-4 w-4" />}
           title="Audit Log"
           description="Track user logins, certificate changes, and other administrative actions."
-          soon
         />
         <HubCard
           icon={<Webhook className="h-4 w-4" />}

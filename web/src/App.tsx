@@ -22,6 +22,7 @@ import AccountPasswordPage from '@/pages/account/AccountPasswordPage'
 import AccountCalendarPage from '@/pages/account/AccountCalendarPage'
 import GroupsPage from '@/pages/settings/GroupsPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
+import AuditLogPage from '@/pages/settings/AuditLogPage'
 import ToolboxPage from '@/pages/toolbox/ToolboxPage'
 import CertDecoderPage from '@/pages/toolbox/CertDecoderPage'
 import CsrDecoderPage from '@/pages/toolbox/CsrDecoderPage'
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="groups/new" element={<GroupFormPage />} />
             <Route path="groups/:id/edit" element={<GroupFormPage />} />
             <Route path="mail" element={<MailConfigPage />} />
+            <Route path="audit-logs" element={<AuditLogPage />} />
             <Route path="general" element={<GeneralSettingsPage />} />
             <Route path="about" element={<AboutPage />} />
           </Route>

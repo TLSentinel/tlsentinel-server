@@ -10,6 +10,7 @@ import (
 
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
@@ -47,6 +48,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	mailHandler := mail.NewHandler(store, cfg)
 	calendarHandler := calendar.NewHandler(store)
 	groupHandler := groups.NewHandler(store)
+	auditHandler := audit.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -202,6 +204,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsView))
 					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
+					r.Get("/audit-logs", auditHandler.List)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsEdit))
