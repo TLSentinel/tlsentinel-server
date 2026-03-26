@@ -16,14 +16,14 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB:       ${TLSENTINEL_DB_NAME:-tlsentinel}
-      POSTGRES_USER:     ${TLSENTINEL_DB_USER:-tlsentinel}
+      POSTGRES_USER:     ${TLSENTINEL_DB_USERNAME:-tlsentinel}
       POSTGRES_PASSWORD: ${TLSENTINEL_DB_PASSWORD:-tlsentinel}
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tlsentinel -d tlsentinel"]
+      test: ["CMD-SHELL", "pg_isready -U ${TLSENTINEL_DB_USERNAME:-tlsentinel} -d ${TLSENTINEL_DB_NAME:-tlsentinel}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -39,7 +39,7 @@ services:
       TLSENTINEL_DB_PORT:     ${TLSENTINEL_DB_PORT:-5432}  
       TLSENTINEL_DB_SSLMODE:  ${TLSENTINEL_DB_SSLMODE:-disable}
       TLSENTINEL_DB_NAME:     ${TLSENTINEL_DB_NAME:-tlsentinel}
-      TLSENTINEL_DB_USER:     ${TLSENTINEL_DB_USER:-tlsentinel}
+      TLSENTINEL_DB_USERNAME: ${TLSENTINEL_DB_USERNAME:-tlsentinel}
       TLSENTINEL_DB_PASSWORD: ${TLSENTINEL_DB_PASSWORD:-tlsentinel}
     ports:
       - "8080:8080"
