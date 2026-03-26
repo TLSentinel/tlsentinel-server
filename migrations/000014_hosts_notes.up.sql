@@ -1,1 +1,0 @@
-ALTER TABLE tlsentinel.hosts ADD COLUMN IF NOT EXISTS notes TEXT;
