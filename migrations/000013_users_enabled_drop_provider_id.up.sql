@@ -1,2 +1,0 @@
-ALTER TABLE tlsentinel.users ADD COLUMN IF NOT EXISTS enabled BOOL NOT NULL DEFAULT TRUE;
-ALTER TABLE tlsentinel.users DROP COLUMN IF EXISTS provider_id;
