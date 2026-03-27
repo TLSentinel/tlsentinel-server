@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Store) LogAuditEvent(ctx context.Context, entry AuditLog) error {
-	_, err := s.db.NewInsert().Model(&entry).ExcludeColumn("id").Exec(ctx)
+	_, err := s.db.NewInsert().Model(&entry).ExcludeColumn("id", "created_at").Exec(ctx)
 	return err
 }
 
