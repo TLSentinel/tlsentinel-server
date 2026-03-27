@@ -226,6 +226,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if inserted {
 		status = http.StatusCreated
+		h.logAudit(r, audit.CertIngest, "certificate", rec.Fingerprint)
 	}
 	response.JSON(w, status, stored)
 }

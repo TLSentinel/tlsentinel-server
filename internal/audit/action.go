@@ -12,6 +12,7 @@ const (
 	EndpointDelete = "endpoint.delete"
 
 	// Certificates
+	CertIngest = "certificate.ingest"
 	CertDelete = "certificate.delete"
 
 	// Scanners

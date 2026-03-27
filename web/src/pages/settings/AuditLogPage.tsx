@@ -29,6 +29,7 @@ function formatAction(action: string): string {
     'endpoint.create': 'Endpoint Created',
     'endpoint.update': 'Endpoint Updated',
     'endpoint.delete': 'Endpoint Deleted',
+    'certificate.ingest': 'Certificate Ingested',
     'certificate.delete': 'Certificate Deleted',
     'scanner.create': 'Scanner Created',
     'scanner.update': 'Scanner Updated',
