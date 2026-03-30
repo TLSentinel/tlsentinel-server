@@ -213,6 +213,16 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 			return ErrNotFound
 		}
 
+		// Clear all type-specific rows first so a type change never leaves orphans.
+		if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_hosts").
+			Where("endpoint_id = ?", id).Exec(ctx); err != nil {
+			return fmt.Errorf("failed to clear endpoint_hosts: %w", err)
+		}
+		if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_saml").
+			Where("endpoint_id = ?", id).Exec(ctx); err != nil {
+			return fmt.Errorf("failed to clear endpoint_saml: %w", err)
+		}
+
 		switch rec.Type {
 		case "host", "":
 			eh := &EndpointHost{
@@ -221,27 +231,18 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 				IPAddress:  rec.IPAddress,
 				Port:       rec.Port,
 			}
-			_, err = tx.NewInsert().Model(eh).
-				On("CONFLICT (endpoint_id) DO UPDATE").
-				Set("dns_name = EXCLUDED.dns_name").
-				Set("ip_address = EXCLUDED.ip_address").
-				Set("port = EXCLUDED.port").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to upsert endpoint_hosts: %w", err)
+			if _, err = tx.NewInsert().Model(eh).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to insert endpoint_hosts: %w", err)
 			}
 		case "saml":
 			es := &EndpointSAML{
 				EndpointID: id,
 				URL:        *rec.URL,
 			}
-			_, err = tx.NewInsert().Model(es).
-				On("CONFLICT (endpoint_id) DO UPDATE").
-				Set("url = EXCLUDED.url").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to upsert endpoint_saml: %w", err)
+			if _, err = tx.NewInsert().Model(es).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to insert endpoint_saml: %w", err)
 			}
+		// manual: no type-specific row needed
 		}
 
 		return nil
