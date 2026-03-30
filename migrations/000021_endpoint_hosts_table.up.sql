@@ -46,7 +46,13 @@ FROM tlsentinel.endpoints
 WHERE type = 'host';
 
 -- ---------------------------------------------------------------------------
--- 4. Drop host-specific columns + their indexes from endpoints
+-- 4. Drop views that depend on host columns before we remove them
+-- ---------------------------------------------------------------------------
+
+DROP VIEW IF EXISTS tlsentinel.v_active_certificates;
+
+-- ---------------------------------------------------------------------------
+-- 5. Drop host-specific columns + their indexes from endpoints
 -- ---------------------------------------------------------------------------
 
 DROP INDEX IF EXISTS tlsentinel.idx_endpoints_dns_name;
@@ -57,7 +63,7 @@ ALTER TABLE tlsentinel.endpoints
     DROP COLUMN port;
 
 -- ---------------------------------------------------------------------------
--- 5. v_endpoints_hosts_full
+-- 6. v_endpoints_hosts_full
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW tlsentinel.v_endpoints_hosts_full AS
@@ -81,7 +87,7 @@ FROM tlsentinel.endpoints e
 JOIN tlsentinel.endpoint_hosts h ON h.endpoint_id = e.id;
 
 -- ---------------------------------------------------------------------------
--- 6. v_endpoints_saml_full
+-- 7. v_endpoints_saml_full
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW tlsentinel.v_endpoints_saml_full AS
@@ -104,7 +110,7 @@ FROM tlsentinel.endpoints e
 JOIN tlsentinel.endpoint_saml s ON s.endpoint_id = e.id;
 
 -- ---------------------------------------------------------------------------
--- 7. Update v_active_certificates to join endpoint_hosts
+-- 8. Recreate v_active_certificates joining endpoint_hosts
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW tlsentinel.v_active_certificates AS
