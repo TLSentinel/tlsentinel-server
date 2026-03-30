@@ -11,10 +11,14 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// endpointWithScanner is used for queries that LEFT JOIN scanners to fetch the scanner name.
+// endpointWithScanner is used for queries that LEFT JOIN scanners and endpoint_hosts.
 type endpointWithScanner struct {
 	Endpoint
 	ScannerName *string `bun:"scanner_name"`
+	// Host-type fields joined from endpoint_hosts.
+	DNSName   string  `bun:"dns_name"`
+	IPAddress *string `bun:"ip_address"`
+	Port      int     `bun:"port"`
 }
 
 func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
@@ -55,13 +59,15 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 	}
 }
 
-// selectEndpointWithScanner returns a base query that joins endpoints with scanners.
+// selectEndpointWithScanner returns a base query joining endpoints, scanners, and endpoint_hosts.
 func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 	return s.db.NewSelect().
 		TableExpr("tlsentinel.endpoints AS h").
 		ColumnExpr("h.*").
 		ColumnExpr("at.name AS scanner_name").
-		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id")
+		ColumnExpr("eh.dns_name, eh.ip_address, eh.port").
+		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
+		Join("LEFT JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id")
 }
 
 // ListEndpoints returns a paginated list of endpoints.
@@ -78,7 +84,7 @@ func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError 
 	case "name":
 		orderExpr = "h.name ASC"
 	case "dns_name":
-		orderExpr = "h.dns_name ASC"
+		orderExpr = "eh.dns_name ASC"
 	case "last_scanned":
 		orderExpr = "h.last_scanned_at DESC NULLS LAST"
 	default:
@@ -94,7 +100,7 @@ func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError 
 	}
 	if search != "" {
 		pattern := "%" + search + "%"
-		q = q.Where("(h.name ILIKE ? OR h.dns_name ILIKE ?)", pattern, pattern)
+		q = q.Where("(h.name ILIKE ? OR eh.dns_name ILIKE ?)", pattern, pattern)
 	}
 	switch status {
 	case "enabled":
@@ -137,43 +143,87 @@ func (s *Store) InsertEndpoint(ctx context.Context, rec models.EndpointRecord) (
 	h := &Endpoint{
 		Name:      rec.Name,
 		Type:      rec.Type,
-		DNSName:   rec.DNSName,
-		IPAddress: rec.IPAddress,
-		Port:      rec.Port,
 		Enabled:   rec.Enabled,
 		ScannerID: rec.ScannerID,
 		Notes:     rec.Notes,
 	}
-	if _, err := s.db.NewInsert().Model(h).
-		ExcludeColumn("id", "created_at", "updated_at").
-		Returning("*").
-		Exec(ctx); err != nil {
-		return models.Endpoint{}, fmt.Errorf("failed to insert endpoint: %w", err)
+
+	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.NewInsert().Model(h).
+			ExcludeColumn("id", "created_at", "updated_at").
+			Returning("*").
+			Exec(ctx); err != nil {
+			return fmt.Errorf("failed to insert endpoint: %w", err)
+		}
+
+		if rec.Type == "host" || rec.Type == "" {
+			eh := &EndpointHost{
+				EndpointID: h.ID,
+				DNSName:    rec.DNSName,
+				IPAddress:  rec.IPAddress,
+				Port:       rec.Port,
+			}
+			if _, err := tx.NewInsert().Model(eh).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to insert endpoint_hosts: %w", err)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return models.Endpoint{}, err
 	}
+
 	return s.GetEndpoint(ctx, h.ID)
 }
 
 func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.EndpointRecord) (models.Endpoint, error) {
-	res, err := s.db.NewUpdate().
-		TableExpr("tlsentinel.endpoints").
-		Set("name = ?", rec.Name).
-		Set("type = ?", rec.Type).
-		Set("dns_name = ?", rec.DNSName).
-		Set("ip_address = ?", rec.IPAddress).
-		Set("port = ?", rec.Port).
-		Set("enabled = ?", rec.Enabled).
-		Set("scanner_id = ?", rec.ScannerID).
-		Set("notes = ?", rec.Notes).
-		Set("updated_at = NOW()").
-		Where("id = ?", id).
-		Exec(ctx)
+	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		res, err := tx.NewUpdate().
+			TableExpr("tlsentinel.endpoints").
+			Set("name = ?", rec.Name).
+			Set("type = ?", rec.Type).
+			Set("enabled = ?", rec.Enabled).
+			Set("scanner_id = ?", rec.ScannerID).
+			Set("notes = ?", rec.Notes).
+			Set("updated_at = NOW()").
+			Where("id = ?", id).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to update endpoint: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return ErrNotFound
+		}
+
+		if rec.Type == "host" || rec.Type == "" {
+			eh := &EndpointHost{
+				EndpointID: id,
+				DNSName:    rec.DNSName,
+				IPAddress:  rec.IPAddress,
+				Port:       rec.Port,
+			}
+			_, err = tx.NewInsert().Model(eh).
+				On("CONFLICT (endpoint_id) DO UPDATE").
+				Set("dns_name = EXCLUDED.dns_name").
+				Set("ip_address = EXCLUDED.ip_address").
+				Set("port = EXCLUDED.port").
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to upsert endpoint_hosts: %w", err)
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		return models.Endpoint{}, fmt.Errorf("failed to update endpoint: %w", err)
+		if errors.Is(err, ErrNotFound) {
+			return models.Endpoint{}, ErrNotFound
+		}
+		return models.Endpoint{}, err
 	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return models.Endpoint{}, ErrNotFound
-	}
+
 	return s.GetEndpoint(ctx, id)
 }
 
@@ -189,31 +239,41 @@ func (s *Store) DeleteEndpoint(ctx context.Context, id string) error {
 	return nil
 }
 
-// GetScannerHosts: if the scanner is the default it also claims endpoints with no explicit scanner_id.
+// GetScannerHosts returns enabled host-type endpoints assigned to a scanner.
+// If the scanner is the default it also claims endpoints with no explicit scanner_id.
 func (s *Store) GetScannerHosts(ctx context.Context, scannerID string) ([]models.ScannerHost, error) {
-	var hosts []Endpoint
+	type hostRow struct {
+		ID        string  `bun:"id"`
+		DNSName   string  `bun:"dns_name"`
+		IPAddress *string `bun:"ip_address"`
+		Port      int     `bun:"port"`
+	}
+
+	var rows []hostRow
 	err := s.db.NewSelect().
-		Model(&hosts).
-		Where(`h.enabled = TRUE AND (
+		TableExpr("tlsentinel.endpoints AS h").
+		ColumnExpr("h.id, eh.dns_name, eh.ip_address, eh.port").
+		Join("JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id").
+		Where(`h.enabled = TRUE AND h.type = 'host' AND (
 			h.scanner_id = ?::uuid
 			OR (h.scanner_id IS NULL AND EXISTS (
 				SELECT 1 FROM tlsentinel.scanners
 				WHERE id = ?::uuid AND is_default = TRUE
 			))
 		)`, scannerID, scannerID).
-		OrderExpr("dns_name").
-		Scan(ctx)
+		OrderExpr("eh.dns_name").
+		Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query scanner hosts: %w", err)
 	}
 
-	result := make([]models.ScannerHost, len(hosts))
-	for i, h := range hosts {
+	result := make([]models.ScannerHost, len(rows))
+	for i, r := range rows {
 		result[i] = models.ScannerHost{
-			ID:        h.ID,
-			DNSName:   h.DNSName,
-			IPAddress: h.IPAddress,
-			Port:      h.Port,
+			ID:        r.ID,
+			DNSName:   r.DNSName,
+			IPAddress: r.IPAddress,
+			Port:      r.Port,
 		}
 	}
 	return result, nil
@@ -234,9 +294,9 @@ func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, limit
 	items := make([]models.EndpointScanHistory, len(rows))
 	for i, r := range rows {
 		items[i] = models.EndpointScanHistory{
-			ID:         r.ID,
-			EndpointID: r.EndpointID,
-			ScannedAt:  r.ScannedAt,
+			ID:          r.ID,
+			EndpointID:  r.EndpointID,
+			ScannedAt:   r.ScannedAt,
 			Fingerprint: r.Fingerprint,
 			ResolvedIP:  r.ResolvedIP,
 			TLSVersion:  r.TLSVersion,
@@ -265,7 +325,7 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 		}
 
 		_, err = tx.NewInsert().Model(&EndpointScanHistory{
-			EndpointID: hostID,
+			EndpointID:  hostID,
 			Fingerprint: req.ActiveFingerprint,
 			ResolvedIP:  req.ResolvedIP,
 			TLSVersion:  req.TLSVersion,

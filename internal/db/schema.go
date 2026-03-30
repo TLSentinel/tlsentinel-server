@@ -33,9 +33,6 @@ type Endpoint struct {
 	ID                string     `bun:"id,pk,type:uuid"`
 	Name              string     `bun:"name"`
 	Type              string     `bun:"type"`
-	DNSName           string     `bun:"dns_name"`
-	IPAddress         *string    `bun:"ip_address"`
-	Port              int        `bun:"port"`
 	Enabled           bool       `bun:"enabled"`
 	ScannerID         *string    `bun:"scanner_id,type:uuid"`
 	ActiveFingerprint *string    `bun:"active_fingerprint"`
@@ -45,6 +42,16 @@ type Endpoint struct {
 	Notes             *string    `bun:"notes"`
 	CreatedAt         time.Time  `bun:"created_at"`
 	UpdatedAt         time.Time  `bun:"updated_at"`
+}
+
+// EndpointHost maps to tlsentinel.endpoint_hosts.
+type EndpointHost struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoint_hosts,alias:eh"`
+
+	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
+	DNSName    string  `bun:"dns_name"`
+	IPAddress  *string `bun:"ip_address"`
+	Port       int     `bun:"port"`
 }
 
 // Scanner maps to tlsentinel.scanners.
