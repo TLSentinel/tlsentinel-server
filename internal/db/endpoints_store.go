@@ -11,7 +11,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// endpointWithScanner is used for queries that LEFT JOIN scanners and endpoint_hosts.
+// endpointWithScanner is used for queries that LEFT JOIN scanners, endpoint_hosts, and endpoint_saml.
 type endpointWithScanner struct {
 	Endpoint
 	ScannerName *string `bun:"scanner_name"`
@@ -19,6 +19,8 @@ type endpointWithScanner struct {
 	DNSName   string  `bun:"dns_name"`
 	IPAddress *string `bun:"ip_address"`
 	Port      int     `bun:"port"`
+	// SAML-type fields joined from endpoint_saml.
+	URL *string `bun:"url"`
 }
 
 func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
@@ -46,6 +48,7 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 		DNSName:           r.DNSName,
 		IPAddress:         r.IPAddress,
 		Port:              r.Port,
+		URL:               r.URL,
 		Enabled:           r.Enabled,
 		ScannerID:         r.ScannerID,
 		ScannerName:       r.ScannerName,
@@ -59,15 +62,19 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 	}
 }
 
-// selectEndpointWithScanner returns a base query joining endpoints, scanners, and endpoint_hosts.
+// selectEndpointWithScanner returns a base query joining endpoints, scanners,
+// endpoint_hosts, and endpoint_saml. All type-specific joins are LEFT JOINs so
+// they return NULL for non-matching types rather than dropping rows.
 func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 	return s.db.NewSelect().
 		TableExpr("tlsentinel.endpoints AS h").
 		ColumnExpr("h.*").
 		ColumnExpr("at.name AS scanner_name").
 		ColumnExpr("eh.dns_name, eh.ip_address, eh.port").
+		ColumnExpr("es.url").
 		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
-		Join("LEFT JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id")
+		Join("LEFT JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id").
+		Join("LEFT JOIN tlsentinel.endpoint_saml AS es ON es.endpoint_id = h.id")
 }
 
 // ListEndpoints returns a paginated list of endpoints.
@@ -156,7 +163,8 @@ func (s *Store) InsertEndpoint(ctx context.Context, rec models.EndpointRecord) (
 			return fmt.Errorf("failed to insert endpoint: %w", err)
 		}
 
-		if rec.Type == "host" || rec.Type == "" {
+		switch rec.Type {
+		case "host", "":
 			eh := &EndpointHost{
 				EndpointID: h.ID,
 				DNSName:    rec.DNSName,
@@ -165,6 +173,14 @@ func (s *Store) InsertEndpoint(ctx context.Context, rec models.EndpointRecord) (
 			}
 			if _, err := tx.NewInsert().Model(eh).Exec(ctx); err != nil {
 				return fmt.Errorf("failed to insert endpoint_hosts: %w", err)
+			}
+		case "saml":
+			es := &EndpointSAML{
+				EndpointID: h.ID,
+				URL:        *rec.URL,
+			}
+			if _, err := tx.NewInsert().Model(es).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to insert endpoint_saml: %w", err)
 			}
 		}
 
@@ -197,7 +213,8 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 			return ErrNotFound
 		}
 
-		if rec.Type == "host" || rec.Type == "" {
+		switch rec.Type {
+		case "host", "":
 			eh := &EndpointHost{
 				EndpointID: id,
 				DNSName:    rec.DNSName,
@@ -212,6 +229,18 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to upsert endpoint_hosts: %w", err)
+			}
+		case "saml":
+			es := &EndpointSAML{
+				EndpointID: id,
+				URL:        *rec.URL,
+			}
+			_, err = tx.NewInsert().Model(es).
+				On("CONFLICT (endpoint_id) DO UPDATE").
+				Set("url = EXCLUDED.url").
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to upsert endpoint_saml: %w", err)
 			}
 		}
 

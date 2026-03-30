@@ -54,6 +54,14 @@ type EndpointHost struct {
 	Port       int     `bun:"port"`
 }
 
+// EndpointSAML maps to tlsentinel.endpoint_saml.
+type EndpointSAML struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoint_saml,alias:es"`
+
+	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
+	URL        string  `bun:"url"`
+}
+
 // Scanner maps to tlsentinel.scanners.
 type Scanner struct {
 	bun.BaseModel `bun:"table:tlsentinel.scanners"`

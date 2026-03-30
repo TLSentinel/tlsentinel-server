@@ -6,9 +6,13 @@ import "time"
 type EndpointRecord struct {
 	Name      string
 	Type      string
+	// Host-type fields.
 	DNSName   string
 	IPAddress *string
 	Port      int
+	// SAML-type fields.
+	URL       *string
+	// Common optional fields.
 	Enabled   bool
 	ScannerID *string
 	Notes     *string
@@ -19,9 +23,13 @@ type Endpoint struct {
 	ID                string     `json:"id"`
 	Name              string     `json:"name"`
 	Type              string     `json:"type"`
+	// Host-type fields.
 	DNSName           string     `json:"dnsName"`
 	IPAddress         *string    `json:"ipAddress"`
 	Port              int        `json:"port"`
+	// SAML-type fields.
+	URL               *string    `json:"url,omitempty"`
+	// Common fields.
 	Enabled           bool       `json:"enabled"`
 	ScannerID         *string    `json:"scannerId"`
 	ScannerName       *string    `json:"scannerName"`
