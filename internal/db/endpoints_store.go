@@ -30,6 +30,7 @@ func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
 		Type:              r.Type,
 		DNSName:           r.DNSName,
 		Port:              r.Port,
+		URL:               r.URL,
 		Enabled:           r.Enabled,
 		ScannerID:         r.ScannerID,
 		ScannerName:       r.ScannerName,

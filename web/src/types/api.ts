@@ -41,12 +41,17 @@ export type UserList = PaginatedList<User>
 // Endpoints
 // ---------------------------------------------------------------------------
 
-/** Returned in GET /endpoints list items (no ipAddress, createdAt, updatedAt). */
+/** Returned in GET /endpoints list items. */
 export interface EndpointListItem {
   id: string
   name: string
+  type: string
+  // host-type fields
   dnsName: string
   port: number
+  // saml-type fields
+  url?: string | null
+  // common fields
   enabled: boolean
   scannerId: string | null
   scannerName: string | null
@@ -60,9 +65,14 @@ export interface EndpointListItem {
 export interface Endpoint {
   id: string
   name: string
+  type: string
+  // host-type fields
   dnsName: string
   ipAddress: string | null
   port: number
+  // saml-type fields
+  url?: string | null
+  // common fields
   enabled: boolean
   scannerId: string | null
   scannerName: string | null
@@ -77,18 +87,28 @@ export interface Endpoint {
 
 export interface CreateEndpointRequest {
   name: string
-  dnsName: string
+  type?: string
+  // host-type fields
+  dnsName?: string
   ipAddress?: string
   port?: number
+  // saml-type fields
+  url?: string
+  // common fields
   scannerId?: string
   notes?: string
 }
 
 export interface UpdateEndpointRequest {
   name: string
-  dnsName: string
+  type?: string
+  // host-type fields
+  dnsName?: string
   ipAddress?: string
-  port: number
+  port?: number
+  // saml-type fields
+  url?: string
+  // common fields
   enabled: boolean
   scannerId?: string
   notes?: string

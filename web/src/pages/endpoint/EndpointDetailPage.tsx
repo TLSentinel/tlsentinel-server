@@ -653,9 +653,6 @@ export default function EndpointDetailPage() {
           ) : (
             <h1 className="text-2xl font-bold">{endpoint.name}</h1>
           )}
-          <p className="mt-1 font-mono text-sm text-muted-foreground">
-            {endpoint.dnsName}:{endpoint.port}
-          </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 mt-1">
@@ -697,17 +694,17 @@ export default function EndpointDetailPage() {
 
         {/* ── Left column ── */}
         <div className="space-y-6">
+          <NotesSection
+            endpoint={endpoint}
+            editing={editing}
+            draft={draft ?? endpointToDraft(endpoint)}
+            onChange={patchDraft}
+          />
           <EndpointInfoSection
             endpoint={endpoint}
             editing={editing}
             draft={draft ?? endpointToDraft(endpoint)}
             scanners={scanners}
-            onChange={patchDraft}
-          />
-          <NotesSection
-            endpoint={endpoint}
-            editing={editing}
-            draft={draft ?? endpointToDraft(endpoint)}
             onChange={patchDraft}
           />
           <ScanStatusSection endpoint={endpoint} />

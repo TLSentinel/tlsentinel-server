@@ -4,6 +4,7 @@ import AppShell from '@/components/layout/AppShell'
 import LoginPage from '@/pages/LoginPage'
 import ScannersPage from '@/pages/settings/ScannersPage'
 import EndpointPage from '@/pages/endpoint/EndpointPage'
+import EndpointFormPage from '@/pages/endpoint/EndpointFormPage'
 import CertificatesPage from '@/pages/certificates/CertificatesPage'
 import CertificateDetailPage from '@/pages/certificates/CertificateDetailPage'
 import EndpointDetailPage from '@/pages/endpoint/EndpointDetailPage'
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="active" element={<ActivePage />} />
           <Route path="endpoints" element={<EndpointPage />} />
+          <Route path="endpoints/new" element={<EndpointFormPage />} />
           <Route path="endpoints/:id" element={<EndpointDetailPage />} />
           <Route path="toolbox" element={<ToolboxPage />} />
           <Route path="toolbox/cert-decoder" element={<CertDecoderPage />} />
