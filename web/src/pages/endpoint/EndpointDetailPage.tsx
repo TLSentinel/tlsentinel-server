@@ -126,14 +126,37 @@ function ResolveButton({ dnsName, onResolved }: { dnsName: string; onResolved: (
 }
 
 // ---------------------------------------------------------------------------
+// Type badge
+// ---------------------------------------------------------------------------
+
+const TYPE_META: Record<string, { label: string; className: string }> = {
+  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
+  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
+  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
+  return (
+    <Badge variant="outline" className={meta.className}>
+      {meta.label}
+    </Badge>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Edit form — draft state for all editable fields
 // ---------------------------------------------------------------------------
 
 interface Draft {
   name: string
+  // host fields
   dnsName: string
   port: string
   ipAddress: string
+  // saml fields
+  url: string
+  // common
   enabled: boolean
   scannerId: string  // '__default__' when none
   notes: string
@@ -142,9 +165,10 @@ interface Draft {
 function endpointToDraft(endpoint: Endpoint): Draft {
   return {
     name:      endpoint.name,
-    dnsName:   endpoint.dnsName,
-    port:      String(endpoint.port),
+    dnsName:   endpoint.dnsName ?? '',
+    port:      String(endpoint.port ?? 443),
     ipAddress: endpoint.ipAddress ?? '',
+    url:       endpoint.url ?? '',
     enabled:   endpoint.enabled,
     scannerId: endpoint.scannerId ?? '__default__',
     notes:     endpoint.notes ?? '',
@@ -164,20 +188,52 @@ interface EndpointInfoSectionProps {
 }
 
 function EndpointInfoSection({ endpoint, editing, draft, scanners, onChange }: EndpointInfoSectionProps) {
+  const isHost   = endpoint.type === 'host'
+  const isSAML   = endpoint.type === 'saml'
+  const isManual = endpoint.type === 'manual'
+
   if (!editing) {
     return (
       <div className="space-y-3">
         <SectionHeader title="Endpoint" />
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <Field label="DNS Name">
-            <span className="font-mono">{endpoint.dnsName}</span>
-          </Field>
-          <Field label="Port">{endpoint.port}</Field>
-          <Field label="IP Address">
-            <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
-          </Field>
-          <div /> {/* spacer */}
-          <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
+
+          {/* Host fields */}
+          {isHost && (
+            <>
+              <Field label="DNS Name">
+                <span className="font-mono">{endpoint.dnsName}</span>
+              </Field>
+              <Field label="Port">{endpoint.port}</Field>
+              <Field label="IP Address">
+                <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
+              </Field>
+              <div /> {/* spacer */}
+            </>
+          )}
+
+          {/* SAML fields */}
+          {isSAML && (
+            <div className="col-span-2">
+              <Field label="Metadata URL">
+                <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
+              </Field>
+            </div>
+          )}
+
+          {/* Manual — no type-specific fields */}
+          {isManual && (
+            <div className="col-span-2">
+              <p className="text-sm text-muted-foreground italic">
+                Manually tracked — certificate is linked directly, no scanning.
+              </p>
+            </div>
+          )}
+
+          {/* Scanner + Enabled — shown for all types */}
+          {!isManual && (
+            <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
+          )}
           <Field label="Enabled">
             {endpoint.enabled
               ? <span className="text-green-600 font-medium">Yes</span>
@@ -188,56 +244,79 @@ function EndpointInfoSection({ endpoint, editing, draft, scanners, onChange }: E
     )
   }
 
+  // Edit mode
   return (
     <div className="space-y-3">
       <SectionHeader title="Endpoint" />
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        {/* Row 1: DNS Name + Port */}
-        <div>
-          <p className="text-xs text-muted-foreground">DNS Name</p>
-          <Input
-            className="mt-0.5 h-8 font-mono text-sm"
-            value={draft.dnsName}
-            onChange={(e) => onChange({ dnsName: e.target.value })}
-          />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Port</p>
-          <Input
-            className="mt-0.5 h-8 text-sm"
-            type="number"
-            value={draft.port}
-            onChange={(e) => onChange({ port: e.target.value })}
-          />
-        </div>
-        {/* Row 2: IP Address */}
-        <div className="col-span-2">
-          <p className="text-xs text-muted-foreground">IP Address</p>
-          <div className="relative mt-0.5">
+
+        {/* Host edit fields */}
+        {isHost && (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground">DNS Name</p>
+              <Input
+                className="mt-0.5 h-8 font-mono text-sm"
+                value={draft.dnsName}
+                onChange={(e) => onChange({ dnsName: e.target.value })}
+              />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Port</p>
+              <Input
+                className="mt-0.5 h-8 text-sm"
+                type="number"
+                value={draft.port}
+                onChange={(e) => onChange({ port: e.target.value })}
+              />
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-muted-foreground">IP Address</p>
+              <div className="relative mt-0.5">
+                <Input
+                  className="h-8 font-mono text-sm pr-20"
+                  value={draft.ipAddress}
+                  placeholder="Auto"
+                  onChange={(e) => onChange({ ipAddress: e.target.value })}
+                />
+                <ResolveButton dnsName={draft.dnsName} onResolved={(ip) => onChange({ ipAddress: ip })} />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* SAML edit fields */}
+        {isSAML && (
+          <div className="col-span-2">
+            <p className="text-xs text-muted-foreground">Metadata URL</p>
             <Input
-              className="h-8 font-mono text-sm pr-20"
-              value={draft.ipAddress}
-              placeholder="Auto"
-              onChange={(e) => onChange({ ipAddress: e.target.value })}
+              className="mt-0.5 h-8 font-mono text-sm"
+              value={draft.url}
+              placeholder="https://login.microsoftonline.com/.../federationmetadata.xml"
+              onChange={(e) => onChange({ url: e.target.value })}
             />
-            <ResolveButton dnsName={draft.dnsName} onResolved={(ip) => onChange({ ipAddress: ip })} />
           </div>
-        </div>
-        {/* Row 3: Scanner + Enabled */}
-        <div>
-          <p className="text-xs text-muted-foreground">Scanner</p>
-          <Select value={draft.scannerId} onValueChange={(v) => onChange({ scannerId: v })}>
-            <SelectTrigger className="mt-0.5 h-8 w-full text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__default__">Default</SelectItem>
-              {scanners.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        )}
+
+        {/* Scanner — host and saml */}
+        {!isManual && (
+          <div>
+            <p className="text-xs text-muted-foreground">Scanner</p>
+            <Select value={draft.scannerId} onValueChange={(v) => onChange({ scannerId: v })}>
+              <SelectTrigger className="mt-0.5 h-8 w-full text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__default__">Default</SelectItem>
+                {scanners.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Enabled — all types */}
         <div>
           <Label htmlFor="endpoint-enabled" className="text-xs text-muted-foreground cursor-pointer">Enabled</Label>
           <div className="mt-1.5">
@@ -600,15 +679,24 @@ export default function EndpointDetailPage() {
   async function save() {
     if (!draft || !id || endpointState.status !== 'ready') return
     setSaving(true)
+    const { endpoint } = endpointState
     try {
       const req: UpdateEndpointRequest = {
         name:      draft.name,
-        dnsName:   draft.dnsName,
-        port:      Number(draft.port) || 443,
-        ipAddress: draft.ipAddress.trim() || undefined,
+        type:      endpoint.type,
         enabled:   draft.enabled,
         scannerId: draft.scannerId === '__default__' ? undefined : draft.scannerId,
         notes:     draft.notes.trim() || undefined,
+        // host-specific
+        ...(endpoint.type === 'host' && {
+          dnsName:   draft.dnsName,
+          port:      Number(draft.port) || 443,
+          ipAddress: draft.ipAddress.trim() || undefined,
+        }),
+        // saml-specific
+        ...(endpoint.type === 'saml' && {
+          url: draft.url.trim() || undefined,
+        }),
       }
       const updated = await updateEndpoint(id, req)
       setEndpointState({ status: 'ready', endpoint: updated })
@@ -642,7 +730,7 @@ export default function EndpointDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="space-y-1.5">
           {editing && draft ? (
             <Input
               className="h-9 text-2xl font-bold"
@@ -700,6 +788,13 @@ export default function EndpointDetailPage() {
             draft={draft ?? endpointToDraft(endpoint)}
             onChange={patchDraft}
           />
+
+          {/* Endpoint Type */}
+          <div className="space-y-3">
+            <SectionHeader title="Endpoint Type" />
+            <TypeBadge type={endpoint.type} />
+          </div>
+
           <EndpointInfoSection
             endpoint={endpoint}
             editing={editing}
@@ -708,7 +803,7 @@ export default function EndpointDetailPage() {
             onChange={patchDraft}
           />
           <ScanStatusSection endpoint={endpoint} />
-          <TLSProfileSection tlsState={tlsState} />
+          {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
         </div>
 
         {/* ── Right column ── */}

@@ -191,7 +191,7 @@ export default function EndpointFormPage() {
               type="button"
               onClick={() => handleTypeChange(opt.value)}
               className={cn(
-                'rounded-lg border p-4 text-left transition-colors',
+                'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
                 type === opt.value
                   ? 'border-primary bg-primary/5 ring-1 ring-primary'
                   : 'border-border hover:border-muted-foreground/40 hover:bg-muted/30',

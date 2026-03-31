@@ -34,6 +34,21 @@ import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
+// Type badge
+// ---------------------------------------------------------------------------
+
+const TYPE_META: Record<string, { label: string; className: string }> = {
+  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
+  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
+  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
+  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+}
+
+// ---------------------------------------------------------------------------
 // Filter / sort options
 // ---------------------------------------------------------------------------
 
@@ -282,6 +297,7 @@ export default function HostsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Address</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Scanner</TableHead>
@@ -294,7 +310,7 @@ export default function HostsPage() {
             {loading && (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   Loading…
@@ -304,7 +320,7 @@ export default function HostsPage() {
 
             {!loading && endpoints.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center">
+                <TableCell colSpan={8} className="py-10 text-center">
                   {debouncedSearch || statusFilter
                     ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
                     : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
@@ -315,11 +331,16 @@ export default function HostsPage() {
             {!loading &&
               endpoints.map((endpoint) => (
                 <TableRow key={endpoint.id}>
-                  {/* Name — links to host detail page */}
+                  {/* Name — links to detail page */}
                   <TableCell className="font-medium">
                     <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
                       {endpoint.name}
                     </Link>
+                  </TableCell>
+
+                  {/* Type */}
+                  <TableCell>
+                    <TypeBadge type={endpoint.type} />
                   </TableCell>
 
                   {/* Address — rendered differently per type */}
