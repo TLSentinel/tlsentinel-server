@@ -369,3 +369,16 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 		return nil
 	})
 }
+
+func (s *Store) SetActiveFingerprint(ctx context.Context, endpointID, fingerprint string) error {
+	_, err := s.db.NewUpdate().
+		TableExpr("tlsentinel.endpoints").
+		Set("active_fingerprint = ?", fingerprint).
+		Set("updated_at = NOW()").
+		Where("id = ?", endpointID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to set active fingerprint: %w", err)
+	}
+	return nil
+}

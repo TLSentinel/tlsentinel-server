@@ -1,20 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, Check, X } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getEndpoint, getTLSProfile, getScanHistory, updateEndpoint } from '@/api/endpoints'
+import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
 import { getCertificate } from '@/api/certificates'
-import { listScanners } from '@/api/scanners'
-import { resolve } from '@/api/utils'
 import { CertCard } from '@/components/CertCard'
-import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem, ScannerToken, UpdateEndpointRequest } from '@/types/api'
+import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 
@@ -90,42 +83,6 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
 }
 
 // ---------------------------------------------------------------------------
-// Resolve button — inline in IP address field
-// ---------------------------------------------------------------------------
-
-function ResolveButton({ dnsName, onResolved }: { dnsName: string; onResolved: (ip: string) => void }) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(false)
-
-  async function handleResolve() {
-    if (!dnsName.trim()) return
-    setLoading(true)
-    setError(false)
-    try {
-      const res = await resolve(dnsName.trim())
-      if (res.addresses.length > 0) onResolved(res.addresses[0])
-    } catch {
-      setError(true)
-      setTimeout(() => setError(false), 2000)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleResolve}
-      disabled={loading || !dnsName.trim()}
-      className={`absolute right-1 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40
-        ${error ? 'text-destructive' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-    >
-      {loading ? 'Resolving…' : error ? 'Failed' : 'Resolve'}
-    </button>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Type badge
 // ---------------------------------------------------------------------------
 
@@ -145,188 +102,56 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Edit form — draft state for all editable fields
-// ---------------------------------------------------------------------------
-
-interface Draft {
-  name: string
-  // host fields
-  dnsName: string
-  port: string
-  ipAddress: string
-  // saml fields
-  url: string
-  // common
-  enabled: boolean
-  scannerId: string  // '__default__' when none
-  notes: string
-}
-
-function endpointToDraft(endpoint: Endpoint): Draft {
-  return {
-    name:      endpoint.name,
-    dnsName:   endpoint.dnsName ?? '',
-    port:      String(endpoint.port ?? 443),
-    ipAddress: endpoint.ipAddress ?? '',
-    url:       endpoint.url ?? '',
-    enabled:   endpoint.enabled,
-    scannerId: endpoint.scannerId ?? '__default__',
-    notes:     endpoint.notes ?? '',
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Endpoint info section
 // ---------------------------------------------------------------------------
 
-interface EndpointInfoSectionProps {
-  endpoint: Endpoint
-  editing: boolean
-  draft: Draft
-  scanners: ScannerToken[]
-  onChange: (patch: Partial<Draft>) => void
-}
-
-function EndpointInfoSection({ endpoint, editing, draft, scanners, onChange }: EndpointInfoSectionProps) {
+function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
   const isHost   = endpoint.type === 'host'
   const isSAML   = endpoint.type === 'saml'
   const isManual = endpoint.type === 'manual'
 
-  if (!editing) {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Endpoint" />
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-
-          {/* Host fields */}
-          {isHost && (
-            <>
-              <Field label="DNS Name">
-                <span className="font-mono">{endpoint.dnsName}</span>
-              </Field>
-              <Field label="Port">{endpoint.port}</Field>
-              <Field label="IP Address">
-                <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
-              </Field>
-              <div /> {/* spacer */}
-            </>
-          )}
-
-          {/* SAML fields */}
-          {isSAML && (
-            <div className="col-span-2">
-              <Field label="Metadata URL">
-                <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
-              </Field>
-            </div>
-          )}
-
-          {/* Manual — no type-specific fields */}
-          {isManual && (
-            <div className="col-span-2">
-              <p className="text-sm text-muted-foreground italic">
-                Manually tracked — certificate is linked directly, no scanning.
-              </p>
-            </div>
-          )}
-
-          {/* Scanner + Enabled — shown for all types */}
-          {!isManual && (
-            <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
-          )}
-          <Field label="Enabled">
-            {endpoint.enabled
-              ? <span className="text-green-600 font-medium">Yes</span>
-              : <span className="text-muted-foreground">No</span>}
-          </Field>
-        </div>
-      </div>
-    )
-  }
-
-  // Edit mode
   return (
     <div className="space-y-3">
       <SectionHeader title="Endpoint" />
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
 
-        {/* Host edit fields */}
         {isHost && (
           <>
-            <div>
-              <p className="text-xs text-muted-foreground">DNS Name</p>
-              <Input
-                className="mt-0.5 h-8 font-mono text-sm"
-                value={draft.dnsName}
-                onChange={(e) => onChange({ dnsName: e.target.value })}
-              />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Port</p>
-              <Input
-                className="mt-0.5 h-8 text-sm"
-                type="number"
-                value={draft.port}
-                onChange={(e) => onChange({ port: e.target.value })}
-              />
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs text-muted-foreground">IP Address</p>
-              <div className="relative mt-0.5">
-                <Input
-                  className="h-8 font-mono text-sm pr-20"
-                  value={draft.ipAddress}
-                  placeholder="Auto"
-                  onChange={(e) => onChange({ ipAddress: e.target.value })}
-                />
-                <ResolveButton dnsName={draft.dnsName} onResolved={(ip) => onChange({ ipAddress: ip })} />
-              </div>
-            </div>
+            <Field label="DNS Name">
+              <span className="font-mono">{endpoint.dnsName}</span>
+            </Field>
+            <Field label="Port">{endpoint.port}</Field>
+            <Field label="IP Address">
+              <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
+            </Field>
+            <div />
           </>
         )}
 
-        {/* SAML edit fields */}
         {isSAML && (
           <div className="col-span-2">
-            <p className="text-xs text-muted-foreground">Metadata URL</p>
-            <Input
-              className="mt-0.5 h-8 font-mono text-sm"
-              value={draft.url}
-              placeholder="https://login.microsoftonline.com/.../federationmetadata.xml"
-              onChange={(e) => onChange({ url: e.target.value })}
-            />
+            <Field label="Metadata URL">
+              <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
+            </Field>
           </div>
         )}
 
-        {/* Scanner — host and saml */}
+        {isManual && (
+          <div className="col-span-2">
+            <p className="text-sm text-muted-foreground italic">
+              Manually tracked — certificate is linked directly, no scanning.
+            </p>
+          </div>
+        )}
+
         {!isManual && (
-          <div>
-            <p className="text-xs text-muted-foreground">Scanner</p>
-            <Select value={draft.scannerId} onValueChange={(v) => onChange({ scannerId: v })}>
-              <SelectTrigger className="mt-0.5 h-8 w-full text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__default__">Default</SelectItem>
-                {scanners.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
         )}
-
-        {/* Enabled — all types */}
-        <div>
-          <Label htmlFor="endpoint-enabled" className="text-xs text-muted-foreground cursor-pointer">Enabled</Label>
-          <div className="mt-1.5">
-            <Switch
-              id="endpoint-enabled"
-              checked={draft.enabled}
-              onCheckedChange={(v) => onChange({ enabled: v })}
-            />
-          </div>
-        </div>
+        <Field label="Enabled">
+          {endpoint.enabled
+            ? <span className="text-green-600 font-medium">Yes</span>
+            : <span className="text-muted-foreground">No</span>}
+        </Field>
       </div>
     </div>
   )
@@ -336,39 +161,17 @@ function EndpointInfoSection({ endpoint, editing, draft, scanners, onChange }: E
 // Notes section
 // ---------------------------------------------------------------------------
 
-interface EndpointNotesSectionProps {
-  endpoint: Endpoint
-  editing: boolean
-  draft: Draft
-  onChange: (patch: Partial<Draft>) => void
-}
-
-function NotesSection({ endpoint, editing, draft, onChange }: EndpointNotesSectionProps) {
-  if (!editing) {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Notes" />
-        {endpoint.notes ? (
-          <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
-            <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
-          </div>
-        ) : (
-          <p className="text-sm italic text-muted-foreground">No notes.</p>
-        )}
-      </div>
-    )
-  }
-
+function NotesSection({ endpoint }: { endpoint: Endpoint }) {
   return (
     <div className="space-y-3">
       <SectionHeader title="Notes" />
-      <Textarea
-        value={draft.notes}
-        onChange={(e) => onChange({ notes: e.target.value })}
-        placeholder="Supports Markdown"
-        rows={6}
-        className="text-sm"
-      />
+      {endpoint.notes ? (
+        <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
+          <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
+        </div>
+      ) : (
+        <p className="text-sm italic text-muted-foreground">No notes.</p>
+      )}
     </div>
   )
 }
@@ -610,31 +413,18 @@ type EndpointState =
   | { status: 'error'; message: string }
 
 export default function EndpointDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const [searchParams] = useSearchParams()
-  const [endpointState, setEndpointState]   = useState<EndpointState>({ status: 'loading' })
-  const [tlsState, setTLSState]     = useState<TLSState>({ status: 'loading' })
-  const [certState, setCertState]   = useState<CertState>({ status: 'loading' })
-  const [history, setHistory]       = useState<EndpointScanHistoryItem[] | null>(null)
-  const [scanners, setScanners]     = useState<ScannerToken[]>([])
-  const [editing, setEditing]       = useState(false)
-  const [draft, setDraft]           = useState<Draft | null>(null)
-  const [saving, setSaving]         = useState(false)
+  const { id }      = useParams<{ id: string }>()
+  const navigate    = useNavigate()
 
-  useEffect(() => {
-    listScanners().then(setScanners).catch(() => setScanners([]))
-  }, [])
+  const [endpointState, setEndpointState] = useState<EndpointState>({ status: 'loading' })
+  const [tlsState, setTLSState]           = useState<TLSState>({ status: 'loading' })
+  const [certState, setCertState]         = useState<CertState>({ status: 'loading' })
+  const [history, setHistory]             = useState<EndpointScanHistoryItem[] | null>(null)
 
   useEffect(() => {
     if (!id) return
     getEndpoint(id)
-      .then((endpoint) => {
-        setEndpointState({ status: 'ready', endpoint })
-        if (searchParams.get('edit') === 'true') {
-          setDraft(endpointToDraft(endpoint))
-          setEditing(true)
-        }
-      })
+      .then((endpoint) => setEndpointState({ status: 'ready', endpoint }))
       .catch((err) => setEndpointState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load endpoint.' }))
   }, [id])
 
@@ -662,50 +452,6 @@ export default function EndpointDetailPage() {
     getScanHistory(id).then((r) => setHistory(r.items)).catch(() => setHistory([]))
   }, [id])
 
-  function startEditing(endpoint: Endpoint) {
-    setDraft(endpointToDraft(endpoint))
-    setEditing(true)
-  }
-
-  function cancelEditing(endpoint: Endpoint) {
-    setDraft(endpointToDraft(endpoint))
-    setEditing(false)
-  }
-
-  function patchDraft(patch: Partial<Draft>) {
-    setDraft((prev) => prev ? { ...prev, ...patch } : prev)
-  }
-
-  async function save() {
-    if (!draft || !id || endpointState.status !== 'ready') return
-    setSaving(true)
-    const { endpoint } = endpointState
-    try {
-      const req: UpdateEndpointRequest = {
-        name:      draft.name,
-        type:      endpoint.type,
-        enabled:   draft.enabled,
-        scannerId: draft.scannerId === '__default__' ? undefined : draft.scannerId,
-        notes:     draft.notes.trim() || undefined,
-        // host-specific
-        ...(endpoint.type === 'host' && {
-          dnsName:   draft.dnsName,
-          port:      Number(draft.port) || 443,
-          ipAddress: draft.ipAddress.trim() || undefined,
-        }),
-        // saml-specific
-        ...(endpoint.type === 'saml' && {
-          url: draft.url.trim() || undefined,
-        }),
-      }
-      const updated = await updateEndpoint(id, req)
-      setEndpointState({ status: 'ready', endpoint: updated })
-      setEditing(false)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const backLink = (
     <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
       <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
@@ -730,51 +476,14 @@ export default function EndpointDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1.5">
-          {editing && draft ? (
-            <Input
-              className="h-9 text-2xl font-bold"
-              value={draft.name}
-              onChange={(e) => patchDraft({ name: e.target.value })}
-              autoFocus
-            />
-          ) : (
-            <h1 className="text-2xl font-bold">{endpoint.name}</h1>
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2 mt-1">
-
-          {/* Edit / Save / Cancel */}
-          {editing && draft ? (
-            <>
-              <button
-                onClick={() => save()}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                <Check className="h-3.5 w-3.5" />
-                Save
-              </button>
-              <button
-                onClick={() => cancelEditing(endpoint)}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
-              >
-                <X className="h-3.5 w-3.5" />
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => startEditing(endpoint)}
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </button>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold">{endpoint.name}</h1>
+        <button
+          onClick={() => navigate(`/endpoints/${id}/edit`)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground mt-1"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          Edit
+        </button>
       </div>
 
       {/* Two-column body */}
@@ -782,12 +491,7 @@ export default function EndpointDetailPage() {
 
         {/* ── Left column ── */}
         <div className="space-y-6">
-          <NotesSection
-            endpoint={endpoint}
-            editing={editing}
-            draft={draft ?? endpointToDraft(endpoint)}
-            onChange={patchDraft}
-          />
+          <NotesSection endpoint={endpoint} />
 
           {/* Endpoint Type */}
           <div className="space-y-3">
@@ -795,13 +499,7 @@ export default function EndpointDetailPage() {
             <TypeBadge type={endpoint.type} />
           </div>
 
-          <EndpointInfoSection
-            endpoint={endpoint}
-            editing={editing}
-            draft={draft ?? endpointToDraft(endpoint)}
-            scanners={scanners}
-            onChange={patchDraft}
-          />
+          <EndpointInfoSection endpoint={endpoint} />
           <ScanStatusSection endpoint={endpoint} />
           {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
         </div>

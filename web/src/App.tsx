@@ -64,6 +64,7 @@ export default function App() {
           <Route path="active" element={<ActivePage />} />
           <Route path="endpoints" element={<EndpointPage />} />
           <Route path="endpoints/new" element={<EndpointFormPage />} />
+          <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
           <Route path="endpoints/:id" element={<EndpointDetailPage />} />
           <Route path="toolbox" element={<ToolboxPage />} />
           <Route path="toolbox/cert-decoder" element={<CertDecoderPage />} />

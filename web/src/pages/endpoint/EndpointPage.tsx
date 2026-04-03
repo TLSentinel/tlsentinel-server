@@ -421,7 +421,7 @@ export default function HostsPage() {
                           className="text-muted-foreground"
                           asChild
                         >
-                          <Link to={`/endpoints/${endpoint.id}?edit=true`}>
+                          <Link to={`/endpoints/${endpoint.id}/edit`}>
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Edit {endpoint.name}</span>
                           </Link>

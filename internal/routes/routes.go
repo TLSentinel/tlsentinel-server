@@ -140,6 +140,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 						r.Use(auth.RequirePermission(permission.EndpointsEdit))
 						r.Put("/", endpointHandler.Update)
 						r.Delete("/", endpointHandler.Delete)
+						r.Post("/certificate", endpointHandler.LinkCertificate)
 					})
 				})
 			})

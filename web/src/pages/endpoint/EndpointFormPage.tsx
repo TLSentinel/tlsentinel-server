@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { createEndpoint } from '@/api/endpoints'
+import { useNavigate, useParams } from 'react-router-dom'
+import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
 import { ApiError } from '@/types/api'
@@ -8,6 +8,7 @@ import type { ScannerToken } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Globe, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -43,11 +44,16 @@ const TYPE_OPTIONS: TypeOption[] = [
 ]
 
 // ---------------------------------------------------------------------------
-// Page
+// Page — handles both create (/endpoints/new) and edit (/endpoints/:id/edit)
 // ---------------------------------------------------------------------------
 
 export default function EndpointFormPage() {
-  const navigate = useNavigate()
+  const navigate        = useNavigate()
+  const { id }          = useParams<{ id: string }>()
+  const isEdit          = Boolean(id)
+
+  const [loading, setLoading]       = useState(isEdit)
+  const [loadError, setLoadError]   = useState<string | null>(null)
 
   const [type, setType]             = useState<EndpointType>('host')
   const [name, setName]             = useState('')
@@ -56,20 +62,45 @@ export default function EndpointFormPage() {
   const [ipAddress, setIpAddress]   = useState('')
   const [url, setUrl]               = useState('')
   const [scannerID, setScannerID]   = useState('')
+  const [enabled, setEnabled]       = useState(true)
   const [notes, setNotes]           = useState('')
 
-  const [scanners, setScanners]     = useState<ScannerToken[]>([])
-  const [resolving, setResolving]   = useState(false)
-  const [resolveError, setResolveError] = useState<string | null>(null)
-  const [saving, setSaving]         = useState(false)
-  const [error, setError]           = useState<string | null>(null)
+  const [pem, setPem]                   = useState('')
 
+  const [scanners, setScanners]         = useState<ScannerToken[]>([])
+  const [resolving, setResolving]       = useState(false)
+  const [resolveError, setResolveError] = useState<string | null>(null)
+  const [saving, setSaving]             = useState(false)
+  const [error, setError]               = useState<string | null>(null)
+
+  // Load scanners
   useEffect(() => {
     listScanners().then(setScanners).catch(() => {})
   }, [])
 
-  // Clear type-specific fields when switching type so nothing stale leaks through.
+  // Load existing endpoint in edit mode
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    getEndpoint(id)
+      .then((ep) => {
+        setType(ep.type as EndpointType)
+        setName(ep.name)
+        setDnsName(ep.dnsName ?? '')
+        setPort(String(ep.port ?? 443))
+        setIpAddress(ep.ipAddress ?? '')
+        setUrl(ep.url ?? '')
+        setScannerID(ep.scannerId ?? '')
+        setEnabled(ep.enabled)
+        setNotes(ep.notes ?? '')
+        setPem('')  // PEM field always starts blank; only filled to replace/set a cert
+      })
+      .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load endpoint.'))
+      .finally(() => setLoading(false))
+  }, [id])
+
   function handleTypeChange(next: EndpointType) {
+    if (isEdit) return  // type is locked on edit
     setType(next)
     setError(null)
     setResolveError(null)
@@ -118,42 +149,101 @@ export default function EndpointFormPage() {
 
     setSaving(true)
     try {
-      const sid = scannerID || undefined
+      const sid      = scannerID || undefined
       const notesVal = notes.trim() || undefined
 
-      const endpoint = await createEndpoint({
-        name: name.trim(),
-        type,
-        ...(type === 'host' && {
-          dnsName: dnsName.trim(),
-          port: parseInt(port, 10),
-          ipAddress: ipAddress.trim() || undefined,
-        }),
-        ...(type === 'saml' && {
-          url: url.trim(),
-        }),
-        scannerId: type !== 'manual' ? sid : undefined,
-        notes: notesVal,
-      })
+      const pemVal = pem.trim()
 
-      navigate(`/endpoints/${endpoint.id}`)
+      if (isEdit && id) {
+        await updateEndpoint(id, {
+          name: name.trim(),
+          type,
+          enabled,
+          scannerId: type !== 'manual' ? sid : undefined,
+          notes: notesVal,
+          ...(type === 'host' && {
+            dnsName:   dnsName.trim(),
+            port:      parseInt(port, 10),
+            ipAddress: ipAddress.trim() || undefined,
+          }),
+          ...(type === 'saml' && {
+            url: url.trim(),
+          }),
+        })
+        if (type === 'manual' && pemVal) {
+          await linkCertificate(id, pemVal)
+        }
+        navigate(`/endpoints/${id}`)
+      } else {
+        const endpoint = await createEndpoint({
+          name: name.trim(),
+          type,
+          ...(type === 'host' && {
+            dnsName:   dnsName.trim(),
+            port:      parseInt(port, 10),
+            ipAddress: ipAddress.trim() || undefined,
+          }),
+          ...(type === 'saml' && {
+            url: url.trim(),
+          }),
+          scannerId: type !== 'manual' ? sid : undefined,
+          notes: notesVal,
+        })
+        if (type === 'manual' && pemVal) {
+          await linkCertificate(endpoint.id, pemVal)
+        }
+        navigate(`/endpoints/${endpoint.id}`)
+      }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create endpoint.')
+      setError(err instanceof ApiError ? err.message : isEdit ? 'Failed to save endpoint.' : 'Failed to create endpoint.')
       setSaving(false)
     }
+  }
+
+  function handleCancel() {
+    navigate(isEdit && id ? `/endpoints/${id}` : '/endpoints')
+  }
+
+  // Loading state (edit mode only)
+  if (loading) {
+    return (
+      <div className="space-y-6 max-w-2xl">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={handleCancel}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-semibold">Edit Endpoint</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6 max-w-2xl">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={handleCancel}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-semibold">Edit Endpoint</h1>
+        </div>
+        <p className="text-sm text-destructive">{loadError}</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/endpoints')}>
+        <Button variant="ghost" size="icon" onClick={handleCancel}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-semibold">New Endpoint</h1>
+        <h1 className="text-2xl font-semibold">{isEdit ? 'Edit Endpoint' : 'New Endpoint'}</h1>
       </div>
 
-      {/* Common fields — name and notes apply to all types */}
+      {/* Common fields */}
       <div className="space-y-5">
         <div className="space-y-1.5">
           <Label htmlFor="ep-name">
@@ -181,7 +271,7 @@ export default function EndpointFormPage() {
         </div>
       </div>
 
-      {/* Type selector */}
+      {/* Type selector — clickable on create, read-only on edit */}
       <div>
         <p className="text-sm font-medium mb-3">Endpoint Type</p>
         <div className="grid grid-cols-3 gap-3">
@@ -190,11 +280,15 @@ export default function EndpointFormPage() {
               key={opt.value}
               type="button"
               onClick={() => handleTypeChange(opt.value)}
+              disabled={isEdit}
               className={cn(
                 'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
                 type === opt.value
                   ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                  : 'border-border hover:border-muted-foreground/40 hover:bg-muted/30',
+                  : 'border-border',
+                isEdit
+                  ? 'cursor-default opacity-60'
+                  : 'hover:border-muted-foreground/40 hover:bg-muted/30',
               )}
             >
               <p className="text-sm font-medium">{opt.label}</p>
@@ -202,6 +296,9 @@ export default function EndpointFormPage() {
             </button>
           ))}
         </div>
+        {isEdit && (
+          <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
+        )}
       </div>
 
       {/* Type-specific fields */}
@@ -305,21 +402,49 @@ export default function EndpointFormPage() {
         </div>
       )}
 
-      {/* Manual — informational only */}
+      {/* Manual — PEM field */}
       {type === 'manual' && (
-        <p className="text-sm text-muted-foreground">
-          No additional configuration needed. Once created, link a certificate from the endpoint detail page.
-        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="ep-pem">
+            Certificate <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <Textarea
+            id="ep-pem"
+            value={pem}
+            onChange={(e) => setPem(e.target.value)}
+            placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
+            rows={6}
+            className="font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Paste a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
+          </p>
+        </div>
+      )}
+
+      {/* Enabled toggle — edit mode only */}
+      {isEdit && (
+        <div className="flex items-center gap-3">
+          <Switch
+            id="ep-enabled"
+            checked={enabled}
+            onCheckedChange={setEnabled}
+          />
+          <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
+        </div>
       )}
 
       {/* Footer */}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2 justify-end">
-        <Button variant="outline" onClick={() => navigate('/endpoints')} disabled={saving}>
+        <Button variant="outline" onClick={handleCancel} disabled={saving}>
           Cancel
         </Button>
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Creating…' : 'Create Endpoint'}
+          {saving
+            ? (isEdit ? 'Saving…' : 'Creating…')
+            : (isEdit ? 'Save Changes' : 'Create Endpoint')
+          }
         </Button>
       </div>
     </div>
