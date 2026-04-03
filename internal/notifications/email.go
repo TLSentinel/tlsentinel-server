@@ -12,9 +12,9 @@ import (
 func expirySubject(cert models.ExpiringCertItem, thresholdDays int) string {
 	switch thresholdDays {
 	case 1:
-		return fmt.Sprintf("TLSentinel: Certificate expiring TODAY — %s:%d", cert.DNSName, cert.Port)
+		return fmt.Sprintf("TLSentinel: Certificate expiring TODAY — %s", cert.EndpointName)
 	default:
-		return fmt.Sprintf("TLSentinel: Certificate expiring in %d days — %s:%d", thresholdDays, cert.DNSName, cert.Port)
+		return fmt.Sprintf("TLSentinel: Certificate expiring in %d days — %s", thresholdDays, cert.EndpointName)
 	}
 }
 
@@ -32,7 +32,7 @@ func expiryBody(cert models.ExpiringCertItem, thresholdDays int) string {
 	sb.WriteString(fmt.Sprintf("The following certificate is %s and requires attention.\r\n\r\n", urgency))
 
 	sb.WriteString(fmt.Sprintf("  Endpoint:      %s\r\n", cert.EndpointName))
-	sb.WriteString(fmt.Sprintf("  Address:       %s:%d\r\n", cert.DNSName, cert.Port))
+	sb.WriteString(fmt.Sprintf("  Type:          %s\r\n", cert.EndpointType))
 	sb.WriteString(fmt.Sprintf("  Common Name:   %s\r\n", cert.CommonName))
 	sb.WriteString(fmt.Sprintf("  Expires:       %s\r\n", cert.NotAfter.UTC().Format(time.RFC1123)))
 	sb.WriteString(fmt.Sprintf("  Days Left:     %d\r\n", cert.DaysRemaining))

@@ -45,7 +45,7 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 
 	if search != "" {
 		pattern := "%" + search + "%"
-		q = q.Where("(endpoint_name ILIKE ? OR dns_name ILIKE ? OR common_name ILIKE ?)", pattern, pattern, pattern)
+		q = q.Where("(endpoint_name ILIKE ? OR common_name ILIKE ?)", pattern, pattern)
 	}
 
 	switch status {
@@ -67,10 +67,9 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 	items := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
 		items[i] = models.ExpiringCertItem{
-			EndpointID:   r.EndpointID,
-			EndpointName: r.EndpointName,
-			DNSName:       r.DNSName,
-			Port:          r.Port,
+			EndpointID:    r.EndpointID,
+			EndpointName:  r.EndpointName,
+			EndpointType:  r.EndpointType,
 			Fingerprint:   r.Fingerprint,
 			CommonName:    r.CommonName,
 			NotAfter:      r.NotAfter,
@@ -101,10 +100,9 @@ func (s *Store) ListExpiringCerts(ctx context.Context, daysRemaining int) ([]mod
 	items := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
 		items[i] = models.ExpiringCertItem{
-			EndpointID:   r.EndpointID,
-			EndpointName: r.EndpointName,
-			DNSName:       r.DNSName,
-			Port:          r.Port,
+			EndpointID:    r.EndpointID,
+			EndpointName:  r.EndpointName,
+			EndpointType:  r.EndpointType,
 			Fingerprint:   r.Fingerprint,
 			CommonName:    r.CommonName,
 			NotAfter:      r.NotAfter,

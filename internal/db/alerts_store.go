@@ -23,10 +23,9 @@ func (s *Store) ListExpiringActiveCerts(ctx context.Context, maxDays int) ([]mod
 	out := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
 		out[i] = models.ExpiringCertItem{
-			EndpointID:   r.EndpointID,
-			EndpointName: r.EndpointName,
-			DNSName:       r.DNSName,
-			Port:          r.Port,
+			EndpointID:    r.EndpointID,
+			EndpointName:  r.EndpointName,
+			EndpointType:  r.EndpointType,
 			Fingerprint:   r.Fingerprint,
 			CommonName:    r.CommonName,
 			NotAfter:      r.NotAfter,

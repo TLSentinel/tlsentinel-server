@@ -210,11 +210,10 @@ type VActiveCertificate struct {
 
 	EndpointID   string    `bun:"endpoint_id"`
 	EndpointName string    `bun:"endpoint_name"`
-	DNSName       string    `bun:"dns_name"`
-	Port          int       `bun:"port"`
-	Fingerprint   string    `bun:"fingerprint"`
-	CommonName    string    `bun:"common_name"`
-	NotBefore     time.Time `bun:"not_before"`
-	NotAfter      time.Time `bun:"not_after"`
-	DaysRemaining int       `bun:"days_remaining"`
+	EndpointType string    `bun:"endpoint_type"`
+	Fingerprint  string    `bun:"fingerprint"`
+	CommonName   string    `bun:"common_name"`
+	NotBefore    time.Time `bun:"not_before"`
+	NotAfter     time.Time `bun:"not_after"`
+	DaysRemaining int      `bun:"days_remaining"`
 }
