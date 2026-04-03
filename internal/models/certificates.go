@@ -81,12 +81,11 @@ type CertificateList struct {
 type ExpiringCertItem struct {
 	EndpointID   string    `json:"endpointId"`
 	EndpointName string    `json:"endpointName"`
-	DNSName       string    `json:"dnsName"`
-	Port          int       `json:"port"`
-	Fingerprint   string    `json:"fingerprint"`
-	CommonName    string    `json:"commonName"`
-	NotAfter      time.Time `json:"notAfter"`
-	DaysRemaining int       `json:"daysRemaining"`
+	EndpointType string    `json:"endpointType"`
+	Fingerprint  string    `json:"fingerprint"`
+	CommonName   string    `json:"commonName"`
+	NotAfter     time.Time `json:"notAfter"`
+	DaysRemaining int      `json:"daysRemaining"`
 }
 
 // ExpiringCertList is the response envelope for the active/expiring certs endpoints.

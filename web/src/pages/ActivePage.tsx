@@ -11,8 +11,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { ApiError } from '@/types/api'
+
+const TYPE_META: Record<string, { label: string; className: string }> = {
+  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
+  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
+  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+}
+function TypeBadge({ type }: { type: string }) {
+  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
+  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+}
 import { fmtDate } from '@/lib/utils'
 import { fmtDays } from '@/lib/utils'
 
@@ -207,7 +218,7 @@ export default function ActivePage() {
           <TableHeader>
             <TableRow>
               <TableHead>Endpoint</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead className="w-28">Status</TableHead>
               <TableHead>Common Name</TableHead>
               <TableHead>Expires</TableHead>
@@ -242,8 +253,8 @@ export default function ActivePage() {
                     </Link>
                   </TableCell>
 
-                  <TableCell className="font-mono text-sm text-muted-foreground">
-                    {item.dnsName}:{item.port}
+                  <TableCell>
+                    <TypeBadge type={item.endpointType} />
                   </TableCell>
 
                   <TableCell>

@@ -44,3 +44,7 @@ export function getTLSProfile(id: string): Promise<EndpointTLSProfile> {
 export function getScanHistory(id: string, limit = 20): Promise<EndpointScanHistoryList> {
   return api.get<EndpointScanHistoryList>(`/endpoints/${id}/history?limit=${limit}`)
 }
+
+export function linkCertificate(id: string, pem: string): Promise<Endpoint> {
+  return api.post<Endpoint>(`/endpoints/${id}/certificate`, { pem })
+}

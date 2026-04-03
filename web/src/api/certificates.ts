@@ -9,8 +9,7 @@ import type {
 export interface ExpiringCertItem {
   endpointId: string
   endpointName: string
-  dnsName: string
-  port: number
+  endpointType: string
   fingerprint: string
   commonName: string
   notAfter: string

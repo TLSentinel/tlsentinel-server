@@ -10,6 +10,7 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
+	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
@@ -49,23 +50,36 @@ func ptrIfNonEmpty(s string) *string {
 }
 
 // CreateEndpointRequest is the payload for creating a new endpoint.
+// Which fields are required depends on type:
+//   - host:   dnsName required, port defaults to 443, ipAddress optional
+//   - saml:   url required
+//   - manual: no type-specific fields required
 type CreateEndpointRequest struct {
 	Name      string  `json:"name"`
 	Type      string  `json:"type"`
+	// Host-type fields.
 	DNSName   string  `json:"dnsName"`
 	IPAddress *string `json:"ipAddress"`
 	Port      int     `json:"port"`
+	// SAML-type fields.
+	URL       *string `json:"url"`
+	// Common optional fields.
 	ScannerID *string `json:"scannerId"`
 	Notes     *string `json:"notes"`
 }
 
 // UpdateEndpointRequest is the payload for replacing an endpoint's configuration.
+// Which fields are required depends on type — same rules as CreateEndpointRequest.
 type UpdateEndpointRequest struct {
 	Name      string  `json:"name"`
 	Type      string  `json:"type"`
+	// Host-type fields.
 	DNSName   string  `json:"dnsName"`
 	IPAddress *string `json:"ipAddress"`
 	Port      int     `json:"port"`
+	// SAML-type fields.
+	URL       *string `json:"url"`
+	// Common fields.
 	Enabled   bool    `json:"enabled"`
 	ScannerID *string `json:"scannerId"`
 	Notes     *string `json:"notes"`
@@ -129,12 +143,33 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" || req.DNSName == "" {
-		http.Error(w, "name and dnsName are required", http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if req.Port == 0 {
-		req.Port = 443
+	if req.Type == "" {
+		req.Type = "host"
+	}
+
+	switch req.Type {
+	case "host":
+		if req.DNSName == "" {
+			http.Error(w, "dnsName is required for type host", http.StatusBadRequest)
+			return
+		}
+		if req.Port == 0 {
+			req.Port = 443
+		}
+	case "saml":
+		if req.URL == nil || *req.URL == "" {
+			http.Error(w, "url is required for type saml", http.StatusBadRequest)
+			return
+		}
+	case "manual":
+		// no type-specific fields required
+	default:
+		http.Error(w, "unknown endpoint type", http.StatusBadRequest)
+		return
 	}
 
 	rec := models.EndpointRecord{
@@ -143,12 +178,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		DNSName:   req.DNSName,
 		IPAddress: req.IPAddress,
 		Port:      req.Port,
+		URL:       req.URL,
 		Enabled:   true,
 		ScannerID: req.ScannerID,
 		Notes:     req.Notes,
-	}
-	if rec.Type == "" {
-		rec.Type = "host"
 	}
 
 	endpoint, err := h.store.InsertEndpoint(r.Context(), rec)
@@ -207,12 +240,33 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" || req.DNSName == "" {
-		http.Error(w, "name and dnsName are required", http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if req.Port == 0 {
-		req.Port = 443
+	if req.Type == "" {
+		req.Type = "host"
+	}
+
+	switch req.Type {
+	case "host":
+		if req.DNSName == "" {
+			http.Error(w, "dnsName is required for type host", http.StatusBadRequest)
+			return
+		}
+		if req.Port == 0 {
+			req.Port = 443
+		}
+	case "saml":
+		if req.URL == nil || *req.URL == "" {
+			http.Error(w, "url is required for type saml", http.StatusBadRequest)
+			return
+		}
+	case "manual":
+		// no type-specific fields required
+	default:
+		http.Error(w, "unknown endpoint type", http.StatusBadRequest)
+		return
 	}
 
 	rec := models.EndpointRecord{
@@ -221,12 +275,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		DNSName:   req.DNSName,
 		IPAddress: req.IPAddress,
 		Port:      req.Port,
+		URL:       req.URL,
 		Enabled:   req.Enabled,
 		ScannerID: req.ScannerID,
 		Notes:     req.Notes,
-	}
-	if rec.Type == "" {
-		rec.Type = "host"
 	}
 
 	endpoint, err := h.store.UpdateEndpoint(r.Context(), endpointID, rec)
@@ -359,4 +411,63 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, models.EndpointScanHistoryList{Items: items})
+}
+
+// @Summary      Link a certificate to an endpoint
+// @Description  Parses a PEM-encoded certificate, upserts it into the certificate store, and sets it as the active certificate for the endpoint. Intended for manual-type endpoints.
+// @Tags         endpoints
+// @Accept       json
+// @Produce      json
+// @Param        endpointID  path      string                  true  "Endpoint ID"
+// @Param        body        body      LinkCertificateRequest  true  "PEM certificate"
+// @Success      200         {object}  models.Endpoint
+// @Failure      400         {string}  string  "bad request"
+// @Failure      500         {string}  string  "internal server error"
+// @Router       /endpoints/{endpointID}/certificate [post]
+func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
+	endpointID := chi.URLParam(r, "endpointID")
+
+	var req LinkCertificateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.PEM == "" {
+		http.Error(w, "pem is required", http.StatusBadRequest)
+		return
+	}
+
+	x509Cert, err := certificates.ParsePEMCertificate(req.PEM)
+	if err != nil {
+		http.Error(w, "invalid certificate PEM: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	rec := certificates.ExtractCertificateRecord(x509Cert)
+
+	if _, err := h.store.InsertCertificate(r.Context(), rec); err != nil {
+		slog.Error("failed to upsert certificate", "error", err)
+		http.Error(w, "failed to store certificate", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.store.SetActiveFingerprint(r.Context(), endpointID, rec.Fingerprint); err != nil {
+		slog.Error("failed to set active fingerprint", "error", err)
+		http.Error(w, "failed to link certificate", http.StatusInternalServerError)
+		return
+	}
+
+	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+
+	endpoint, err := h.store.GetEndpoint(r.Context(), endpointID)
+	if err != nil {
+		http.Error(w, "failed to fetch updated endpoint", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, endpoint)
+}
+
+type LinkCertificateRequest struct {
+	PEM string `json:"pem"`
 }

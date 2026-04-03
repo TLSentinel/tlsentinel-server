@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight, Copy, Check, Download, AlertCircle } from 'lucide-react'
+import { ChevronRight, Copy, Check, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { CertCard, ExpiryBadge } from '@/components/CertCard'
-import { fmtDate, fmtDateTime } from '@/lib/utils'
+import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Layout primitives
@@ -292,23 +292,23 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
 }
 
 // ---------------------------------------------------------------------------
-// Hosts section
+// Endpoints section
 // ---------------------------------------------------------------------------
 
-function HostsSection({ fingerprint }: { fingerprint: string }) {
-  const [hosts, setHosts] = useState<EndpointListItem[]>([])
+function EndpointsSection({ fingerprint }: { fingerprint: string }) {
+  const [endpoints, setEndpoints] = useState<EndpointListItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     getCertificateHosts(fingerprint)
-      .then(setHosts)
-      .catch(() => setHosts([]))
+      .then(setEndpoints)
+      .catch(() => setEndpoints([]))
       .finally(() => setLoading(false))
   }, [fingerprint])
 
   const title = loading
-    ? 'Hosts Using This Certificate'
-    : `Hosts Using This Certificate (${hosts.length})`
+    ? 'Endpoints Using This Certificate'
+    : `Endpoints Using This Certificate (${endpoints.length})`
 
   return (
     <div className="space-y-3">
@@ -316,42 +316,25 @@ function HostsSection({ fingerprint }: { fingerprint: string }) {
 
       {loading && <p className="text-xs italic text-muted-foreground">Loading…</p>}
 
-      {!loading && hosts.length === 0 && (
+      {!loading && endpoints.length === 0 && (
         <p className="text-sm italic text-muted-foreground">
-          No hosts are currently using this certificate.
+          No endpoints are currently using this certificate.
         </p>
       )}
 
-      {!loading && hosts.length > 0 && (
+      {!loading && endpoints.length > 0 && (
         <div className="space-y-1.5">
-          {hosts.map((h) => (
+          {endpoints.map((h) => (
             <div
               key={h.id}
-              className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+              className="flex items-center rounded-md border px-3 py-2 text-sm"
             >
-              <div className="min-w-0">
-                <Link
-                  to={`/endpoints/${h.id}`}
-                  className="font-medium hover:underline"
-                >
-                  {h.name}
-                </Link>
-                <span className="ml-2 font-mono text-xs text-muted-foreground">
-                  {h.dnsName}:{h.port}
-                </span>
-              </div>
-              <div className="ml-4 flex shrink-0 items-center gap-2">
-                {h.lastScanError ? (
-                  <span className="flex items-center gap-1 text-xs text-destructive">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Error
-                  </span>
-                ) : h.lastScannedAt ? (
-                  <span className="text-xs text-muted-foreground">
-                    {fmtDateTime(h.lastScannedAt)}
-                  </span>
-                ) : null}
-              </div>
+              <Link
+                to={`/endpoints/${h.id}`}
+                className="font-medium hover:underline"
+              >
+                {h.name}
+              </Link>
             </div>
           ))}
         </div>
@@ -486,7 +469,7 @@ export default function CertificateDetailPage() {
         {/* ── Right column ── */}
         <div className="space-y-6">
           <ChainSection cert={cert} />
-          <HostsSection fingerprint={cert.fingerprint} />
+          <EndpointsSection fingerprint={cert.fingerprint} />
         </div>
       </div>
     </div>
