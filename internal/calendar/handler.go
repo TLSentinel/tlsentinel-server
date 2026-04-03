@@ -53,12 +53,11 @@ func (h *Handler) ServeUserCalendar(w http.ResponseWriter, r *http.Request) {
 
 	for _, cert := range certs {
 		event := cal.AddEvent(fmt.Sprintf("%s@tlsentinel", cert.Fingerprint))
-		event.SetSummary(fmt.Sprintf("Certificate expiry: %s (%s:%d)", cert.CommonName, cert.DNSName, cert.Port))
+		event.SetSummary(fmt.Sprintf("Certificate expiry: %s (%s)", cert.CommonName, cert.EndpointName))
 		event.SetDescription(fmt.Sprintf(
-			"Endpoint: %s\nAddress: %s:%d\nCommon Name: %s\nExpires: %s\nDays Remaining: %d\nFingerprint: %s",
+			"Endpoint: %s\nType: %s\nCommon Name: %s\nExpires: %s\nDays Remaining: %d\nFingerprint: %s",
 			cert.EndpointName,
-			cert.DNSName,
-			cert.Port,
+			cert.EndpointType,
 			cert.CommonName,
 			cert.NotAfter.UTC().Format(time.RFC1123),
 			cert.DaysRemaining,
