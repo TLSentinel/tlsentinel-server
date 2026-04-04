@@ -236,7 +236,7 @@ type EndpointTag struct {
 
 // VActiveCertificate maps to the read-only tlsentinel.v_active_certificates view.
 type VActiveCertificate struct {
-	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates"`
+	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates,alias:vac"`
 
 	EndpointID   string    `bun:"endpoint_id"`
 	EndpointName string    `bun:"endpoint_name"`
