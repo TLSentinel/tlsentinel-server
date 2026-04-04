@@ -66,6 +66,35 @@ func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, cat)
 }
 
+// @Summary      Update tag category
+// @Tags         tags
+// @Accept       json
+// @Produce      json
+// @Param        categoryID  path  string                           true  "Category ID"
+// @Param        body        body  models.UpdateTagCategoryRequest  true  "Category"
+// @Success      200  {object}  models.TagCategory
+// @Failure      400  {string}  string  "bad request"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /tags/categories/{categoryID} [put]
+func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "categoryID")
+	var req models.UpdateTagCategoryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	cat, err := h.store.UpdateTagCategory(r.Context(), id, req)
+	if err != nil {
+		http.Error(w, "failed to update category", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, cat)
+}
+
 // @Summary      Delete tag category
 // @Description  Deletes a category and all its tags (cascades to endpoint assignments)
 // @Tags         tags
@@ -112,6 +141,35 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusCreated, tag)
+}
+
+// @Summary      Update tag
+// @Tags         tags
+// @Accept       json
+// @Produce      json
+// @Param        tagID  path  string                  true  "Tag ID"
+// @Param        body   body  models.UpdateTagRequest  true  "Tag"
+// @Success      200    {object}  models.Tag
+// @Failure      400    {string}  string  "bad request"
+// @Failure      500    {string}  string  "internal server error"
+// @Router       /tags/{tagID} [put]
+func (h *Handler) UpdateTag(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "tagID")
+	var req models.UpdateTagRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	tag, err := h.store.UpdateTag(r.Context(), id, req)
+	if err != nil {
+		http.Error(w, "failed to update tag", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, tag)
 }
 
 // @Summary      Delete tag

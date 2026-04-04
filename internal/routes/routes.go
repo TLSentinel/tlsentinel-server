@@ -237,12 +237,14 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.TagsEdit))
 						r.Post("/", tagHandler.CreateCategory)
+						r.Put("/{categoryID}", tagHandler.UpdateCategory)
 						r.Delete("/{categoryID}", tagHandler.DeleteCategory)
 					})
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.TagsEdit))
 					r.Post("/", tagHandler.CreateTag)
+					r.Put("/{tagID}", tagHandler.UpdateTag)
 					r.Delete("/{tagID}", tagHandler.DeleteTag)
 				})
 			})

@@ -298,6 +298,7 @@ export interface Tag {
   id: string
   categoryId: string
   name: string
+  description: string | null
   createdAt: string
 }
 
@@ -317,6 +318,7 @@ export interface TagWithCategory {
   categoryId: string
   categoryName: string
   name: string
+  description: string | null
 }
 
 // ---------------------------------------------------------------------------

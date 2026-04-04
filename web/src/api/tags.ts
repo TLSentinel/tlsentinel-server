@@ -13,6 +13,10 @@ export function createTagCategory(name: string, description?: string): Promise<T
   return api.post<TagCategory>('/tags/categories', { name, description })
 }
 
+export function updateTagCategory(categoryId: string, name: string, description?: string | null): Promise<TagCategory> {
+  return api.put<TagCategory>(`/tags/categories/${categoryId}`, { name, description })
+}
+
 export function deleteTagCategory(categoryId: string): Promise<void> {
   return api.delete<void>(`/tags/categories/${categoryId}`)
 }
@@ -21,8 +25,12 @@ export function deleteTagCategory(categoryId: string): Promise<void> {
 // Tags
 // ---------------------------------------------------------------------------
 
-export function createTag(categoryId: string, name: string): Promise<Tag> {
-  return api.post<Tag>('/tags', { categoryId, name })
+export function createTag(categoryId: string, name: string, description?: string): Promise<Tag> {
+  return api.post<Tag>('/tags', { categoryId, name, description })
+}
+
+export function updateTag(tagId: string, name: string, description?: string | null): Promise<Tag> {
+  return api.put<Tag>(`/tags/${tagId}`, { name, description })
 }
 
 export function deleteTag(tagId: string): Promise<void> {

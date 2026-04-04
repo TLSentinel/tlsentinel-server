@@ -219,10 +219,11 @@ type TagCategory struct {
 type Tag struct {
 	bun.BaseModel `bun:"table:tlsentinel.tags,alias:t"`
 
-	ID         string    `bun:"id,pk,type:uuid"`
-	CategoryID string    `bun:"category_id,type:uuid"`
-	Name       string    `bun:"name"`
-	CreatedAt  time.Time `bun:"created_at"`
+	ID          string    `bun:"id,pk,type:uuid"`
+	CategoryID  string    `bun:"category_id,type:uuid"`
+	Name        string    `bun:"name"`
+	Description *string   `bun:"description"`
+	CreatedAt   time.Time `bun:"created_at"`
 }
 
 // EndpointTag maps to tlsentinel.endpoint_tags.

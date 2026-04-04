@@ -27,10 +27,11 @@ func (s *Store) ListTagCategories(ctx context.Context) ([]models.CategoryWithTag
 	tagsByCategory := make(map[string][]models.Tag)
 	for _, t := range tags {
 		tagsByCategory[t.CategoryID] = append(tagsByCategory[t.CategoryID], models.Tag{
-			ID:         t.ID,
-			CategoryID: t.CategoryID,
-			Name:       t.Name,
-			CreatedAt:  t.CreatedAt,
+			ID:          t.ID,
+			CategoryID:  t.CategoryID,
+			Name:        t.Name,
+			Description: t.Description,
+			CreatedAt:   t.CreatedAt,
 		})
 	}
 
@@ -67,6 +68,26 @@ func (s *Store) CreateTagCategory(ctx context.Context, req models.CreateTagCateg
 	}, nil
 }
 
+func (s *Store) UpdateTagCategory(ctx context.Context, id string, req models.UpdateTagCategoryRequest) (models.TagCategory, error) {
+	row := &TagCategory{}
+	_, err := s.db.NewUpdate().Model(row).
+		Set("name = ?", req.Name).
+		Set("description = ?", req.Description).
+		Set("updated_at = NOW()").
+		Where("id = ?", id).
+		Returning("*").
+		Exec(ctx)
+	if err != nil {
+		return models.TagCategory{}, fmt.Errorf("failed to update tag category: %w", err)
+	}
+	return models.TagCategory{
+		ID:          row.ID,
+		Name:        row.Name,
+		Description: row.Description,
+		CreatedAt:   row.CreatedAt,
+	}, nil
+}
+
 func (s *Store) DeleteTagCategory(ctx context.Context, id string) error {
 	_, err := s.db.NewDelete().Model((*TagCategory)(nil)).Where("id = ?", id).Exec(ctx)
 	if err != nil {
@@ -81,17 +102,39 @@ func (s *Store) DeleteTagCategory(ctx context.Context, id string) error {
 
 func (s *Store) CreateTag(ctx context.Context, req models.CreateTagRequest) (models.Tag, error) {
 	row := &Tag{
-		CategoryID: req.CategoryID,
-		Name:       req.Name,
+		CategoryID:  req.CategoryID,
+		Name:        req.Name,
+		Description: req.Description,
 	}
 	if _, err := s.db.NewInsert().Model(row).ExcludeColumn("id", "created_at").Returning("*").Exec(ctx); err != nil {
 		return models.Tag{}, fmt.Errorf("failed to create tag: %w", err)
 	}
 	return models.Tag{
-		ID:         row.ID,
-		CategoryID: row.CategoryID,
-		Name:       row.Name,
-		CreatedAt:  row.CreatedAt,
+		ID:          row.ID,
+		CategoryID:  row.CategoryID,
+		Name:        row.Name,
+		Description: row.Description,
+		CreatedAt:   row.CreatedAt,
+	}, nil
+}
+
+func (s *Store) UpdateTag(ctx context.Context, id string, req models.UpdateTagRequest) (models.Tag, error) {
+	row := &Tag{}
+	_, err := s.db.NewUpdate().Model(row).
+		Set("name = ?", req.Name).
+		Set("description = ?", req.Description).
+		Where("id = ?", id).
+		Returning("*").
+		Exec(ctx)
+	if err != nil {
+		return models.Tag{}, fmt.Errorf("failed to update tag: %w", err)
+	}
+	return models.Tag{
+		ID:          row.ID,
+		CategoryID:  row.CategoryID,
+		Name:        row.Name,
+		Description: row.Description,
+		CreatedAt:   row.CreatedAt,
 	}, nil
 }
 
