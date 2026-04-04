@@ -5,9 +5,10 @@ import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCirc
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
+import { getEndpointTags } from '@/api/tags'
 import { getCertificate } from '@/api/certificates'
 import { CertCard } from '@/components/CertCard'
-import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem } from '@/types/api'
+import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 
@@ -420,6 +421,7 @@ export default function EndpointDetailPage() {
   const [tlsState, setTLSState]           = useState<TLSState>({ status: 'loading' })
   const [certState, setCertState]         = useState<CertState>({ status: 'loading' })
   const [history, setHistory]             = useState<EndpointScanHistoryItem[] | null>(null)
+  const [tags, setTags]                   = useState<TagWithCategory[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -450,6 +452,11 @@ export default function EndpointDetailPage() {
   useEffect(() => {
     if (!id) return
     getScanHistory(id).then((r) => setHistory(r.items)).catch(() => setHistory([]))
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+    getEndpointTags(id).then(setTags).catch(() => {})
   }, [id])
 
   const backLink = (
@@ -498,6 +505,25 @@ export default function EndpointDetailPage() {
             <SectionHeader title="Endpoint Type" />
             <TypeBadge type={endpoint.type} />
           </div>
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className="space-y-3">
+              <SectionHeader title="Tags" />
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map(tag => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                    title={tag.categoryName}
+                  >
+                    <span className="text-muted-foreground mr-1">{tag.categoryName}:</span>
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <EndpointInfoSection endpoint={endpoint} />
           <ScanStatusSection endpoint={endpoint} />

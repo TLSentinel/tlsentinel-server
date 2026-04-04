@@ -44,22 +44,23 @@ type Endpoint struct {
 
 // EndpointListItem represents a summary of an endpoint for list responses.
 type EndpointListItem struct {
-	ID                string     `json:"id"`
-	Name              string     `json:"name"`
-	Type              string     `json:"type"`
+	ID                string           `json:"id"`
+	Name              string           `json:"name"`
+	Type              string           `json:"type"`
 	// Host-type fields.
-	DNSName           string     `json:"dnsName"`
-	Port              int        `json:"port"`
+	DNSName           string           `json:"dnsName"`
+	Port              int              `json:"port"`
 	// SAML-type fields.
-	URL               *string    `json:"url,omitempty"`
+	URL               *string          `json:"url,omitempty"`
 	// Common fields.
-	Enabled           bool       `json:"enabled"`
-	ScannerID         *string    `json:"scannerId"`
-	ScannerName       *string    `json:"scannerName"`
-	ActiveFingerprint *string    `json:"activeFingerprint"`
-	LastScannedAt     *time.Time `json:"lastScannedAt"`
-	LastScanError     *string    `json:"lastScanError"`
-	ErrorSince        *time.Time `json:"errorSince"`
+	Enabled           bool             `json:"enabled"`
+	ScannerID         *string          `json:"scannerId"`
+	ScannerName       *string          `json:"scannerName"`
+	ActiveFingerprint *string          `json:"activeFingerprint"`
+	LastScannedAt     *time.Time       `json:"lastScannedAt"`
+	LastScanError     *string          `json:"lastScanError"`
+	ErrorSince        *time.Time       `json:"errorSince"`
+	Tags              []TagWithCategory `json:"tags"`
 }
 
 // EndpointList represents a paginated list of endpoints.

@@ -3,8 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
+import { listTagCategories, getEndpointTags, setEndpointTags } from '@/api/tags'
 import { ApiError } from '@/types/api'
-import type { ScannerToken } from '@/types/api'
+import type { ScannerToken, CategoryWithTags } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -68,14 +69,17 @@ export default function EndpointFormPage() {
   const [pem, setPem]                   = useState('')
 
   const [scanners, setScanners]         = useState<ScannerToken[]>([])
+  const [categories, setCategories]     = useState<CategoryWithTags[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
   const [resolving, setResolving]       = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
   const [saving, setSaving]             = useState(false)
   const [error, setError]               = useState<string | null>(null)
 
-  // Load scanners
+  // Load scanners and tag categories
   useEffect(() => {
     listScanners().then(setScanners).catch(() => {})
+    listTagCategories().then(setCategories).catch(() => {})
   }, [])
 
   // Load existing endpoint in edit mode
@@ -97,6 +101,9 @@ export default function EndpointFormPage() {
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load endpoint.'))
       .finally(() => setLoading(false))
+    getEndpointTags(id).then(tags => {
+      setSelectedTagIds(new Set(tags.map(t => t.id)))
+    }).catch(() => {})
   }, [id])
 
   function handleTypeChange(next: EndpointType) {
@@ -173,6 +180,7 @@ export default function EndpointFormPage() {
         if (type === 'manual' && pemVal) {
           await linkCertificate(id, pemVal)
         }
+        await setEndpointTags(id, Array.from(selectedTagIds))
         navigate(`/endpoints/${id}`)
       } else {
         const endpoint = await createEndpoint({
@@ -191,6 +199,9 @@ export default function EndpointFormPage() {
         })
         if (type === 'manual' && pemVal) {
           await linkCertificate(endpoint.id, pemVal)
+        }
+        if (selectedTagIds.size > 0) {
+          await setEndpointTags(endpoint.id, Array.from(selectedTagIds))
         }
         navigate(`/endpoints/${endpoint.id}`)
       }
@@ -270,6 +281,45 @@ export default function EndpointFormPage() {
           />
         </div>
       </div>
+
+      {/* Tags */}
+      {categories.length > 0 && (
+        <div className="space-y-2">
+          <Label>Tags <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+          <div className="space-y-3">
+            {categories.map(cat => (
+              <div key={cat.id}>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">{cat.name}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cat.tags.map(tag => {
+                    const selected = selectedTagIds.has(tag.id)
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => setSelectedTagIds(prev => {
+                          const next = new Set(prev)
+                          if (next.has(tag.id)) next.delete(tag.id)
+                          else next.add(tag.id)
+                          return next
+                        })}
+                        className={cn(
+                          'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+                          selected
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-border bg-background hover:border-muted-foreground/50 hover:bg-muted/40',
+                        )}
+                      >
+                        {tag.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Type selector — clickable on create, read-only on edit */}
       <div>

@@ -336,6 +336,19 @@ export default function HostsPage() {
                     <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
                       {endpoint.name}
                     </Link>
+                    {endpoint.tags && endpoint.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {endpoint.tags.map(tag => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
+                            title={tag.categoryName}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </TableCell>
 
                   {/* Type */}

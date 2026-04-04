@@ -124,7 +124,49 @@ func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError 
 	items := make([]models.EndpointListItem, len(rows))
 	for i, r := range rows {
 		items[i] = endpointRowToListItem(r)
+		items[i].Tags = []models.TagWithCategory{}
 	}
+
+	// Batch-fetch tags for all endpoints on this page.
+	if len(items) > 0 {
+		endpointIDs := make([]string, len(items))
+		for i, item := range items {
+			endpointIDs[i] = item.ID
+		}
+		type tagRow struct {
+			EndpointID   string `bun:"endpoint_id"`
+			TagID        string `bun:"tag_id"`
+			TagName      string `bun:"tag_name"`
+			CategoryID   string `bun:"category_id"`
+			CategoryName string `bun:"category_name"`
+		}
+		var tagRows []tagRow
+		err := s.db.NewSelect().
+			TableExpr("tlsentinel.endpoint_tags et").
+			ColumnExpr("et.endpoint_id, et.tag_id, t.name AS tag_name, t.category_id, tc.name AS category_name").
+			Join("JOIN tlsentinel.tags t ON t.id = et.tag_id").
+			Join("JOIN tlsentinel.tag_categories tc ON tc.id = t.category_id").
+			Where("et.endpoint_id IN (?)", bun.In(endpointIDs)).
+			OrderExpr("tc.name ASC, t.name ASC").
+			Scan(ctx, &tagRows)
+		if err == nil {
+			tagsByEndpoint := make(map[string][]models.TagWithCategory)
+			for _, tr := range tagRows {
+				tagsByEndpoint[tr.EndpointID] = append(tagsByEndpoint[tr.EndpointID], models.TagWithCategory{
+					ID:           tr.TagID,
+					CategoryID:   tr.CategoryID,
+					CategoryName: tr.CategoryName,
+					Name:         tr.TagName,
+				})
+			}
+			for i := range items {
+				if tags, ok := tagsByEndpoint[items[i].ID]; ok {
+					items[i].Tags = tags
+				}
+			}
+		}
+	}
+
 	return models.EndpointList{
 		Items:      items,
 		Page:       page,
