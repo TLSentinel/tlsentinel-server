@@ -11,7 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Globe, Loader2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { ArrowLeft, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -71,7 +78,8 @@ export default function EndpointFormPage() {
   const [scanners, setScanners]         = useState<ScannerToken[]>([])
   const [categories, setCategories]     = useState<CategoryWithTags[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
-  const [resolving, setResolving]       = useState(false)
+  const [showTagPicker, setShowTagPicker] = useState(false)
+  const [resolving, setResolving]         = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
   const [saving, setSaving]             = useState(false)
   const [error, setError]               = useState<string | null>(null)
@@ -286,11 +294,55 @@ export default function EndpointFormPage() {
       {categories.length > 0 && (
         <div className="space-y-2">
           <Label>Tags <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-          <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Selected tag chips */}
+            {Array.from(selectedTagIds).map(tagId => {
+              const tag = categories.flatMap(c => c.tags).find(t => t.id === tagId)
+              if (!tag) return null
+              const cat = categories.find(c => c.id === tag.categoryId)
+              return (
+                <span
+                  key={tagId}
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                >
+                  <span className="text-muted-foreground">{cat?.name}:</span>
+                  {tag.name}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTagIds(prev => { const n = new Set(prev); n.delete(tagId); return n })}
+                    className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground"
+                    aria-label={`Remove ${tag.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )
+            })}
+            {/* Add tags button */}
+            <button
+              type="button"
+              onClick={() => setShowTagPicker(true)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+            >
+              <Tag className="h-3 w-3" />
+              <Plus className="h-3 w-3" />
+              Add tags
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tag picker dialog */}
+      <Dialog open={showTagPicker} onOpenChange={setShowTagPicker}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Tags</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-80 overflow-y-auto py-1">
             {categories.map(cat => (
               <div key={cat.id}>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">{cat.name}</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{cat.name}</p>
+                <div className="space-y-1">
                   {cat.tags.map(tag => {
                     const selected = selectedTagIds.has(tag.id)
                     return (
@@ -304,12 +356,22 @@ export default function EndpointFormPage() {
                           return next
                         })}
                         className={cn(
-                          'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+                          'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
                           selected
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border bg-background hover:border-muted-foreground/50 hover:bg-muted/40',
+                            ? 'bg-primary/10 text-primary'
+                            : 'hover:bg-muted',
                         )}
                       >
+                        <span className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                          selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
+                        )}>
+                          {selected && (
+                            <svg viewBox="0 0 8 6" className="h-2.5 w-2.5 fill-current">
+                              <path d="M1 3l2 2 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </span>
                         {tag.name}
                       </button>
                     )
@@ -318,8 +380,11 @@ export default function EndpointFormPage() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button onClick={() => setShowTagPicker(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Type selector — clickable on create, read-only on edit */}
       <div>
