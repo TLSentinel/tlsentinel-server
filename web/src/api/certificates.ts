@@ -4,6 +4,7 @@ import type {
   CertificateList,
   EndpointListItem,
   IngestCertificateRequest,
+  TagWithCategory,
 } from '@/types/api'
 
 export interface ExpiringCertItem {
@@ -14,6 +15,7 @@ export interface ExpiringCertItem {
   commonName: string
   notAfter: string
   daysRemaining: number
+  tags: TagWithCategory[]
 }
 
 export interface ExpiringCertList {

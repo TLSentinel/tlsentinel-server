@@ -414,10 +414,10 @@ export default function HostsPage() {
                         {endpoint.tags.map(tag => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
-                            title={tag.categoryName}
+                            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
                           >
-                            {tag.name}
+                            <span className="text-muted-foreground/60 mr-0.5">{tag.categoryName}:</span>
+                            <span className="text-muted-foreground">{tag.name}</span>
                           </span>
                         ))}
                       </div>

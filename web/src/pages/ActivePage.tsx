@@ -323,6 +323,19 @@ export default function ActivePage() {
                     <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
                       {item.endpointName}
                     </Link>
+                    {item.tags && item.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.tags.map(tag => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                          >
+                            <span className="text-muted-foreground/60 mr-0.5">{tag.categoryName}:</span>
+                            <span className="text-muted-foreground">{tag.name}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </TableCell>
 
                   <TableCell>
