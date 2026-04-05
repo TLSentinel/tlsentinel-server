@@ -28,6 +28,10 @@ const (
 	SettingsView = "settings:view"
 	SettingsEdit = "settings:edit"
 
+	// Tags
+	TagsView = "tags:view"
+	TagsEdit = "tags:edit"
+
 	// Wildcard — grants everything (admin only)
 	Wildcard = "*"
 
@@ -48,6 +52,7 @@ var RolePermissions = map[string][]string{
 		EndpointsView,
 		CertsView,
 		GroupsView,
+		TagsView,
 		SelfRead,
 	},
 	RoleOperator: {
@@ -57,6 +62,8 @@ var RolePermissions = map[string][]string{
 		ScannersView,
 		GroupsView,
 		SettingsView,
+		TagsView,
+		TagsEdit,
 		SelfRead,
 	},
 }

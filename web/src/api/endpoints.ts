@@ -1,7 +1,7 @@
 import { api } from './client'
 import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest } from '@/types/api'
 
-export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<EndpointList> {
+export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', sort = '', tagId = ''): Promise<EndpointList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -9,6 +9,7 @@ export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', s
   if (name) params.set('name', name)
   if (status) params.set('status', status)
   if (sort) params.set('sort', sort)
+  if (tagId) params.set('tag_id', tagId)
   return api.get<EndpointList>(`/endpoints?${params}`)
 }
 

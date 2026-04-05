@@ -116,8 +116,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
+	tagID := r.URL.Query().Get("tag_id")
 
-	result, err := h.store.ListEndpoints(r.Context(), page, pageSize, hasError, name, status, sort)
+	result, err := h.store.ListEndpoints(r.Context(), page, pageSize, hasError, name, status, sort, tagID)
 	if err != nil {
 		http.Error(w, "failed to list endpoints", http.StatusInternalServerError)
 		return

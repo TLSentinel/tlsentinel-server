@@ -56,7 +56,7 @@ export function getCertificateHosts(fingerprint: string): Promise<EndpointListIt
   return api.get<EndpointListItem[]>(`/certificates/${fingerprint}/endpoints`)
 }
 
-export function listActive(page = 1, pageSize = 20, name = '', status = '', sort = ''): Promise<ExpiringCertList> {
+export function listActive(page = 1, pageSize = 20, name = '', status = '', sort = '', tagId = ''): Promise<ExpiringCertList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -64,6 +64,7 @@ export function listActive(page = 1, pageSize = 20, name = '', status = '', sort
   if (name) params.set('name', name)
   if (status) params.set('status', status)
   if (sort) params.set('sort', sort)
+  if (tagId) params.set('tag_id', tagId)
   return api.get<ExpiringCertList>(`/certificates/active?${params}`)
 }
 

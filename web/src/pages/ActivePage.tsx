@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronLeft, ChevronRight, Check, Search } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Check, Search, Tag, X } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,9 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { listActive, type ExpiringCertItem } from '@/api/certificates'
+import { listTagCategories } from '@/api/tags'
 import { ApiError } from '@/types/api'
+import type { CategoryWithTags } from '@/types/api'
 
 const TYPE_META: Record<string, { label: string; className: string }> = {
   host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
@@ -88,8 +90,14 @@ export default function ActivePage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
+  const [tagFilter, setTagFilter] = useState('')
+  const [categories, setCategories] = useState<CategoryWithTags[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    listTagCategories().then(setCategories).catch(() => {})
+  }, [])
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -104,7 +112,7 @@ export default function ActivePage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
+      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter)
       setItems(data.items ?? [])
       setTotalCount(data.totalCount)
     } catch (err) {
@@ -112,7 +120,7 @@ export default function ActivePage() {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch, statusFilter, sortOption])
+  }, [page, debouncedSearch, statusFilter, sortOption, tagFilter])
 
   useEffect(() => {
     load()
@@ -128,10 +136,18 @@ export default function ActivePage() {
     setPage(1)
   }
 
+  function handleTagChange(tagId: string) {
+    setTagFilter(tagId)
+    setPage(1)
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
   const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Expiring soonest'
+
+  const allTags = categories.flatMap(cat => cat.tags.map(t => ({ ...t, categoryName: cat.name })))
+  const activeTag = allTags.find(t => t.id === tagFilter) ?? null
 
   return (
     <div className="space-y-4">
@@ -196,7 +212,63 @@ export default function ActivePage() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {allTags.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className={`gap-1.5 ${tagFilter ? 'border-primary text-primary' : ''}`}
+              >
+                <Tag className="h-4 w-4" />
+                Tag
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+              <DropdownMenuItem onSelect={() => handleTagChange('')} className="gap-2">
+                <Check className={`h-4 w-4 ${!tagFilter ? 'opacity-100' : 'opacity-0'}`} />
+                All tags
+              </DropdownMenuItem>
+              {categories.map(cat => (
+                <div key={cat.id}>
+                  <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {cat.name}
+                  </p>
+                  {cat.tags.map(tag => (
+                    <DropdownMenuItem
+                      key={tag.id}
+                      onSelect={() => handleTagChange(tag.id)}
+                      className="gap-2"
+                    >
+                      <Check className={`h-4 w-4 ${tagFilter === tag.id ? 'opacity-100' : 'opacity-0'}`} />
+                      {tag.name}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {/* Active tag chip */}
+      {activeTag && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filtered by tag:</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+            <span className="text-primary/60">{activeTag.categoryName}:</span>
+            {activeTag.name}
+            <button
+              onClick={() => handleTagChange('')}
+              className="ml-0.5 rounded-full hover:text-primary"
+              aria-label="Clear tag filter"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Active filter context line */}
       <p className="text-sm text-muted-foreground">

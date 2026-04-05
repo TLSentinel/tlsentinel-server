@@ -114,8 +114,9 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
+	tagID := r.URL.Query().Get("tag_id")
 
-	result, err := h.store.ListAllActiveCerts(r.Context(), page, pageSize, name, status, sort)
+	result, err := h.store.ListAllActiveCerts(r.Context(), page, pageSize, name, status, sort, tagID)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return

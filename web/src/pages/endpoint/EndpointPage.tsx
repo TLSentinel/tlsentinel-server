@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -28,8 +28,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { listEndpoints, deleteEndpoint } from '@/api/endpoints'
+import { listTagCategories } from '@/api/tags'
 import { isAdmin } from '@/api/client'
-import type { EndpointListItem } from '@/types/api'
+import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 
@@ -158,10 +159,17 @@ export default function HostsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<HostStatus>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
+  const [tagFilter, setTagFilter] = useState('')          // active tag_id
+  const [categories, setCategories] = useState<CategoryWithTags[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<EndpointListItem | null>(null)
+
+  // Load tag categories once for the filter dropdown.
+  useEffect(() => {
+    listTagCategories().then(setCategories).catch(() => {})
+  }, [])
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -176,7 +184,7 @@ export default function HostsPage() {
     setLoading(true)
     setError(null)
     try {
-      const result = await listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
+      const result = await listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter)
       setEndpoints(result.items ?? [])
       setTotalCount(result.totalCount)
     } catch (err) {
@@ -184,7 +192,7 @@ export default function HostsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch, statusFilter, sortOption])
+  }, [page, debouncedSearch, statusFilter, sortOption, tagFilter])
 
   useEffect(() => {
     load()
@@ -200,9 +208,18 @@ export default function HostsPage() {
     setPage(1)
   }
 
+  function handleTagChange(tagId: string) {
+    setTagFilter(tagId)
+    setPage(1)
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
   const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Newest first'
+
+  // Flat list of all tags with category name for the filter dropdown.
+  const allTags = categories.flatMap(cat => cat.tags.map(t => ({ ...t, categoryName: cat.name })))
+  const activeTag = allTags.find(t => t.id === tagFilter) ?? null
 
   return (
     <div className="space-y-4">
@@ -275,7 +292,63 @@ export default function HostsPage() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {allTags.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className={`gap-1.5 ${tagFilter ? 'border-primary text-primary' : ''}`}
+              >
+                <Tag className="h-4 w-4" />
+                Tag
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+              <DropdownMenuItem onSelect={() => handleTagChange('')} className="gap-2">
+                <Check className={`h-4 w-4 ${!tagFilter ? 'opacity-100' : 'opacity-0'}`} />
+                All tags
+              </DropdownMenuItem>
+              {categories.map(cat => (
+                <div key={cat.id}>
+                  <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {cat.name}
+                  </p>
+                  {cat.tags.map(tag => (
+                    <DropdownMenuItem
+                      key={tag.id}
+                      onSelect={() => handleTagChange(tag.id)}
+                      className="gap-2"
+                    >
+                      <Check className={`h-4 w-4 ${tagFilter === tag.id ? 'opacity-100' : 'opacity-0'}`} />
+                      {tag.name}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {/* Active tag chip */}
+      {activeTag && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filtered by tag:</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+            <span className="text-primary/60">{activeTag.categoryName}:</span>
+            {activeTag.name}
+            <button
+              onClick={() => handleTagChange('')}
+              className="ml-0.5 rounded-full hover:text-primary"
+              aria-label="Clear tag filter"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Active filter context line */}
       <p className="text-sm text-muted-foreground">
@@ -336,6 +409,19 @@ export default function HostsPage() {
                     <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
                       {endpoint.name}
                     </Link>
+                    {endpoint.tags && endpoint.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {endpoint.tags.map(tag => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
+                            title={tag.categoryName}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </TableCell>
 
                   {/* Type */}
