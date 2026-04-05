@@ -59,6 +59,7 @@ export interface EndpointListItem {
   lastScannedAt: string | null
   lastScanError: string | null
   errorSince: string | null
+  tags: TagWithCategory[]
 }
 
 /** Returned by GET/POST/PUT /endpoints/{id} (full detail). */
@@ -289,6 +290,36 @@ export interface AuditLog {
 }
 
 export type AuditLogList = PaginatedList<AuditLog>
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+export interface Tag {
+  id: string
+  categoryId: string
+  name: string
+  description: string | null
+  createdAt: string
+}
+
+export interface TagCategory {
+  id: string
+  name: string
+  description: string | null
+  createdAt: string
+}
+
+export interface CategoryWithTags extends TagCategory {
+  tags: Tag[]
+}
+
+export interface TagWithCategory {
+  id: string
+  categoryId: string
+  categoryName: string
+  name: string
+  description: string | null
+}
 
 // ---------------------------------------------------------------------------
 // Utils

@@ -22,7 +22,7 @@ import (
 // status restricts results by expiry bucket: "expired" (<0), "critical" (0–7), "warning" (8–30), "ok" (>30).
 // sort controls ordering: "" or "days_asc" (default), "days_desc", "endpoint_name", "common_name".
 // An empty status returns all entries.
-func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, search, status, sort string) (models.ExpiringCertList, error) {
+func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, search, status, sort, tagID string) (models.ExpiringCertList, error) {
 	var rows []VActiveCertificate
 
 	var orderExpr string
@@ -57,6 +57,10 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 		q = q.Where("days_remaining >= 8 AND days_remaining <= 30")
 	case "ok":
 		q = q.Where("days_remaining > 30")
+	}
+
+	if tagID != "" {
+		q = q.Where("EXISTS (SELECT 1 FROM tlsentinel.endpoint_tags et WHERE et.endpoint_id = vac.endpoint_id AND et.tag_id = ?)", tagID)
 	}
 
 	total, err := q.ScanAndCount(ctx)

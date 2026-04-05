@@ -26,6 +26,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
+	"github.com/tlsentinel/tlsentinel-server/internal/tags"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
 	"github.com/tlsentinel/tlsentinel-server/internal/utils"
 	tlsetinelWeb "github.com/tlsentinel/tlsentinel-server/web"
@@ -49,6 +50,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	calendarHandler := calendar.NewHandler(store)
 	groupHandler := groups.NewHandler(store)
 	auditHandler := audit.NewHandler(store)
+	tagHandler := tags.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -135,12 +137,14 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 						r.Get("/", endpointHandler.Get)
 						r.Get("/tls-profile", endpointHandler.GetTLSProfile)
 						r.Get("/history", endpointHandler.History)
+						r.Get("/tags", tagHandler.GetEndpointTags)
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.EndpointsEdit))
 						r.Put("/", endpointHandler.Update)
 						r.Delete("/", endpointHandler.Delete)
 						r.Post("/certificate", endpointHandler.LinkCertificate)
+						r.Put("/tags", tagHandler.SetEndpointTags)
 					})
 				})
 			})
@@ -221,6 +225,27 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 						r.Put("/", mailHandler.Save)
 						r.Post("/test", mailHandler.Test)
 					})
+				})
+			})
+
+			r.Route("/tags", func(r chi.Router) {
+				r.Route("/categories", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.TagsView))
+						r.Get("/", tagHandler.ListCategories)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.TagsEdit))
+						r.Post("/", tagHandler.CreateCategory)
+						r.Put("/{categoryID}", tagHandler.UpdateCategory)
+						r.Delete("/{categoryID}", tagHandler.DeleteCategory)
+					})
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.TagsEdit))
+					r.Post("/", tagHandler.CreateTag)
+					r.Put("/{tagID}", tagHandler.UpdateTag)
+					r.Delete("/{tagID}", tagHandler.DeleteTag)
 				})
 			})
 

@@ -204,9 +204,39 @@ type UserGroup struct {
 	Role    string `bun:"role"`
 }
 
+// TagCategory maps to tlsentinel.tag_categories.
+type TagCategory struct {
+	bun.BaseModel `bun:"table:tlsentinel.tag_categories,alias:tc"`
+
+	ID          string    `bun:"id,pk,type:uuid"`
+	Name        string    `bun:"name"`
+	Description *string   `bun:"description"`
+	CreatedAt   time.Time `bun:"created_at"`
+	UpdatedAt   time.Time `bun:"updated_at"`
+}
+
+// Tag maps to tlsentinel.tags.
+type Tag struct {
+	bun.BaseModel `bun:"table:tlsentinel.tags,alias:t"`
+
+	ID          string    `bun:"id,pk,type:uuid"`
+	CategoryID  string    `bun:"category_id,type:uuid"`
+	Name        string    `bun:"name"`
+	Description *string   `bun:"description"`
+	CreatedAt   time.Time `bun:"created_at"`
+}
+
+// EndpointTag maps to tlsentinel.endpoint_tags.
+type EndpointTag struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoint_tags"`
+
+	EndpointID string `bun:"endpoint_id,pk,type:uuid"`
+	TagID      string `bun:"tag_id,pk,type:uuid"`
+}
+
 // VActiveCertificate maps to the read-only tlsentinel.v_active_certificates view.
 type VActiveCertificate struct {
-	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates"`
+	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates,alias:vac"`
 
 	EndpointID   string    `bun:"endpoint_id"`
 	EndpointName string    `bun:"endpoint_name"`

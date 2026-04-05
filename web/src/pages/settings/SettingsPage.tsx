@@ -1,4 +1,4 @@
-import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, UsersRound } from 'lucide-react'
+import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, UsersRound, Tag } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 // ---------------------------------------------------------------------------
@@ -45,6 +45,12 @@ export default function SettingsPage() {
           icon={<ScrollText className="h-4 w-4" />}
           title="Audit Log"
           description="Track user logins, certificate changes, and other administrative actions."
+        />
+        <HubCard
+          to="/settings/tags"
+          icon={<Tag className="h-4 w-4" />}
+          title="Tags"
+          description="Manage tag categories and tags to organize endpoints by environment, owner, application, and more."
         />
         <HubCard
           icon={<Webhook className="h-4 w-4" />}
