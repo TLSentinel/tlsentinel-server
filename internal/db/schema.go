@@ -30,18 +30,30 @@ type Certificate struct {
 type Endpoint struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoints,alias:h"`
 
-	ID                string     `bun:"id,pk,type:uuid"`
-	Name              string     `bun:"name"`
-	Type              string     `bun:"type"`
-	Enabled           bool       `bun:"enabled"`
-	ScannerID         *string    `bun:"scanner_id,type:uuid"`
-	ActiveFingerprint *string    `bun:"active_fingerprint"`
-	LastScannedAt     *time.Time `bun:"last_scanned_at"`
-	LastScanError     *string    `bun:"last_scan_error"`
-	ErrorSince        *time.Time `bun:"error_since"`
-	Notes             *string    `bun:"notes"`
-	CreatedAt         time.Time  `bun:"created_at"`
-	UpdatedAt         time.Time  `bun:"updated_at"`
+	ID            string     `bun:"id,pk,type:uuid"`
+	Name          string     `bun:"name"`
+	Type          string     `bun:"type"`
+	Enabled       bool       `bun:"enabled"`
+	ScannerID     *string    `bun:"scanner_id,type:uuid"`
+	LastScannedAt *time.Time `bun:"last_scanned_at"`
+	LastScanError *string    `bun:"last_scan_error"`
+	ErrorSince    *time.Time `bun:"error_since"`
+	Notes         *string    `bun:"notes"`
+	CreatedAt     time.Time  `bun:"created_at"`
+	UpdatedAt     time.Time  `bun:"updated_at"`
+}
+
+// EndpointCert maps to tlsentinel.endpoint_certs.
+type EndpointCert struct {
+	bun.BaseModel `bun:"table:tlsentinel.endpoint_certs,alias:ec"`
+
+	ID           string    `bun:"id,pk,type:uuid"`
+	EndpointID   string    `bun:"endpoint_id,type:uuid"`
+	Fingerprint  string    `bun:"fingerprint"`
+	CertUse      string    `bun:"cert_use"`
+	IsCurrent    bool      `bun:"is_current"`
+	FirstSeenAt  time.Time `bun:"first_seen_at"`
+	LastSeenAt   time.Time `bun:"last_seen_at"`
 }
 
 // EndpointHost maps to tlsentinel.endpoint_hosts.
@@ -238,12 +250,13 @@ type EndpointTag struct {
 type VActiveCertificate struct {
 	bun.BaseModel `bun:"table:tlsentinel.v_active_certificates,alias:vac"`
 
-	EndpointID   string    `bun:"endpoint_id"`
-	EndpointName string    `bun:"endpoint_name"`
-	EndpointType string    `bun:"endpoint_type"`
-	Fingerprint  string    `bun:"fingerprint"`
-	CommonName   string    `bun:"common_name"`
-	NotBefore    time.Time `bun:"not_before"`
-	NotAfter     time.Time `bun:"not_after"`
-	DaysRemaining int      `bun:"days_remaining"`
+	EndpointID    string    `bun:"endpoint_id"`
+	EndpointName  string    `bun:"endpoint_name"`
+	EndpointType  string    `bun:"endpoint_type"`
+	CertUse       string    `bun:"cert_use"`
+	Fingerprint   string    `bun:"fingerprint"`
+	CommonName    string    `bun:"common_name"`
+	NotBefore     time.Time `bun:"not_before"`
+	NotAfter      time.Time `bun:"not_after"`
+	DaysRemaining int       `bun:"days_remaining"`
 }

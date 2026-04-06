@@ -32,7 +32,7 @@ import { listTagCategories } from '@/api/tags'
 import { can } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
-import { plural } from '@/lib/utils'
+import { fmtDate, plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
@@ -376,7 +376,7 @@ export default function HostsPage() {
               <TableHead>Status</TableHead>
               <TableHead>Scanner</TableHead>
               <TableHead>Last Scanned</TableHead>
-              <TableHead>Certificate</TableHead>
+              <TableHead>Expires</TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
@@ -487,15 +487,10 @@ export default function HostsPage() {
                     )}
                   </TableCell>
 
-                  {/* Active certificate link */}
-                  <TableCell className="font-mono text-xs">
-                    {endpoint.activeFingerprint ? (
-                      <Link
-                        to={`/certificates/${endpoint.activeFingerprint}`}
-                        className="text-primary hover:underline"
-                      >
-                        {endpoint.activeFingerprint.slice(0, 16)}…
-                      </Link>
+                  {/* Earliest cert expiry */}
+                  <TableCell className="text-sm">
+                    {endpoint.earliestExpiry ? (
+                      <span>{fmtDate(endpoint.earliestExpiry)}</span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

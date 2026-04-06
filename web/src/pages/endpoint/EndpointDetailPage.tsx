@@ -6,9 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
-import { getCertificate } from '@/api/certificates'
 import { CertCard } from '@/components/CertCard'
-import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
+import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
@@ -313,48 +312,41 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
 // Active certificate section
 // ---------------------------------------------------------------------------
 
-type CertState =
-  | { status: 'loading' }
-  | { status: 'none' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; cert: CertificateDetail }
+const CERT_USE_LABEL: Record<string, string> = {
+  tls:        'TLS Certificate',
+  signing:    'Signing Certificate',
+  encryption: 'Encryption Certificate',
+  manual:     'Manually Added Certificate',
+}
 
-function ActiveCertSection({ certState }: { certState: CertState }) {
-  if (certState.status === 'loading') {
+function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
+  if (certs.length === 0) {
     return (
       <div className="space-y-3">
-        <SectionHeader title="Active Certificate" />
-        <p className="text-xs italic text-muted-foreground">Loading…</p>
-      </div>
-    )
-  }
-  if (certState.status === 'none') {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Active Certificate" />
-        <p className="text-sm italic text-muted-foreground">No certificate recorded yet.</p>
-      </div>
-    )
-  }
-  if (certState.status === 'error') {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Active Certificate" />
-        <p className="text-sm text-destructive">{certState.message}</p>
+        <SectionHeader title="Active Certificates" />
+        <p className="text-sm italic text-muted-foreground">No certificates recorded yet.</p>
       </div>
     )
   }
 
-  const { cert } = certState
   return (
     <div className="space-y-3">
-      <SectionHeader title="Active Certificate" />
-      <CertCard
-        fingerprint={cert.fingerprint}
-        commonName={cert.commonName}
-        notAfter={cert.notAfter}
-        notBefore={cert.notBefore}
-      />
+      <SectionHeader title="Active Certificates" />
+      {certs.map((cert) => (
+        <div key={`${cert.fingerprint}-${cert.certUse}`} className="space-y-1.5">
+          {(certs.length > 1 || cert.certUse === 'signing' || cert.certUse === 'encryption') && (
+            <p className="text-xs font-medium text-muted-foreground">
+              {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
+            </p>
+          )}
+          <CertCard
+            fingerprint={cert.fingerprint}
+            commonName={cert.commonName}
+            notAfter={cert.notAfter}
+            notBefore={cert.notBefore}
+          />
+        </div>
+      ))}
     </div>
   )
 }
@@ -420,7 +412,6 @@ export default function EndpointDetailPage() {
 
   const [endpointState, setEndpointState] = useState<EndpointState>({ status: 'loading' })
   const [tlsState, setTLSState]           = useState<TLSState>({ status: 'loading' })
-  const [certState, setCertState]         = useState<CertState>({ status: 'loading' })
   const [history, setHistory]             = useState<EndpointScanHistoryItem[] | null>(null)
   const [tags, setTags]                   = useState<TagWithCategory[]>([])
 
@@ -440,15 +431,6 @@ export default function EndpointDetailPage() {
         else setTLSState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load TLS profile.' })
       })
   }, [id])
-
-  useEffect(() => {
-    if (endpointState.status !== 'ready') return
-    const fp = endpointState.endpoint.activeFingerprint
-    if (!fp) { setCertState({ status: 'none' }); return }
-    getCertificate(fp)
-      .then((cert) => setCertState({ status: 'ready', cert }))
-      .catch((err) => setCertState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load certificate.' }))
-  }, [endpointState])
 
   useEffect(() => {
     if (!id) return
@@ -532,7 +514,7 @@ export default function EndpointDetailPage() {
 
         {/* ── Right column ── */}
         <div className="space-y-6">
-          <ActiveCertSection certState={certState} />
+          <ActiveCertsSection certs={endpoint.activeCerts} />
           <ScanHistorySection items={history} />
         </div>
 

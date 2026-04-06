@@ -2,6 +2,26 @@ package models
 
 import "time"
 
+// EndpointCert is a certificate currently (or historically) associated with
+// an endpoint, enriched with certificate metadata for display.
+type EndpointCert struct {
+	Fingerprint string    `json:"fingerprint"`
+	CertUse     string    `json:"certUse"`
+	IsCurrent   bool      `json:"isCurrent"`
+	CommonName  string    `json:"commonName"`
+	NotBefore   time.Time `json:"notBefore"`
+	NotAfter    time.Time `json:"notAfter"`
+	FirstSeenAt time.Time `json:"firstSeenAt"`
+	LastSeenAt  time.Time `json:"lastSeenAt"`
+}
+
+// SAMLCertPayload is one certificate entry in a SAML scan result, paired with
+// its declared use (signing or encryption).
+type SAMLCertPayload struct {
+	PEM string `json:"pem"`
+	Use string `json:"use"`
+}
+
 // EndpointRecord holds the fields for creating or updating an endpoint.
 type EndpointRecord struct {
 	Name      string
@@ -20,47 +40,49 @@ type EndpointRecord struct {
 
 // Endpoint represents the full detail of a monitored endpoint.
 type Endpoint struct {
-	ID                string     `json:"id"`
-	Name              string     `json:"name"`
-	Type              string     `json:"type"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Type        string     `json:"type"`
 	// Host-type fields.
-	DNSName           string     `json:"dnsName"`
-	IPAddress         *string    `json:"ipAddress"`
-	Port              int        `json:"port"`
+	DNSName     string     `json:"dnsName"`
+	IPAddress   *string    `json:"ipAddress"`
+	Port        int        `json:"port"`
 	// SAML-type fields.
-	URL               *string    `json:"url,omitempty"`
+	URL         *string    `json:"url,omitempty"`
 	// Common fields.
-	Enabled           bool       `json:"enabled"`
-	ScannerID         *string    `json:"scannerId"`
-	ScannerName       *string    `json:"scannerName"`
-	ActiveFingerprint *string    `json:"activeFingerprint"`
-	LastScannedAt     *time.Time `json:"lastScannedAt"`
-	LastScanError     *string    `json:"lastScanError"`
-	ErrorSince        *time.Time `json:"errorSince"`
-	Notes             *string    `json:"notes"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
+	Enabled       bool           `json:"enabled"`
+	ScannerID     *string        `json:"scannerId"`
+	ScannerName   *string        `json:"scannerName"`
+	ActiveCerts   []EndpointCert `json:"activeCerts"`
+	LastScannedAt *time.Time     `json:"lastScannedAt"`
+	LastScanError *string        `json:"lastScanError"`
+	ErrorSince    *time.Time     `json:"errorSince"`
+	Notes         *string        `json:"notes"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
 }
 
 // EndpointListItem represents a summary of an endpoint for list responses.
 type EndpointListItem struct {
-	ID                string           `json:"id"`
-	Name              string           `json:"name"`
-	Type              string           `json:"type"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Type        string     `json:"type"`
 	// Host-type fields.
-	DNSName           string           `json:"dnsName"`
-	Port              int              `json:"port"`
+	DNSName     string     `json:"dnsName"`
+	Port        int        `json:"port"`
 	// SAML-type fields.
-	URL               *string          `json:"url,omitempty"`
+	URL         *string    `json:"url,omitempty"`
 	// Common fields.
-	Enabled           bool             `json:"enabled"`
-	ScannerID         *string          `json:"scannerId"`
-	ScannerName       *string          `json:"scannerName"`
-	ActiveFingerprint *string          `json:"activeFingerprint"`
-	LastScannedAt     *time.Time       `json:"lastScannedAt"`
-	LastScanError     *string          `json:"lastScanError"`
-	ErrorSince        *time.Time       `json:"errorSince"`
-	Tags              []TagWithCategory `json:"tags"`
+	Enabled         bool              `json:"enabled"`
+	ScannerID       *string           `json:"scannerId"`
+	ScannerName     *string           `json:"scannerName"`
+	// EarliestExpiry is the soonest not_after across all current certs for this
+	// endpoint. Nil when no certs have been recorded yet.
+	EarliestExpiry  *time.Time        `json:"earliestExpiry"`
+	LastScannedAt   *time.Time        `json:"lastScannedAt"`
+	LastScanError   *string           `json:"lastScanError"`
+	ErrorSince      *time.Time        `json:"errorSince"`
+	Tags            []TagWithCategory `json:"tags"`
 }
 
 // EndpointList represents a paginated list of endpoints.
@@ -88,10 +110,10 @@ type ScannerSAMLEndpoint struct {
 // SAMLScanResultRequest is the payload a scanner POSTs after fetching SAML metadata.
 // ResolvedIP and TLSVersion do not apply to metadata fetches.
 type SAMLScanResultRequest struct {
-	ActiveFingerprint *string  `json:"activeFingerprint"`
-	Error             *string  `json:"error"`
-	// PEMs contains PEM-encoded signing certificates extracted from the metadata (leaf first).
-	PEMs              []string `json:"pems"`
+	Error *string           `json:"error"`
+	// Certs contains all certificates extracted from the metadata, each paired
+	// with its declared use (signing or encryption).
+	Certs []SAMLCertPayload `json:"certs"`
 }
 
 // ScanResultRequest is the payload a scanner POSTs after scanning a host.

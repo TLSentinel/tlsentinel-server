@@ -452,8 +452,8 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.SetActiveFingerprint(r.Context(), endpointID, rec.Fingerprint); err != nil {
-		slog.Error("failed to set active fingerprint", "error", err)
+	if err := h.store.UpsertEndpointCert(r.Context(), endpointID, rec.Fingerprint, "manual"); err != nil {
+		slog.Error("failed to link certificate", "error", err)
 		http.Error(w, "failed to link certificate", http.StatusInternalServerError)
 		return
 	}

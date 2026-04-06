@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -14,58 +15,73 @@ import (
 // endpointWithScanner is used for queries that LEFT JOIN scanners, endpoint_hosts, and endpoint_saml.
 type endpointWithScanner struct {
 	Endpoint
-	ScannerName *string `bun:"scanner_name"`
+	ScannerName    *string    `bun:"scanner_name"`
 	// Host-type fields joined from endpoint_hosts.
-	DNSName   string  `bun:"dns_name"`
-	IPAddress *string `bun:"ip_address"`
-	Port      int     `bun:"port"`
+	DNSName        string     `bun:"dns_name"`
+	IPAddress      *string    `bun:"ip_address"`
+	Port           int        `bun:"port"`
 	// SAML-type fields joined from endpoint_saml.
-	URL *string `bun:"url"`
+	URL            *string    `bun:"url"`
+	// EarliestExpiry is the minimum not_after across all current endpoint_certs rows.
+	EarliestExpiry *time.Time `bun:"earliest_expiry"`
+}
+
+// endpointCertRow is used to hydrate active cert details for a single endpoint.
+type endpointCertRow struct {
+	Fingerprint string    `bun:"fingerprint"`
+	CertUse     string    `bun:"cert_use"`
+	IsCurrent   bool      `bun:"is_current"`
+	CommonName  string    `bun:"common_name"`
+	NotBefore   time.Time `bun:"not_before"`
+	NotAfter    time.Time `bun:"not_after"`
+	FirstSeenAt time.Time `bun:"first_seen_at"`
+	LastSeenAt  time.Time `bun:"last_seen_at"`
 }
 
 func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
 	return models.EndpointListItem{
-		ID:                r.ID,
-		Name:              r.Name,
-		Type:              r.Type,
-		DNSName:           r.DNSName,
-		Port:              r.Port,
-		URL:               r.URL,
-		Enabled:           r.Enabled,
-		ScannerID:         r.ScannerID,
-		ScannerName:       r.ScannerName,
-		ActiveFingerprint: r.ActiveFingerprint,
-		LastScannedAt:     r.LastScannedAt,
-		LastScanError:     r.LastScanError,
-		ErrorSince:        r.ErrorSince,
+		ID:             r.ID,
+		Name:           r.Name,
+		Type:           r.Type,
+		DNSName:        r.DNSName,
+		Port:           r.Port,
+		URL:            r.URL,
+		Enabled:        r.Enabled,
+		ScannerID:      r.ScannerID,
+		ScannerName:    r.ScannerName,
+		EarliestExpiry: r.EarliestExpiry,
+		LastScannedAt:  r.LastScannedAt,
+		LastScanError:  r.LastScanError,
+		ErrorSince:     r.ErrorSince,
 	}
 }
 
 func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 	return models.Endpoint{
-		ID:                r.ID,
-		Name:              r.Name,
-		Type:              r.Type,
-		DNSName:           r.DNSName,
-		IPAddress:         r.IPAddress,
-		Port:              r.Port,
-		URL:               r.URL,
-		Enabled:           r.Enabled,
-		ScannerID:         r.ScannerID,
-		ScannerName:       r.ScannerName,
-		ActiveFingerprint: r.ActiveFingerprint,
-		LastScannedAt:     r.LastScannedAt,
-		LastScanError:     r.LastScanError,
-		ErrorSince:        r.ErrorSince,
-		Notes:             r.Notes,
-		CreatedAt:         r.CreatedAt,
-		UpdatedAt:         r.UpdatedAt,
+		ID:            r.ID,
+		Name:          r.Name,
+		Type:          r.Type,
+		DNSName:       r.DNSName,
+		IPAddress:     r.IPAddress,
+		Port:          r.Port,
+		URL:           r.URL,
+		Enabled:       r.Enabled,
+		ScannerID:     r.ScannerID,
+		ScannerName:   r.ScannerName,
+		ActiveCerts:   []models.EndpointCert{}, // populated separately by GetEndpoint
+		LastScannedAt: r.LastScannedAt,
+		LastScanError: r.LastScanError,
+		ErrorSince:    r.ErrorSince,
+		Notes:         r.Notes,
+		CreatedAt:     r.CreatedAt,
+		UpdatedAt:     r.UpdatedAt,
 	}
 }
 
 // selectEndpointWithScanner returns a base query joining endpoints, scanners,
 // endpoint_hosts, and endpoint_saml. All type-specific joins are LEFT JOINs so
 // they return NULL for non-matching types rather than dropping rows.
+// EarliestExpiry is derived via a lateral subquery over endpoint_certs.
 func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 	return s.db.NewSelect().
 		TableExpr("tlsentinel.endpoints AS h").
@@ -73,9 +89,16 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 		ColumnExpr("at.name AS scanner_name").
 		ColumnExpr("eh.dns_name, eh.ip_address, eh.port").
 		ColumnExpr("es.url").
+		ColumnExpr("exp.earliest_expiry").
 		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
 		Join("LEFT JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id").
-		Join("LEFT JOIN tlsentinel.endpoint_saml AS es ON es.endpoint_id = h.id")
+		Join("LEFT JOIN tlsentinel.endpoint_saml AS es ON es.endpoint_id = h.id").
+		Join(`LEFT JOIN LATERAL (
+			SELECT MIN(c.not_after) AS earliest_expiry
+			FROM tlsentinel.endpoint_certs ec
+			JOIN tlsentinel.certificates c ON c.fingerprint = ec.fingerprint
+			WHERE ec.endpoint_id = h.id AND ec.is_current = TRUE
+		) exp ON TRUE`)
 }
 
 // ListEndpoints returns a paginated list of endpoints.
@@ -189,7 +212,36 @@ func (s *Store) GetEndpoint(ctx context.Context, id string) (models.Endpoint, er
 		}
 		return models.Endpoint{}, fmt.Errorf("failed to get endpoint: %w", err)
 	}
-	return endpointRowToEndpoint(row), nil
+	ep := endpointRowToEndpoint(row)
+
+	// Fetch all current certs for this endpoint, enriched with cert metadata.
+	var certRows []endpointCertRow
+	err = s.db.NewSelect().
+		TableExpr("tlsentinel.endpoint_certs ec").
+		ColumnExpr("ec.fingerprint, ec.cert_use, ec.is_current, ec.first_seen_at, ec.last_seen_at").
+		ColumnExpr("c.common_name, c.not_before, c.not_after").
+		Join("JOIN tlsentinel.certificates c ON c.fingerprint = ec.fingerprint").
+		Where("ec.endpoint_id = ? AND ec.is_current = TRUE", id).
+		OrderExpr("ec.cert_use ASC").
+		Scan(ctx, &certRows)
+	if err != nil {
+		return models.Endpoint{}, fmt.Errorf("failed to get endpoint certs: %w", err)
+	}
+	certs := make([]models.EndpointCert, len(certRows))
+	for i, cr := range certRows {
+		certs[i] = models.EndpointCert{
+			Fingerprint: cr.Fingerprint,
+			CertUse:     cr.CertUse,
+			IsCurrent:   cr.IsCurrent,
+			CommonName:  cr.CommonName,
+			NotBefore:   cr.NotBefore,
+			NotAfter:    cr.NotAfter,
+			FirstSeenAt: cr.FirstSeenAt,
+			LastSeenAt:  cr.LastSeenAt,
+		}
+	}
+	ep.ActiveCerts = certs
+	return ep, nil
 }
 
 func (s *Store) InsertEndpoint(ctx context.Context, rec models.EndpointRecord) (models.Endpoint, error) {
@@ -419,7 +471,6 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		_, err := tx.NewUpdate().
 			TableExpr("tlsentinel.endpoints").
-			Set("active_fingerprint = ?", req.ActiveFingerprint).
 			Set("last_scanned_at = NOW()").
 			Set("last_scan_error = ?", req.Error).
 			Set(`error_since = CASE
@@ -444,19 +495,62 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 			return fmt.Errorf("failed to insert scan history: %w", err)
 		}
 
+		// Only update endpoint_certs when there is a leaf cert (non-error scan).
+		if req.ActiveFingerprint != nil {
+			if err := upsertEndpointCert(ctx, tx, hostID, *req.ActiveFingerprint, "tls"); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }
 
-func (s *Store) SetActiveFingerprint(ctx context.Context, endpointID, fingerprint string) error {
-	_, err := s.db.NewUpdate().
-		TableExpr("tlsentinel.endpoints").
-		Set("active_fingerprint = ?", fingerprint).
-		Set("updated_at = NOW()").
-		Where("id = ?", endpointID).
+// UpsertEndpointCert links a certificate to an endpoint with the given use label.
+// Any previously current cert for the same (endpoint, use) pair is rolled over
+// to is_current = FALSE when the fingerprint differs.
+// This is the store method used by the manual cert upload handler.
+func (s *Store) UpsertEndpointCert(ctx context.Context, endpointID, fingerprint, certUse string) error {
+	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		return upsertEndpointCert(ctx, tx, endpointID, fingerprint, certUse)
+	})
+}
+
+// upsertEndpointCert is the shared inner implementation used inside transactions.
+func upsertEndpointCert(ctx context.Context, tx bun.Tx, endpointID, fingerprint, certUse string) error {
+	// Roll over any current cert for this endpoint+use that has a different fingerprint.
+	_, err := tx.NewUpdate().
+		TableExpr("tlsentinel.endpoint_certs").
+		Set("is_current = FALSE, last_seen_at = NOW()").
+		Where("endpoint_id = ?", endpointID).
+		Where("cert_use = ?", certUse).
+		Where("is_current = TRUE").
+		Where("fingerprint != ?", fingerprint).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to set active fingerprint: %w", err)
+		return fmt.Errorf("failed to roll over previous endpoint cert: %w", err)
+	}
+
+	// Upsert the new/continuing cert as current.
+	// Use the model so bun can build the ON CONFLICT SET clause correctly.
+	// ExcludeColumn("id") lets Postgres apply the DEFAULT gen_random_uuid().
+	now := time.Now()
+	ec := &EndpointCert{
+		EndpointID:  endpointID,
+		Fingerprint: fingerprint,
+		CertUse:     certUse,
+		IsCurrent:   true,
+		FirstSeenAt: now,
+		LastSeenAt:  now,
+	}
+	_, err = tx.NewInsert().
+		Model(ec).
+		ExcludeColumn("id").
+		On("CONFLICT (endpoint_id, fingerprint, cert_use) DO UPDATE").
+		Set("is_current = TRUE, last_seen_at = NOW()").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to upsert endpoint cert: %w", err)
 	}
 	return nil
 }

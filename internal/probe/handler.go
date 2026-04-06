@@ -204,14 +204,35 @@ func (h *Handler) SAMLResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Upsert each certificate extracted from the metadata (leaf first).
-	leafOK := len(req.PEMs) == 0
-	for i, pemStr := range req.PEMs {
-		cert, err := certificates.ParsePEMCertificate(pemStr)
+	// Record endpoint scan state (timestamps, error tracking) — no ActiveFingerprint
+	// on the SAML path; cert linkage is handled per-cert below.
+	scanReq := models.ScanResultRequest{
+		Error: req.Error,
+	}
+	if err := h.store.RecordScanResult(r.Context(), endpointID, scanReq); err != nil {
+		zap.L().Error("failed to record SAML scan result", zap.String("endpoint_id", endpointID), zap.Error(err))
+		http.Error(w, "failed to record SAML scan result", http.StatusInternalServerError)
+		return
+	}
+
+	// Upsert each certificate and link it to the endpoint with its declared use.
+	for i, entry := range req.Certs {
+		use := entry.Use
+		if use != "signing" && use != "encryption" {
+			zap.L().Warn("scanner submitted SAML cert with unrecognised use, skipping",
+				zap.String("endpoint_id", endpointID),
+				zap.Int("index", i),
+				zap.String("use", use),
+			)
+			continue
+		}
+
+		cert, err := certificates.ParsePEMCertificate(entry.PEM)
 		if err != nil {
 			zap.L().Warn("scanner submitted unparseable SAML PEM, skipping",
 				zap.String("endpoint_id", endpointID),
 				zap.Int("index", i),
+				zap.String("use", use),
 				zap.Error(err),
 			)
 			continue
@@ -221,31 +242,19 @@ func (h *Handler) SAMLResult(w http.ResponseWriter, r *http.Request) {
 			zap.L().Error("failed to upsert SAML certificate",
 				zap.String("endpoint_id", endpointID),
 				zap.String("fingerprint", rec.Fingerprint),
+				zap.String("use", use),
 				zap.Error(err),
 			)
-			if i == 0 {
-				req.ActiveFingerprint = nil
-			}
 			continue
 		}
-		if i == 0 {
-			leafOK = true
+		if err := h.store.UpsertEndpointCert(r.Context(), endpointID, rec.Fingerprint, use); err != nil {
+			zap.L().Error("failed to link SAML cert to endpoint",
+				zap.String("endpoint_id", endpointID),
+				zap.String("fingerprint", rec.Fingerprint),
+				zap.String("use", use),
+				zap.Error(err),
+			)
 		}
-	}
-	if !leafOK {
-		req.ActiveFingerprint = nil
-	}
-
-	// Reuse the host scan result path — ResolvedIP and TLSVersion are nil for SAML.
-	scanReq := models.ScanResultRequest{
-		ActiveFingerprint: req.ActiveFingerprint,
-		Error:             req.Error,
-		PEMs:              req.PEMs,
-	}
-	if err := h.store.RecordScanResult(r.Context(), endpointID, scanReq); err != nil {
-		zap.L().Error("failed to record SAML scan result", zap.String("endpoint_id", endpointID), zap.Error(err))
-		http.Error(w, "failed to record SAML scan result", http.StatusInternalServerError)
-		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
