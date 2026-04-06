@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"github.com/uptrace/bun"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
@@ -78,8 +79,49 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 			CommonName:    r.CommonName,
 			NotAfter:      r.NotAfter,
 			DaysRemaining: r.DaysRemaining,
+			Tags:          []models.TagWithCategory{},
 		}
 	}
+
+	// Batch-fetch tags for all endpoints on this page.
+	if len(items) > 0 {
+		endpointIDs := make([]string, len(items))
+		for i, item := range items {
+			endpointIDs[i] = item.EndpointID
+		}
+		type tagRow struct {
+			EndpointID   string `bun:"endpoint_id"`
+			TagID        string `bun:"tag_id"`
+			TagName      string `bun:"tag_name"`
+			CategoryID   string `bun:"category_id"`
+			CategoryName string `bun:"category_name"`
+		}
+		var tagRows []tagRow
+		if err := s.db.NewSelect().
+			TableExpr("tlsentinel.endpoint_tags et").
+			ColumnExpr("et.endpoint_id, et.tag_id, t.name AS tag_name, t.category_id, tc.name AS category_name").
+			Join("JOIN tlsentinel.tags t ON t.id = et.tag_id").
+			Join("JOIN tlsentinel.tag_categories tc ON tc.id = t.category_id").
+			Where("et.endpoint_id IN (?)", bun.In(endpointIDs)).
+			OrderExpr("tc.name ASC, t.name ASC").
+			Scan(ctx, &tagRows); err == nil {
+			tagsByEndpoint := make(map[string][]models.TagWithCategory)
+			for _, tr := range tagRows {
+				tagsByEndpoint[tr.EndpointID] = append(tagsByEndpoint[tr.EndpointID], models.TagWithCategory{
+					ID:           tr.TagID,
+					CategoryID:   tr.CategoryID,
+					CategoryName: tr.CategoryName,
+					Name:         tr.TagName,
+				})
+			}
+			for i := range items {
+				if tags, ok := tagsByEndpoint[items[i].EndpointID]; ok {
+					items[i].Tags = tags
+				}
+			}
+		}
+	}
+
 	return models.ExpiringCertList{
 		Items:      items,
 		Page:       page,

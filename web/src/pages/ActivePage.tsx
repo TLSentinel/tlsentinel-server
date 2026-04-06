@@ -28,6 +28,7 @@ function TypeBadge({ type }: { type: string }) {
 }
 import { fmtDate } from '@/lib/utils'
 import { fmtDays } from '@/lib/utils'
+import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -323,6 +324,22 @@ export default function ActivePage() {
                     <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
                       {item.endpointName}
                     </Link>
+                    {item.tags && item.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.tags.map(tag => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => handleTagChange(tagFilter === tag.id ? '' : tag.id)}
+                            title={`Filter by ${tag.categoryName}: ${tag.name}`}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                          >
+                            <span className="opacity-60">{tag.categoryName}:</span>
+                            {tag.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </TableCell>
 
                   <TableCell>
