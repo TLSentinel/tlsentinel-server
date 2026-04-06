@@ -288,7 +288,7 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 			if _, err = tx.NewInsert().Model(es).Exec(ctx); err != nil {
 				return fmt.Errorf("failed to insert endpoint_saml: %w", err)
 			}
-		// manual: no type-specific row needed
+			// manual: no type-specific row needed
 		}
 
 		return nil
@@ -317,7 +317,7 @@ func (s *Store) DeleteEndpoint(ctx context.Context, id string) error {
 
 // GetScannerHosts returns enabled host-type endpoints assigned to a scanner.
 // If the scanner is the default it also claims endpoints with no explicit scanner_id.
-func (s *Store) GetScannerHosts(ctx context.Context, scannerID string) ([]models.ScannerHost, error) {
+func (s *Store) GetScannerHostEndpoints(ctx context.Context, scannerID string) ([]models.ScannerHost, error) {
 	type hostRow struct {
 		ID        string  `bun:"id"`
 		DNSName   string  `bun:"dns_name"`
@@ -351,6 +351,39 @@ func (s *Store) GetScannerHosts(ctx context.Context, scannerID string) ([]models
 			IPAddress: r.IPAddress,
 			Port:      r.Port,
 		}
+	}
+	return result, nil
+}
+
+// GetScannerSAMLEndpoints returns enabled SAML-type endpoints assigned to a scanner.
+// If the scanner is the default it also claims endpoints with no explicit scanner_id.
+func (s *Store) GetScannerSAMLEndpoints(ctx context.Context, scannerID string) ([]models.ScannerSAMLEndpoint, error) {
+	type samlRow struct {
+		ID  string `bun:"id"`
+		URL string `bun:"url"`
+	}
+
+	var rows []samlRow
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.endpoints AS e").
+		ColumnExpr("e.id, es.url").
+		Join("JOIN tlsentinel.endpoint_saml AS es ON es.endpoint_id = e.id").
+		Where(`e.enabled = TRUE AND e.type = 'saml' AND (
+			e.scanner_id = ?::uuid
+			OR (e.scanner_id IS NULL AND EXISTS (
+				SELECT 1 FROM tlsentinel.scanners
+				WHERE id = ?::uuid AND is_default = TRUE
+			))
+		)`, scannerID, scannerID).
+		OrderExpr("es.url").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query scanner SAML endpoints: %w", err)
+	}
+
+	result := make([]models.ScannerSAMLEndpoint, len(rows))
+	for i, r := range rows {
+		result[i] = models.ScannerSAMLEndpoint{ID: r.ID, URL: r.URL}
 	}
 	return result, nil
 }

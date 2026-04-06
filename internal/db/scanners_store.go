@@ -94,16 +94,19 @@ func (s *Store) GetScannerToken(ctx context.Context, id string) (models.ScannerT
 	return scannerToResponse(row), nil
 }
 
-// InsertScannerToken creates a new scanner token with the given name and token hash.
-func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash string) (models.ScannerTokenResponse, error) {
+// InsertScannerToken creates a new scanner token with the given name, token hash,
+// and scan configuration. Interval and concurrency must be positive; callers are
+// responsible for applying defaults before calling this function.
+func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash string, scanIntervalSeconds, scanConcurrency int) (models.ScannerTokenResponse, error) {
 	row := &Scanner{
-		Name:      name,
-		TokenHash: tokenHash,
+		Name:                name,
+		TokenHash:           tokenHash,
+		ScanIntervalSeconds: scanIntervalSeconds,
+		ScanConcurrency:     scanConcurrency,
 	}
-	// Exclude all columns with DB-managed defaults so they are not overridden with
-	// Go zero values (false, 0, time.Time{}).  RETURNING * populates them back.
+	// Exclude id, is_default, and created_at so DB-managed defaults are used.
 	if _, err := s.db.NewInsert().Model(row).
-		ExcludeColumn("id", "is_default", "scan_interval_seconds", "scan_concurrency", "created_at").
+		ExcludeColumn("id", "is_default", "created_at").
 		Returning("*").
 		Exec(ctx); err != nil {
 		return models.ScannerTokenResponse{}, fmt.Errorf("failed to insert scanner token: %w", err)
