@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser } from '@/api/users'
-import { isAdmin, getIdentity } from '@/api/client'
+import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
@@ -473,7 +473,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const PAGE_SIZE = 20
 
 export default function UsersPage() {
-  const admin = isAdmin()
+  const admin = can('users:edit')
   const currentUserID = getIdentity()?.uid ?? ''
 
   const [users, setUsers] = useState<User[]>([])

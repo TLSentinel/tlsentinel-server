@@ -31,7 +31,7 @@ import {
   createCertificate,
   deleteCertificate,
 } from '@/api/certificates'
-import { isAdmin } from '@/api/client'
+import { can } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
@@ -265,7 +265,7 @@ function DeleteDialog({ cert, onClose, onDeleted }: DeleteDialogProps) {
 const PAGE_SIZE = 20
 
 export default function CertificatesPage() {
-  const admin = isAdmin()
+  const admin = can('certs:edit')
   const navigate = useNavigate()
   const [certs, setCerts] = useState<CertificateListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)

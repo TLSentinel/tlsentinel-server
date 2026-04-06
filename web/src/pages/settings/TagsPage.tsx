@@ -28,7 +28,7 @@ import {
   updateTag,
   deleteTag,
 } from '@/api/tags'
-import { isAdmin } from '@/api/client'
+import { can } from '@/api/client'
 import type { CategoryWithTags, Tag, TagCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -465,7 +465,7 @@ export default function TagsPage() {
     onConfirm: () => Promise<void>
   }>({ open: false, label: '', onConfirm: async () => {} })
 
-  const admin = isAdmin()
+  const admin = can('tags:edit')
 
   const load = useCallback(async () => {
     try {

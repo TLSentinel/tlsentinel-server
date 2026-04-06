@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { listScanners, createScanner, updateScanner, setDefaultScanner, deleteScanner } from '@/api/scanners'
-import { isAdmin } from '@/api/client'
+import { can } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
@@ -367,7 +367,7 @@ function DeleteDialog({ scanner, onClose, onDeleted }: DeleteDialogProps) {
 // ---------------------------------------------------------------------------
 
 export default function ScannersPage() {
-  const admin = isAdmin()
+  const admin = can('scanners:edit')
   const [now] = useState(Date.now)
 
   const [scanners, setScanners] = useState<ScannerToken[]>([])

@@ -1,4 +1,5 @@
 import { ApiError } from '@/types/api'
+import { hasPermission } from '@/lib/permissions'
 
 const BASE = '/api/v1'
 
@@ -47,10 +48,9 @@ export function isAdmin(): boolean {
   return getIdentity()?.role === 'admin'
 }
 
-/** Returns true when the current user is admin or operator. */
-export function isAtLeastOperator(): boolean {
-  const role = getIdentity()?.role
-  return role === 'admin' || role === 'operator'
+/** Returns true when the current user's role grants the given permission. */
+export function can(perm: string): boolean {
+  return hasPermission(getIdentity()?.role ?? '', perm)
 }
 
 /** Decodes the JWT payload without verifying the signature (client-side display only). */

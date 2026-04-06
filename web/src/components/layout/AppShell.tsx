@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield, User, Wrench } from 'lucide-react'
-import { clearToken, getIdentity, isAdmin } from '@/api/client'
+import { clearToken, getIdentity, can } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
 import type { BuildInfo } from '@/types/api'
@@ -96,7 +96,7 @@ export default function AppShell() {
 
         {/* Bottom nav — settings (admin only) + API docs */}
         <div className="border-t p-3 space-y-1">
-          {isAdmin() && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
+          {can('settings:view') && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
           <a
             href="/api-docs/index.html"
             target="_blank"
