@@ -48,7 +48,9 @@ func ptrIfNonEmpty(s string) *string {
 
 // createScannerTokenRequest is the payload for creating a new scanner token.
 type createScannerTokenRequest struct {
-	Name string `json:"name"`
+	Name                string `json:"name"`
+	ScanIntervalSeconds int    `json:"scanIntervalSeconds"` // optional; defaults to 3600
+	ScanConcurrency     int    `json:"scanConcurrency"`     // optional; defaults to 5
 }
 
 // updateScannerTokenRequest is the payload for updating a scanner token.
@@ -104,6 +106,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	if req.ScanIntervalSeconds <= 0 {
+		req.ScanIntervalSeconds = 3600
+	}
+	if req.ScanConcurrency <= 0 {
+		req.ScanConcurrency = 5
+	}
 
 	raw, hash, err := auth.GenerateScannerToken()
 	if err != nil {
@@ -111,7 +119,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.store.InsertScannerToken(r.Context(), req.Name, hash)
+	token, err := h.store.InsertScannerToken(r.Context(), req.Name, hash, req.ScanIntervalSeconds, req.ScanConcurrency)
 	if err != nil {
 		http.Error(w, "failed to create scanner token", http.StatusInternalServerError)
 		return
