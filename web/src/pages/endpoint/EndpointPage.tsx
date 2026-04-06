@@ -33,6 +33,7 @@ import { isAdmin } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
+import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
 // Type badge
@@ -412,13 +413,16 @@ export default function HostsPage() {
                     {endpoint.tags && endpoint.tags.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {endpoint.tags.map(tag => (
-                          <span
+                          <button
                             key={tag.id}
-                            className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
-                            title={tag.categoryName}
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); handleTagChange(tagFilter === tag.id ? '' : tag.id) }}
+                            title={`Filter by ${tag.categoryName}: ${tag.name}`}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
                           >
+                            <span className="opacity-60">{tag.categoryName}:</span>
                             {tag.name}
-                          </span>
+                          </button>
                         ))}
                       </div>
                     )}

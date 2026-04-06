@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowLeft, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -303,9 +304,9 @@ export default function EndpointFormPage() {
               return (
                 <span
                   key={tagId}
-                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                 >
-                  <span className="text-muted-foreground">{cat?.name}:</span>
+                  <span className="opacity-60">{cat?.name}:</span>
                   {tag.name}
                   <button
                     type="button"

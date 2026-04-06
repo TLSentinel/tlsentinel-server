@@ -11,6 +11,7 @@ import { CertCard } from '@/components/CertCard'
 import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
+import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
 // Layout primitives
@@ -514,10 +515,9 @@ export default function EndpointDetailPage() {
                 {tags.map(tag => (
                   <span
                     key={tag.id}
-                    className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-                    title={tag.categoryName}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                   >
-                    <span className="text-muted-foreground mr-1">{tag.categoryName}:</span>
+                    <span className="opacity-60">{tag.categoryName}:</span>
                     {tag.name}
                   </span>
                 ))}
