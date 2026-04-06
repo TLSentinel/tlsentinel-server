@@ -19,7 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var validRoles = map[string]bool{permission.RoleAdmin: true, permission.RoleViewer: true}
+var validRoles = map[string]bool{permission.RoleAdmin: true, permission.RoleOperator: true, permission.RoleViewer: true}
 var validProviders = map[string]bool{provider.Local: true, provider.OIDC: true}
 
 type Handler struct {
@@ -57,7 +57,7 @@ func ptrIfNonEmpty(s string) *string {
 type CreateUserRequest struct {
 	Username  string  `json:"username"`
 	Password  string  `json:"password"`
-	Role      string  `json:"role"`     // "admin" or "viewer"; defaults to "viewer"
+	Role      string  `json:"role"`     // "admin", "operator", or "viewer"; defaults to "viewer"
 	Provider  string  `json:"provider"` // "local" or "oidc"; defaults to "local"
 	Notify    bool    `json:"notify"`
 	FirstName *string `json:"firstName"`
@@ -261,7 +261,7 @@ func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
 // @Param        page       query  int     false  "Page number (default 1)"
 // @Param        page_size  query  int     false  "Page size (default 20, max 100)"
 // @Param        search     query  string  false  "Search username, first name, or last name (partial match)"
-// @Param        role       query  string  false  "Filter by role: admin, viewer"
+// @Param        role       query  string  false  "Filter by role: admin, operator, viewer"
 // @Param        provider   query  string  false  "Filter by provider: local, oidc"
 // @Param        sort       query  string  false  "Sort order: \"\" (newest first, default), username, name"
 // @Success      200  {object}  models.UserList
@@ -319,7 +319,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		req.Role = permission.RoleViewer
 	}
 	if !validRoles[req.Role] {
-		http.Error(w, "role must be 'admin' or 'viewer'", http.StatusBadRequest)
+		http.Error(w, "role must be 'admin', 'operator', or 'viewer'", http.StatusBadRequest)
 		return
 	}
 	if req.Provider == "" {
@@ -405,7 +405,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Role == "" || !validRoles[req.Role] {
-		http.Error(w, "role must be 'admin' or 'viewer'", http.StatusBadRequest)
+		http.Error(w, "role must be 'admin', 'operator', or 'viewer'", http.StatusBadRequest)
 		return
 	}
 	if req.Provider == "" {
