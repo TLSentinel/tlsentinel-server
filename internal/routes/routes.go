@@ -82,6 +82,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersView))
 					r.Get("/", tokenHandler.List)
+					r.Get("/{scannerID}", tokenHandler.Get)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersEdit))

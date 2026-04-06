@@ -86,6 +86,29 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, tokens)
 }
 
+// @Summary      Get a scanner token
+// @Description  Returns a single scanner token by ID
+// @Tags         scanners
+// @Produce      json
+// @Param        scannerID  path      string  true  "Scanner token ID"
+// @Success      200        {object}  models.ScannerTokenResponse
+// @Failure      404        {string}  string  "scanner token not found"
+// @Failure      500        {string}  string  "internal server error"
+// @Router       /scanners/{scannerID} [get]
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+	token, err := h.store.GetScannerToken(r.Context(), scannerID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get scanner token", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, token)
+}
+
 // @Summary      Create a scanner token
 // @Description  Generates a new scanner token. The raw token is returned once and cannot be retrieved again.
 // @Tags         scanners
