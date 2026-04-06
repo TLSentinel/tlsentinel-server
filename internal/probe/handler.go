@@ -79,7 +79,7 @@ func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Hosts(w http.ResponseWriter, r *http.Request) {
 	id, _ := auth.GetIdentity(r.Context())
 
-	hosts, err := h.store.GetScannerHosts(r.Context(), id.ScannerID)
+	hosts, err := h.store.GetScannerHostEndpoints(r.Context(), id.ScannerID)
 	if err != nil {
 		http.Error(w, "failed to get scanner hosts", http.StatusInternalServerError)
 		return
@@ -151,6 +151,100 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.RecordScanResult(r.Context(), hostID, req); err != nil {
 		zap.L().Error("failed to record scan result", zap.String("host_id", hostID), zap.Error(err))
 		http.Error(w, "failed to record scan result", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// SAMLEndpoints returns the list of enabled SAML endpoints assigned to the authenticated scanner.
+//
+// @Summary      Get scanner SAML endpoints
+// @Description  Returns all enabled SAML endpoints assigned to the authenticated scanner
+// @Tags         probe
+// @Produce      json
+// @Success      200  {array}   models.ScannerSAMLEndpoint
+// @Failure      403  {string}  string  "scanner token required"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /probe/saml [get]
+func (h *Handler) SAMLEndpoints(w http.ResponseWriter, r *http.Request) {
+	id, _ := auth.GetIdentity(r.Context())
+
+	endpoints, err := h.store.GetScannerSAMLEndpoints(r.Context(), id.ScannerID)
+	if err != nil {
+		http.Error(w, "failed to get SAML endpoints", http.StatusInternalServerError)
+		return
+	}
+
+	if endpoints == nil {
+		endpoints = []models.ScannerSAMLEndpoint{}
+	}
+	response.JSON(w, http.StatusOK, endpoints)
+}
+
+// SAMLResult records the outcome of a single SAML metadata fetch.
+//
+// @Summary      Post SAML scan result
+// @Description  Records the certificate(s) extracted from a SAML metadata fetch
+// @Tags         probe
+// @Accept       json
+// @Param        endpointID  path  string                        true  "SAML Endpoint ID"
+// @Param        request     body  models.SAMLScanResultRequest  true  "SAML scan result payload"
+// @Success      204
+// @Failure      400  {string}  string  "invalid request"
+// @Failure      403  {string}  string  "scanner token required"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /probe/saml/{endpointID}/result [post]
+func (h *Handler) SAMLResult(w http.ResponseWriter, r *http.Request) {
+	endpointID := chi.URLParam(r, "endpointID")
+
+	var req models.SAMLScanResultRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Upsert each certificate extracted from the metadata (leaf first).
+	leafOK := len(req.PEMs) == 0
+	for i, pemStr := range req.PEMs {
+		cert, err := certificates.ParsePEMCertificate(pemStr)
+		if err != nil {
+			zap.L().Warn("scanner submitted unparseable SAML PEM, skipping",
+				zap.String("endpoint_id", endpointID),
+				zap.Int("index", i),
+				zap.Error(err),
+			)
+			continue
+		}
+		rec := certificates.ExtractCertificateRecord(cert)
+		if _, err := h.store.InsertCertificate(r.Context(), rec); err != nil {
+			zap.L().Error("failed to upsert SAML certificate",
+				zap.String("endpoint_id", endpointID),
+				zap.String("fingerprint", rec.Fingerprint),
+				zap.Error(err),
+			)
+			if i == 0 {
+				req.ActiveFingerprint = nil
+			}
+			continue
+		}
+		if i == 0 {
+			leafOK = true
+		}
+	}
+	if !leafOK {
+		req.ActiveFingerprint = nil
+	}
+
+	// Reuse the host scan result path — ResolvedIP and TLSVersion are nil for SAML.
+	scanReq := models.ScanResultRequest{
+		ActiveFingerprint: req.ActiveFingerprint,
+		Error:             req.Error,
+		PEMs:              req.PEMs,
+	}
+	if err := h.store.RecordScanResult(r.Context(), endpointID, scanReq); err != nil {
+		zap.L().Error("failed to record SAML scan result", zap.String("endpoint_id", endpointID), zap.Error(err))
+		http.Error(w, "failed to record SAML scan result", http.StatusInternalServerError)
 		return
 	}
 

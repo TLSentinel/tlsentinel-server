@@ -82,6 +82,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersView))
 					r.Get("/", tokenHandler.List)
+					r.Get("/{scannerID}", tokenHandler.Get)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersEdit))
@@ -260,6 +261,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Get("/hosts", scannerHandler.Hosts)
 				r.Post("/hosts/{hostID}/result", scannerHandler.Result)
 				r.Post("/hosts/{hostID}/tls-profile", scannerHandler.TLSProfile)
+				r.Get("/saml", scannerHandler.SAMLEndpoints)
+				r.Post("/saml/{endpointID}/result", scannerHandler.SAMLResult)
 			})
 		})
 

@@ -31,6 +31,7 @@ const rolePermissions: Record<string, string[]> = {
     PERM.EndpointsView, PERM.EndpointsEdit,
     PERM.CertsView,
     PERM.ScannersView,
+    PERM.UsersView,
     PERM.GroupsView,
     PERM.SettingsView,
     PERM.TagsView, PERM.TagsEdit,
