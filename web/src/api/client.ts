@@ -47,6 +47,12 @@ export function isAdmin(): boolean {
   return getIdentity()?.role === 'admin'
 }
 
+/** Returns true when the current user is admin or operator. */
+export function isAtLeastOperator(): boolean {
+  const role = getIdentity()?.role
+  return role === 'admin' || role === 'operator'
+}
+
 /** Decodes the JWT payload without verifying the signature (client-side display only). */
 export function getIdentity(): TokenIdentity | null {
   if (!_token) return null

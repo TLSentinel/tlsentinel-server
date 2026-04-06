@@ -23,7 +23,7 @@ export interface LoginResponse {
 export interface User {
   id: string
   username: string
-  role: 'admin' | 'viewer'
+  role: 'admin' | 'operator' | 'viewer'
   provider: 'local' | 'oidc'
   enabled: boolean
   notify: boolean
