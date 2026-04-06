@@ -28,6 +28,7 @@ function TypeBadge({ type }: { type: string }) {
 }
 import { fmtDate } from '@/lib/utils'
 import { fmtDays } from '@/lib/utils'
+import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -328,10 +329,10 @@ export default function ActivePage() {
                         {item.tags.map(tag => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                           >
-                            <span className="text-muted-foreground/60 mr-0.5">{tag.categoryName}:</span>
-                            <span className="text-muted-foreground">{tag.name}</span>
+                            <span className="opacity-60">{tag.categoryName}:</span>
+                            {tag.name}
                           </span>
                         ))}
                       </div>

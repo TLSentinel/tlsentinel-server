@@ -33,6 +33,7 @@ import { isAdmin } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
+import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
 // Type badge
@@ -414,10 +415,10 @@ export default function HostsPage() {
                         {endpoint.tags.map(tag => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                           >
-                            <span className="text-muted-foreground/60 mr-0.5">{tag.categoryName}:</span>
-                            <span className="text-muted-foreground">{tag.name}</span>
+                            <span className="opacity-60">{tag.categoryName}:</span>
+                            {tag.name}
                           </span>
                         ))}
                       </div>
