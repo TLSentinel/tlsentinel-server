@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { listEndpoints, deleteEndpoint } from '@/api/endpoints'
 import { listTagCategories } from '@/api/tags'
-import { isAdmin } from '@/api/client'
+import { can } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
@@ -147,7 +147,7 @@ function DeleteDialog({ endpoint, onClose, onDeleted }: DeleteDialogProps) {
 const PAGE_SIZE = 20
 
 export default function HostsPage() {
-  const admin = isAdmin()
+  const admin = can('endpoints:edit')
   const navigate = useNavigate()
 
   // Captured once at mount — avoids calling the impure Date.now() during render.

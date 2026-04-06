@@ -60,6 +60,7 @@ var RolePermissions = map[string][]string{
 		EndpointsEdit,
 		CertsView,
 		ScannersView,
+		UsersView,
 		GroupsView,
 		SettingsView,
 		TagsView,

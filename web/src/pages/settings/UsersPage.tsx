@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser } from '@/api/users'
-import { isAdmin, getIdentity } from '@/api/client'
+import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
@@ -55,7 +55,7 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
 
   const [username, setUsername] = useState(user?.username ?? '')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'admin' | 'viewer'>(user?.role ?? 'viewer')
+  const [role, setRole] = useState<'admin' | 'operator' | 'viewer'>(user?.role ?? 'viewer')
   const [provider, setProvider] = useState<'local' | 'oidc'>(user?.provider ?? 'local')
   const [notify, setNotify] = useState(user?.notify ?? false)
   const [firstName, setFirstName] = useState(user?.firstName ?? '')
@@ -228,6 +228,14 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
                 onClick={() => setRole('viewer')}
               >
                 Viewer
+              </Button>
+              <Button
+                type="button"
+                variant={role === 'operator' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setRole('operator')}
+              >
+                Operator
               </Button>
               <Button
                 type="button"
@@ -435,14 +443,15 @@ function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
 // Filter types
 // ---------------------------------------------------------------------------
 
-type RoleFilter = '' | 'admin' | 'viewer'
+type RoleFilter = '' | 'admin' | 'operator' | 'viewer'
 type ProviderFilter = '' | 'local' | 'oidc'
 type SortOption = '' | 'username' | 'name'
 
 const ROLE_OPTIONS: { value: RoleFilter; label: string }[] = [
-  { value: '', label: 'All roles' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'viewer', label: 'Viewer' },
+  { value: '',         label: 'All roles' },
+  { value: 'admin',    label: 'Admin' },
+  { value: 'operator', label: 'Operator' },
+  { value: 'viewer',   label: 'Viewer' },
 ]
 
 const PROVIDER_OPTIONS: { value: ProviderFilter; label: string }[] = [
@@ -464,7 +473,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const PAGE_SIZE = 20
 
 export default function UsersPage() {
-  const admin = isAdmin()
+  const admin = can('users:edit')
   const currentUserID = getIdentity()?.uid ?? ''
 
   const [users, setUsers] = useState<User[]>([])
@@ -720,11 +729,12 @@ export default function UsersPage() {
                   {/* Role */}
                   <TableCell>
                     {user.role === 'admin' ? (
-                      <Badge
-                        variant="outline"
-                        className="border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      >
+                      <Badge variant="outline" className="border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                         Admin
+                      </Badge>
+                    ) : user.role === 'operator' ? (
+                      <Badge variant="outline" className="border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        Operator
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="border-gray-400 text-gray-600 dark:text-gray-400">Viewer</Badge>
