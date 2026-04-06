@@ -79,6 +79,21 @@ type ScannerHost struct {
 	Port      int     `json:"port"`
 }
 
+// ScannerSAMLEndpoint is the slim SAML endpoint payload returned to scanner agents.
+type ScannerSAMLEndpoint struct {
+	ID  string `json:"id"`
+	URL string `json:"url"`
+}
+
+// SAMLScanResultRequest is the payload a scanner POSTs after fetching SAML metadata.
+// ResolvedIP and TLSVersion do not apply to metadata fetches.
+type SAMLScanResultRequest struct {
+	ActiveFingerprint *string  `json:"activeFingerprint"`
+	Error             *string  `json:"error"`
+	// PEMs contains PEM-encoded signing certificates extracted from the metadata (leaf first).
+	PEMs              []string `json:"pems"`
+}
+
 // ScanResultRequest is the payload a scanner POSTs after scanning a host.
 type ScanResultRequest struct {
 	ActiveFingerprint *string  `json:"activeFingerprint"`

@@ -261,6 +261,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Get("/hosts", scannerHandler.Hosts)
 				r.Post("/hosts/{hostID}/result", scannerHandler.Result)
 				r.Post("/hosts/{hostID}/tls-profile", scannerHandler.TLSProfile)
+				r.Get("/saml", scannerHandler.SAMLEndpoints)
+				r.Post("/saml/{endpointID}/result", scannerHandler.SAMLResult)
 			})
 		})
 
