@@ -16,6 +16,7 @@ interface LibEntry {
 
 const BACKEND_LIBS: LibEntry[] = [
   { name: 'uptrace/bun',              license: 'BSD-2-Clause', url: 'https://github.com/uptrace/bun' },
+  { name: 'lib/pq',                   license: 'MIT',          url: 'https://github.com/lib/pq' },
   { name: 'go-chi/chi',               license: 'MIT',          url: 'https://github.com/go-chi/chi' },
   { name: 'golang-jwt/jwt',           license: 'MIT',          url: 'https://github.com/golang-jwt/jwt' },
   { name: 'coreos/go-oidc',           license: 'Apache-2.0',   url: 'https://github.com/coreos/go-oidc' },
@@ -24,6 +25,7 @@ const BACKEND_LIBS: LibEntry[] = [
   { name: 'swaggo/swag',              license: 'MIT',          url: 'https://github.com/swaggo/swag' },
   { name: 'swaggo/http-swagger',      license: 'MIT',          url: 'https://github.com/swaggo/http-swagger' },
   { name: 'netresearch/go-cron',      license: 'MIT',          url: 'https://github.com/netresearch/go-cron' },
+  { name: 'arran4/golang-ical',       license: 'MIT',          url: 'https://github.com/arran4/golang-ical' },
   { name: 'joho/godotenv',            license: 'MIT',          url: 'https://github.com/joho/godotenv' },
   { name: 'uber-go/zap',              license: 'MIT',          url: 'https://github.com/uber-go/zap' },
   { name: 'golang.org/x/crypto',      license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/crypto' },
@@ -31,15 +33,20 @@ const BACKEND_LIBS: LibEntry[] = [
 ]
 
 const FRONTEND_LIBS: LibEntry[] = [
-  { name: 'React',              license: 'MIT',     url: 'https://react.dev' },
-  { name: 'Vite',               license: 'MIT',     url: 'https://vitejs.dev' },
-  { name: 'React Router',       license: 'MIT',     url: 'https://reactrouter.com' },
-  { name: 'Tailwind CSS',       license: 'MIT',     url: 'https://tailwindcss.com' },
-  { name: 'shadcn/ui',          license: 'MIT',     url: 'https://ui.shadcn.com' },
-  { name: 'Radix UI',           license: 'MIT',     url: 'https://www.radix-ui.com' },
-  { name: 'Lucide React',       license: 'ISC',     url: 'https://lucide.dev' },
-  { name: 'Geist',              license: 'OFL-1.1', url: 'https://vercel.com/font' },
-  { name: 'react-markdown',     license: 'MIT',     url: 'https://github.com/remarkjs/react-markdown' },
+  { name: 'React',                       license: 'MIT',     url: 'https://react.dev' },
+  { name: 'Vite',                        license: 'MIT',     url: 'https://vitejs.dev' },
+  { name: 'React Router',                license: 'MIT',     url: 'https://reactrouter.com' },
+  { name: 'Tailwind CSS',                license: 'MIT',     url: 'https://tailwindcss.com' },
+  { name: '@tailwindcss/typography',     license: 'MIT',     url: 'https://github.com/tailwindlabs/tailwindcss-typography' },
+  { name: 'shadcn/ui',                   license: 'MIT',     url: 'https://ui.shadcn.com' },
+  { name: 'Radix UI',                    license: 'MIT',     url: 'https://www.radix-ui.com' },
+  { name: 'class-variance-authority',    license: 'MIT',     url: 'https://cva.style' },
+  { name: 'tailwind-merge',              license: 'MIT',     url: 'https://github.com/dcastil/tailwind-merge' },
+  { name: 'clsx',                        license: 'MIT',     url: 'https://github.com/lukeed/clsx' },
+  { name: 'Lucide React',                license: 'ISC',     url: 'https://lucide.dev' },
+  { name: 'Geist',                       license: 'OFL-1.1', url: 'https://vercel.com/font' },
+  { name: 'react-markdown',              license: 'MIT',     url: 'https://github.com/remarkjs/react-markdown' },
+  { name: '@peculiar/x509',              license: 'MIT',     url: 'https://github.com/PeculiarVentures/x509' },
 ]
 
 interface LibSection {
