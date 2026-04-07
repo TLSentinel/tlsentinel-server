@@ -248,26 +248,21 @@ func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.
 }
 
 func (s *Store) GetCertificateHosts(ctx context.Context, fingerprint string) ([]models.EndpointListItem, error) {
-	var rows []Endpoint
-	err := s.db.NewSelect().
-		Model(&rows).
-		Where("active_fingerprint = ?", fingerprint).
-		OrderExpr("name ASC").
-		Scan(ctx)
+	var rows []endpointWithScanner
+	err := s.selectEndpointWithScanner().
+		Join("JOIN tlsentinel.endpoint_certs AS ecf ON ecf.endpoint_id = h.id AND ecf.is_current = TRUE").
+		Where("ecf.fingerprint = ?", fingerprint).
+		OrderExpr("h.name ASC").
+		Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query certificate endpoints: %w", err)
 	}
 
-	endpoints := make([]models.EndpointListItem, len(rows))
+	result := make([]models.EndpointListItem, len(rows))
 	for i, r := range rows {
-		endpoints[i] = models.EndpointListItem{
-			ID:      r.ID,
-			Name:    r.Name,
-			Type:    r.Type,
-			Enabled: r.Enabled,
-		}
+		result[i] = endpointRowToListItem(r)
 	}
-	return endpoints, nil
+	return result, nil
 }
 
 func (s *Store) InsertCertificate(ctx context.Context, rec models.CertificateRecord) (inserted bool, err error) {
