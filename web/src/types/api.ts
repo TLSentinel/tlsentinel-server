@@ -41,6 +41,19 @@ export type UserList = PaginatedList<User>
 // Endpoints
 // ---------------------------------------------------------------------------
 
+/** A certificate currently linked to an endpoint, with use label and metadata. */
+export interface EndpointCert {
+  fingerprint: string
+  /** 'tls' | 'signing' | 'encryption' | 'manual' */
+  certUse: string
+  isCurrent: boolean
+  commonName: string
+  notBefore: string
+  notAfter: string
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
 /** Returned in GET /endpoints list items. */
 export interface EndpointListItem {
   id: string
@@ -55,7 +68,8 @@ export interface EndpointListItem {
   enabled: boolean
   scannerId: string | null
   scannerName: string | null
-  activeFingerprint: string | null
+  /** Soonest notAfter across all current certs. Null when no certs recorded yet. */
+  earliestExpiry: string | null
   lastScannedAt: string | null
   lastScanError: string | null
   errorSince: string | null
@@ -77,7 +91,7 @@ export interface Endpoint {
   enabled: boolean
   scannerId: string | null
   scannerName: string | null
-  activeFingerprint: string | null
+  activeCerts: EndpointCert[]
   lastScannedAt: string | null
   lastScanError: string | null
   errorSince: string | null

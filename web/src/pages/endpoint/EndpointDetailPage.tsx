@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
-import { getCertificate } from '@/api/certificates'
 import { CertCard } from '@/components/CertCard'
-import type { Endpoint, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, CertificateDetail, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
+import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
@@ -41,10 +39,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Severity primitives
 // ---------------------------------------------------------------------------
 
-const severityBorder: Record<TLSSeverity, string> = {
-  ok:       'border-green-500 bg-green-50 text-green-700',
-  warning:  'border-amber-400 bg-amber-50 text-amber-700',
-  critical: 'border-red-500  bg-red-50  text-red-700',
+const severityColor: Record<TLSSeverity, string> = {
+  ok:       'text-green-600 dark:text-green-400',
+  warning:  'text-amber-600 dark:text-amber-400',
+  critical: 'text-red-600 dark:text-red-400',
 }
 
 const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
@@ -53,13 +51,9 @@ const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
   critical: <ShieldX     className="h-4 w-4 text-red-600"   />,
 }
 
-function SeverityBadge({ severity }: { severity: TLSSeverity }) {
+function SeverityLabel({ severity }: { severity: TLSSeverity }) {
   const label = severity === 'ok' ? 'OK' : severity === 'warning' ? 'Warning' : 'Critical'
-  return (
-    <Badge variant="outline" className={severityBorder[severity]}>
-      {label}
-    </Badge>
-  )
+  return <span className={`text-sm font-medium ${severityColor[severity]}`}>{label}</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -73,9 +67,9 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm font-medium">{finding.name}</span>
-          <SeverityBadge severity={finding.severity} />
+          <SeverityLabel severity={finding.severity} />
           {preferred && (
-            <Badge variant="secondary" className="text-xs">Preferred</Badge>
+            <span className="text-xs italic text-muted-foreground">Preferred</span>
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{finding.reason}</p>
@@ -85,22 +79,17 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
 }
 
 // ---------------------------------------------------------------------------
-// Type badge
+// Type label
 // ---------------------------------------------------------------------------
 
-const TYPE_META: Record<string, { label: string; className: string }> = {
-  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
-  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
-  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+const TYPE_LABEL: Record<string, string> = {
+  host:   'Host',
+  saml:   'SAML',
+  manual: 'Manual',
 }
 
-function TypeBadge({ type }: { type: string }) {
-  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
-  return (
-    <Badge variant="outline" className={meta.className}>
-      {meta.label}
-    </Badge>
-  )
+function TypeLabel({ type }: { type: string }) {
+  return <span className="text-sm text-muted-foreground">{TYPE_LABEL[type] ?? type}</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -150,9 +139,10 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
           <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
         )}
         <Field label="Enabled">
-          {endpoint.enabled
-            ? <span className="text-green-600 font-medium">Yes</span>
-            : <span className="text-muted-foreground">No</span>}
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+            {endpoint.enabled ? 'Enabled' : 'Disabled'}
+          </span>
         </Field>
       </div>
     </div>
@@ -273,7 +263,7 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
         <div>
           <p className="text-xs text-muted-foreground">Security Posture</p>
           <div className="mt-1 space-y-1.5">
-            <SeverityBadge severity={classification.overallSeverity} />
+            <SeverityLabel severity={classification.overallSeverity} />
             <p className="text-sm text-muted-foreground">{postureDescription(classification)}</p>
           </div>
         </div>
@@ -313,48 +303,41 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
 // Active certificate section
 // ---------------------------------------------------------------------------
 
-type CertState =
-  | { status: 'loading' }
-  | { status: 'none' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; cert: CertificateDetail }
+const CERT_USE_LABEL: Record<string, string> = {
+  tls:        'TLS Certificate',
+  signing:    'Signing Certificate',
+  encryption: 'Encryption Certificate',
+  manual:     'Manually Added Certificate',
+}
 
-function ActiveCertSection({ certState }: { certState: CertState }) {
-  if (certState.status === 'loading') {
+function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
+  if (certs.length === 0) {
     return (
       <div className="space-y-3">
-        <SectionHeader title="Active Certificate" />
-        <p className="text-xs italic text-muted-foreground">Loading…</p>
-      </div>
-    )
-  }
-  if (certState.status === 'none') {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Active Certificate" />
-        <p className="text-sm italic text-muted-foreground">No certificate recorded yet.</p>
-      </div>
-    )
-  }
-  if (certState.status === 'error') {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Active Certificate" />
-        <p className="text-sm text-destructive">{certState.message}</p>
+        <SectionHeader title="Active Certificates" />
+        <p className="text-sm italic text-muted-foreground">No certificates recorded yet.</p>
       </div>
     )
   }
 
-  const { cert } = certState
   return (
     <div className="space-y-3">
-      <SectionHeader title="Active Certificate" />
-      <CertCard
-        fingerprint={cert.fingerprint}
-        commonName={cert.commonName}
-        notAfter={cert.notAfter}
-        notBefore={cert.notBefore}
-      />
+      <SectionHeader title="Active Certificates" />
+      {certs.map((cert) => (
+        <div key={`${cert.fingerprint}-${cert.certUse}`} className="space-y-1.5">
+          {(certs.length > 1 || cert.certUse === 'signing' || cert.certUse === 'encryption') && (
+            <p className="text-xs font-medium text-muted-foreground">
+              {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
+            </p>
+          )}
+          <CertCard
+            fingerprint={cert.fingerprint}
+            commonName={cert.commonName}
+            notAfter={cert.notAfter}
+            notBefore={cert.notBefore}
+          />
+        </div>
+      ))}
     </div>
   )
 }
@@ -420,7 +403,6 @@ export default function EndpointDetailPage() {
 
   const [endpointState, setEndpointState] = useState<EndpointState>({ status: 'loading' })
   const [tlsState, setTLSState]           = useState<TLSState>({ status: 'loading' })
-  const [certState, setCertState]         = useState<CertState>({ status: 'loading' })
   const [history, setHistory]             = useState<EndpointScanHistoryItem[] | null>(null)
   const [tags, setTags]                   = useState<TagWithCategory[]>([])
 
@@ -440,15 +422,6 @@ export default function EndpointDetailPage() {
         else setTLSState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load TLS profile.' })
       })
   }, [id])
-
-  useEffect(() => {
-    if (endpointState.status !== 'ready') return
-    const fp = endpointState.endpoint.activeFingerprint
-    if (!fp) { setCertState({ status: 'none' }); return }
-    getCertificate(fp)
-      .then((cert) => setCertState({ status: 'ready', cert }))
-      .catch((err) => setCertState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load certificate.' }))
-  }, [endpointState])
 
   useEffect(() => {
     if (!id) return
@@ -504,7 +477,7 @@ export default function EndpointDetailPage() {
           {/* Endpoint Type */}
           <div className="space-y-3">
             <SectionHeader title="Endpoint Type" />
-            <TypeBadge type={endpoint.type} />
+            <TypeLabel type={endpoint.type} />
           </div>
 
           {/* Tags */}
@@ -532,7 +505,7 @@ export default function EndpointDetailPage() {
 
         {/* ── Right column ── */}
         <div className="space-y-6">
-          <ActiveCertSection certState={certState} />
+          <ActiveCertsSection certs={endpoint.activeCerts} />
           <ScanHistorySection items={history} />
         </div>
 

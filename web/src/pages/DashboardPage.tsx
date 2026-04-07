@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Server, Shield, Clock, AlertCircle } from 'lucide-react'
+import { Server, Shield, Clock, AlertCircle, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Badge } from '@/components/ui/badge'
 import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import type { EndpointListItem } from '@/types/api'
 import { plural } from '@/lib/utils'
+import { ExpiryStatus } from '@/components/CertCard'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -29,26 +29,13 @@ function StatCard({ icon, label, value, sub, soon }: StatCardProps) {
           <span className="text-sm font-medium">{label}</span>
         </div>
         {soon && (
-          <Badge variant="secondary" className="text-[10px]">
-            Coming soon
-          </Badge>
+          <span className="text-[10px] italic text-muted-foreground">Coming soon</span>
         )}
       </div>
       <p className="text-3xl font-bold tracking-tight text-blue-600">{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// Urgency helpers
-// ---------------------------------------------------------------------------
-
-function urgencyBadge(days: number) {
-  if (days < 0)   return <Badge variant="destructive">Expired</Badge>
-  if (days <= 7)  return <Badge variant="destructive">{days}d</Badge>
-  if (days <= 14) return <Badge variant="outline" className="border-orange-500 text-orange-500">{days}d</Badge>
-  return <Badge variant="outline" className="border-yellow-500 text-yellow-500">{days}d</Badge>
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +60,7 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
         </Link>
       </div>
       <div className="ml-4 shrink-0">
-        {urgencyBadge(item.daysRemaining)}
+        <ExpiryStatus notAfter={item.notAfter} />
       </div>
     </div>
   )
@@ -106,9 +93,10 @@ function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
         <p className="text-xs text-muted-foreground truncate">{endpoint.lastScanError}</p>
       </div>
       <div className="ml-4 shrink-0">
-        <Badge variant="destructive">
+        <span className="inline-flex items-center gap-1 text-sm font-medium text-red-600 dark:text-red-400">
+          <XCircle className="h-4 w-4 shrink-0" />
           {endpoint.errorSince ? errorAge(endpoint.errorSince) : '?'}
-        </Badge>
+        </span>
       </div>
     </div>
   )

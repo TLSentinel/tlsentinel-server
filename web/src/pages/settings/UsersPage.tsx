@@ -4,7 +4,6 @@ import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, Search, Chev
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -728,30 +727,16 @@ export default function UsersPage() {
 
                   {/* Role */}
                   <TableCell>
-                    {user.role === 'admin' ? (
-                      <Badge variant="outline" className="border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                        Admin
-                      </Badge>
-                    ) : user.role === 'operator' ? (
-                      <Badge variant="outline" className="border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                        Operator
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-gray-400 text-gray-600 dark:text-gray-400">Viewer</Badge>
-                    )}
+                    <span className="text-sm text-muted-foreground">
+                      {user.role === 'admin' ? 'Admin' : user.role === 'operator' ? 'Operator' : 'Viewer'}
+                    </span>
                   </TableCell>
 
                   {/* Provider */}
                   <TableCell>
-                    {user.provider === 'oidc' ? (
-                      <Badge variant="outline" className="border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                        OIDC
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-gray-400 text-gray-600 dark:text-gray-400">
-                        Local
-                      </Badge>
-                    )}
+                    <span className="text-sm text-muted-foreground">
+                      {user.provider === 'oidc' ? 'OIDC' : 'Local'}
+                    </span>
                   </TableCell>
 
                   {/* Created */}
