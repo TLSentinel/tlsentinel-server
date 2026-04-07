@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -31,7 +31,7 @@ import { listTagCategories } from '@/api/tags'
 import { can } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
-import { fmtDate, plural } from '@/lib/utils'
+import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
@@ -374,7 +374,6 @@ export default function HostsPage() {
               <TableHead>Status</TableHead>
               <TableHead>Scanner</TableHead>
               <TableHead>Last Scanned</TableHead>
-              <TableHead>Expires</TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
@@ -382,7 +381,7 @@ export default function HostsPage() {
             {loading && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={7}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   Loading…
@@ -392,7 +391,7 @@ export default function HostsPage() {
 
             {!loading && endpoints.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center">
+                <TableCell colSpan={7} className="py-10 text-center">
                   {debouncedSearch || statusFilter
                     ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
                     : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
@@ -446,17 +445,10 @@ export default function HostsPage() {
 
                   {/* Enabled / Disabled */}
                   <TableCell>
-                    {endpoint.enabled ? (
-                      <span className="inline-flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />
-                        Enabled
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground">
-                        <XCircle className="h-4 w-4 shrink-0" />
-                        Disabled
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                      {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
                   </TableCell>
 
                   {/* Scanner assignment */}
@@ -481,15 +473,6 @@ export default function HostsPage() {
                       </span>
                     ) : (
                       <span className="text-muted-foreground">Never</span>
-                    )}
-                  </TableCell>
-
-                  {/* Earliest cert expiry */}
-                  <TableCell className="text-sm">
-                    {endpoint.earliestExpiry ? (
-                      <span>{fmtDate(endpoint.earliestExpiry)}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
 

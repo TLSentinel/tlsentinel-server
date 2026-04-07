@@ -139,9 +139,10 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
           <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
         )}
         <Field label="Enabled">
-          {endpoint.enabled
-            ? <span className="text-green-600 font-medium">Yes</span>
-            : <span className="text-muted-foreground">No</span>}
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+            {endpoint.enabled ? 'Enabled' : 'Disabled'}
+          </span>
         </Field>
       </div>
     </div>
