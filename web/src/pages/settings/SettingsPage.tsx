@@ -1,4 +1,4 @@
-import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, UsersRound, Tag } from 'lucide-react'
+import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, Tag } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 // ---------------------------------------------------------------------------
@@ -28,12 +28,7 @@ export default function SettingsPage() {
           title="Users"
           description="Manage user accounts and role-based access control."
         />
-        <HubCard
-          to="/settings/groups"
-          icon={<UsersRound className="h-4 w-4" />}
-          title="Groups"
-          description="Manage groups, assign hosts, and control notification routing."
-        />
+        {/* Groups hidden until feature is ready */}
         <HubCard
           to="/settings/mail"
           icon={<Mail className="h-4 w-4" />}

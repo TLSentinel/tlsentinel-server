@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
-import { CertCard, ExpiryBadge } from '@/components/CertCard'
+import { CertCard, ExpiryStatus } from '@/components/CertCard'
 import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -449,7 +449,7 @@ export default function CertificateDetailPage() {
             {cert.fingerprint}
           </p>
         </div>
-        <ExpiryBadge notAfter={cert.notAfter} />
+        <ExpiryStatus notAfter={cert.notAfter} />
       </div>
 
       {/* Two-column body */}

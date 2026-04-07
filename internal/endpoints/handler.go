@@ -452,8 +452,8 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.SetActiveFingerprint(r.Context(), endpointID, rec.Fingerprint); err != nil {
-		slog.Error("failed to set active fingerprint", "error", err)
+	if err := h.store.UpsertEndpointCert(r.Context(), endpointID, rec.Fingerprint, "manual"); err != nil {
+		slog.Error("failed to link certificate", "error", err)
 		http.Error(w, "failed to link certificate", http.StatusInternalServerError)
 		return
 	}
@@ -471,4 +471,135 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 
 type LinkCertificateRequest struct {
 	PEM string `json:"pem"`
+}
+
+// ---------------------------------------------------------------------------
+// Bulk import
+// ---------------------------------------------------------------------------
+
+// BulkImportRow is a single row in a bulk import request.
+type BulkImportRow struct {
+	Name      string  `json:"name"`
+	Type      string  `json:"type"`
+	DNSName   string  `json:"dnsName"`
+	Port      int     `json:"port"`
+	IPAddress *string `json:"ipAddress"`
+	URL       *string `json:"url"`
+	ScannerID *string `json:"scannerId"`
+	Notes     *string `json:"notes"`
+}
+
+// BulkImportRequest is the payload for the bulk import endpoint.
+type BulkImportRequest struct {
+	Rows []BulkImportRow `json:"rows"`
+}
+
+// BulkImportRowResult is the per-row result returned after a bulk import.
+type BulkImportRowResult struct {
+	Row   int     `json:"row"`             // 1-based row number
+	Name  string  `json:"name"`
+	ID    *string `json:"id,omitempty"`    // set on success
+	Error *string `json:"error,omitempty"` // set on failure
+}
+
+// BulkImportResponse is the full response from the bulk import endpoint.
+type BulkImportResponse struct {
+	Created int                   `json:"created"`
+	Failed  int                   `json:"failed"`
+	Results []BulkImportRowResult `json:"results"`
+}
+
+func validateBulkRow(row BulkImportRow) string {
+	if row.Name == "" {
+		return "name is required"
+	}
+	switch row.Type {
+	case "host":
+		if row.DNSName == "" {
+			return "dnsName is required for type host"
+		}
+	case "saml":
+		if row.URL == nil || *row.URL == "" {
+			return "url is required for type saml"
+		}
+	case "manual":
+		// no type-specific fields required
+	default:
+		return "unknown type: must be host, saml, or manual"
+	}
+	return ""
+}
+
+// @Summary      Bulk import endpoints
+// @Description  Creates multiple endpoints in a single request; processes all rows and returns per-row results
+// @Tags         endpoints
+// @Accept       json
+// @Produce      json
+// @Param        request  body      BulkImportRequest   true  "Bulk import payload"
+// @Success      200      {object}  BulkImportResponse
+// @Failure      400      {string}  string  "invalid request"
+// @Failure      500      {string}  string  "internal server error"
+// @Router       /endpoints/bulk [post]
+func (h *Handler) BulkImport(w http.ResponseWriter, r *http.Request) {
+	var req BulkImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(req.Rows) == 0 {
+		http.Error(w, "rows must not be empty", http.StatusBadRequest)
+		return
+	}
+
+	resp := BulkImportResponse{
+		Results: make([]BulkImportRowResult, 0, len(req.Rows)),
+	}
+
+	for i, row := range req.Rows {
+		rowNum := i + 1
+		result := BulkImportRowResult{Row: rowNum, Name: row.Name}
+
+		// Normalize type default
+		if row.Type == "" {
+			row.Type = "host"
+		}
+		if row.Type == "host" && row.Port == 0 {
+			row.Port = 443
+		}
+
+		if errMsg := validateBulkRow(row); errMsg != "" {
+			result.Error = &errMsg
+			resp.Failed++
+			resp.Results = append(resp.Results, result)
+			continue
+		}
+
+		rec := models.EndpointRecord{
+			Name:      row.Name,
+			Type:      row.Type,
+			DNSName:   row.DNSName,
+			IPAddress: row.IPAddress,
+			Port:      row.Port,
+			URL:       row.URL,
+			Enabled:   true,
+			ScannerID: row.ScannerID,
+			Notes:     row.Notes,
+		}
+
+		endpoint, err := h.store.InsertEndpoint(r.Context(), rec)
+		if err != nil {
+			msg := "failed to create endpoint"
+			result.Error = &msg
+			resp.Failed++
+			resp.Results = append(resp.Results, result)
+			continue
+		}
+
+		h.logAudit(r, audit.EndpointCreate, "endpoint", endpoint.ID)
+		result.ID = &endpoint.ID
+		resp.Created++
+		resp.Results = append(resp.Results, result)
+	}
+
+	response.JSON(w, http.StatusOK, resp)
 }

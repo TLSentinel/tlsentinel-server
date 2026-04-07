@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { Plus, Upload, Pencil, Trash2, Copy, MoreHorizontal, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -34,20 +33,20 @@ import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
+import BulkImportDialog from '@/components/BulkImportDialog'
 
 // ---------------------------------------------------------------------------
-// Type badge
+// Type label
 // ---------------------------------------------------------------------------
 
-const TYPE_META: Record<string, { label: string; className: string }> = {
-  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
-  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
-  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+const TYPE_LABEL: Record<string, string> = {
+  host:   'Host',
+  saml:   'SAML',
+  manual: 'Manual',
 }
 
-function TypeBadge({ type }: { type: string }) {
-  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
-  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+function TypeLabel({ type }: { type: string }) {
+  return <span className="text-sm text-muted-foreground">{TYPE_LABEL[type] ?? type}</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +165,7 @@ export default function HostsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<EndpointListItem | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   // Load tag categories once for the filter dropdown.
   useEffect(() => {
@@ -233,10 +233,16 @@ export default function HostsPage() {
           </p>
         </div>
         {admin && (
-          <Button onClick={() => navigate('/endpoints/new')}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add Endpoint
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1.5 h-4 w-4" />
+              Import
+            </Button>
+            <Button onClick={() => navigate('/endpoints/new')}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add Endpoint
+            </Button>
+          </div>
         )}
       </div>
 
@@ -376,7 +382,6 @@ export default function HostsPage() {
               <TableHead>Status</TableHead>
               <TableHead>Scanner</TableHead>
               <TableHead>Last Scanned</TableHead>
-              <TableHead>Certificate</TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
@@ -384,7 +389,7 @@ export default function HostsPage() {
             {loading && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={7}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   Loading…
@@ -394,7 +399,7 @@ export default function HostsPage() {
 
             {!loading && endpoints.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center">
+                <TableCell colSpan={7} className="py-10 text-center">
                   {debouncedSearch || statusFilter
                     ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
                     : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
@@ -430,7 +435,7 @@ export default function HostsPage() {
 
                   {/* Type */}
                   <TableCell>
-                    <TypeBadge type={endpoint.type} />
+                    <TypeLabel type={endpoint.type} />
                   </TableCell>
 
                   {/* Address — rendered differently per type */}
@@ -448,18 +453,10 @@ export default function HostsPage() {
 
                   {/* Enabled / Disabled */}
                   <TableCell>
-                    {endpoint.enabled ? (
-                      <Badge
-                        variant="outline"
-                        className="border-blue-500 bg-blue-50 text-blue-700"
-                      >
-                        Enabled
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
-                        Disabled
-                      </Badge>
-                    )}
+                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                      {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
                   </TableCell>
 
                   {/* Scanner assignment */}
@@ -487,46 +484,43 @@ export default function HostsPage() {
                     )}
                   </TableCell>
 
-                  {/* Active certificate link */}
-                  <TableCell className="font-mono text-xs">
-                    {endpoint.activeFingerprint ? (
-                      <Link
-                        to={`/certificates/${endpoint.activeFingerprint}`}
-                        className="text-primary hover:underline"
-                      >
-                        {endpoint.activeFingerprint.slice(0, 16)}…
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-
                   {/* Row actions — admin only */}
                   <TableCell>
-                    {admin && (
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          asChild
-                        >
-                          <Link to={`/endpoints/${endpoint.id}/edit`}>
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit {endpoint.name}</span>
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(endpoint)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {endpoint.name}</span>
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions for {endpoint.name}</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {admin && (
+                            <DropdownMenuItem asChild>
+                              <Link to={`/endpoints/${endpoint.id}/edit`} className="flex items-center gap-2">
+                                <Pencil className="h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem asChild>
+                            <Link to={`/endpoints/new?clone=${endpoint.id}`} className="flex items-center gap-2">
+                              <Copy className="h-4 w-4" />
+                              Clone
+                            </Link>
+                          </DropdownMenuItem>
+                          {admin && (
+                            <DropdownMenuItem
+                              className="flex items-center gap-2 text-destructive focus:text-destructive"
+                              onSelect={() => setDeleteTarget(endpoint)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -567,6 +561,12 @@ export default function HostsPage() {
         endpoint={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={load}
+      />
+
+      <BulkImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onComplete={load}
       />
     </div>
   )
