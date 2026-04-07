@@ -452,7 +452,14 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.UpsertEndpointCert(r.Context(), endpointID, rec.Fingerprint, "manual"); err != nil {
+	certUse := req.CertUse
+	switch certUse {
+	case "signing", "encryption", "tls":
+		// valid, keep as-is
+	default:
+		certUse = "manual"
+	}
+	if err := h.store.UpsertEndpointCert(r.Context(), endpointID, rec.Fingerprint, certUse); err != nil {
 		slog.Error("failed to link certificate", "error", err)
 		http.Error(w, "failed to link certificate", http.StatusInternalServerError)
 		return
@@ -470,7 +477,8 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 }
 
 type LinkCertificateRequest struct {
-	PEM string `json:"pem"`
+	PEM     string `json:"pem"`
+	CertUse string `json:"certUse"` // optional: "manual" (default), "signing", "encryption"
 }
 
 // ---------------------------------------------------------------------------
