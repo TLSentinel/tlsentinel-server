@@ -336,6 +336,38 @@ export interface TagWithCategory {
 }
 
 // ---------------------------------------------------------------------------
+// Bulk import
+// ---------------------------------------------------------------------------
+
+export interface BulkImportRow {
+  name: string
+  type: string
+  dnsName?: string
+  port?: number
+  ipAddress?: string
+  url?: string
+  scannerId?: string
+  notes?: string
+}
+
+export interface BulkImportRequest {
+  rows: BulkImportRow[]
+}
+
+export interface BulkImportRowResult {
+  row: number
+  name: string
+  id?: string
+  error?: string
+}
+
+export interface BulkImportResponse {
+  created: number
+  failed: number
+  results: BulkImportRowResult[]
+}
+
+// ---------------------------------------------------------------------------
 // Utils
 // ---------------------------------------------------------------------------
 export interface ResolveResponse {

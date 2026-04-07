@@ -133,7 +133,7 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Ingest Certificate</DialogTitle>
         </DialogHeader>
