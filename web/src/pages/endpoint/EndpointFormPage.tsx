@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeft, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
+import { ArrowLeft, FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
@@ -78,6 +78,8 @@ export default function EndpointFormPage() {
   const [notes, setNotes]           = useState('')
 
   const [pem, setPem]                   = useState('')
+  const [fileName, setFileName]         = useState<string | null>(null)
+  const fileInputRef                    = useRef<HTMLInputElement>(null)
 
   const [scanners, setScanners]         = useState<ScannerToken[]>([])
   const [categories, setCategories]     = useState<CategoryWithTags[]>([])
@@ -142,11 +144,26 @@ export default function EndpointFormPage() {
     }).catch(() => {})
   }, [cloneId])
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setPem((ev.target?.result as string) ?? '')
+      setError(null)
+    }
+    reader.onerror = () => setError('Failed to read file.')
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
   function handleTypeChange(next: EndpointType) {
     if (isEdit) return  // type is locked on edit
     setType(next)
     setError(null)
     setResolveError(null)
+    if (next !== 'manual') { setPem(''); setFileName(null) }
   }
 
   async function handleResolve() {
@@ -556,13 +573,30 @@ export default function EndpointFormPage() {
           <Textarea
             id="ep-pem"
             value={pem}
-            onChange={(e) => setPem(e.target.value)}
+            onChange={(e) => { setPem(e.target.value); setFileName(null) }}
             placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
             rows={6}
             className="font-mono text-xs"
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pem,.crt,.cer,.cert,.der"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            {fileName ?? 'Browse file…'}
+          </Button>
           <p className="text-xs text-muted-foreground">
-            Paste a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
+            Paste or browse for a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
           </p>
         </div>
       )}
