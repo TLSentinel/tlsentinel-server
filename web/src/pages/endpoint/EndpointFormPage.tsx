@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
@@ -57,11 +57,14 @@ const TYPE_OPTIONS: TypeOption[] = [
 // ---------------------------------------------------------------------------
 
 export default function EndpointFormPage() {
-  const navigate        = useNavigate()
-  const { id }          = useParams<{ id: string }>()
-  const isEdit          = Boolean(id)
+  const navigate          = useNavigate()
+  const { id }            = useParams<{ id: string }>()
+  const [searchParams]    = useSearchParams()
+  const cloneId           = !id ? (searchParams.get('clone') ?? undefined) : undefined
+  const isEdit            = Boolean(id)
+  const isClone           = Boolean(cloneId)
 
-  const [loading, setLoading]       = useState(isEdit)
+  const [loading, setLoading]       = useState(isEdit || isClone)
   const [loadError, setLoadError]   = useState<string | null>(null)
 
   const [type, setType]             = useState<EndpointType>('host')
@@ -114,6 +117,30 @@ export default function EndpointFormPage() {
       setSelectedTagIds(new Set(tags.map(t => t.id)))
     }).catch(() => {})
   }, [id])
+
+  // Pre-fill from a source endpoint in clone mode
+  useEffect(() => {
+    if (!cloneId) return
+    setLoading(true)
+    getEndpoint(cloneId)
+      .then((ep) => {
+        setType(ep.type as EndpointType)
+        setName(`Copy of ${ep.name}`)
+        setDnsName(ep.dnsName ?? '')
+        setPort(String(ep.port ?? 443))
+        setIpAddress(ep.ipAddress ?? '')
+        setUrl(ep.url ?? '')
+        setScannerID(ep.scannerId ?? '')
+        setEnabled(true)
+        setNotes(ep.notes ?? '')
+        setPem('')
+      })
+      .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load source endpoint.'))
+      .finally(() => setLoading(false))
+    getEndpointTags(cloneId).then(tags => {
+      setSelectedTagIds(new Set(tags.map(t => t.id)))
+    }).catch(() => {})
+  }, [cloneId])
 
   function handleTypeChange(next: EndpointType) {
     if (isEdit) return  // type is locked on edit
@@ -224,7 +251,9 @@ export default function EndpointFormPage() {
     navigate(isEdit && id ? `/endpoints/${id}` : '/endpoints')
   }
 
-  // Loading state (edit mode only)
+  const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : 'New Endpoint'
+
+  // Loading state
   if (loading) {
     return (
       <div className="space-y-6 max-w-2xl">
@@ -232,7 +261,7 @@ export default function EndpointFormPage() {
           <Button variant="ghost" size="icon" onClick={handleCancel}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-semibold">Edit Endpoint</h1>
+          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
         </div>
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
@@ -246,7 +275,7 @@ export default function EndpointFormPage() {
           <Button variant="ghost" size="icon" onClick={handleCancel}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-semibold">Edit Endpoint</h1>
+          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
         </div>
         <p className="text-sm text-destructive">{loadError}</p>
       </div>
@@ -260,7 +289,7 @@ export default function EndpointFormPage() {
         <Button variant="ghost" size="icon" onClick={handleCancel}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-semibold">{isEdit ? 'Edit Endpoint' : 'New Endpoint'}</h1>
+        <h1 className="text-2xl font-semibold">{pageTitle}</h1>
       </div>
 
       {/* Common fields */}

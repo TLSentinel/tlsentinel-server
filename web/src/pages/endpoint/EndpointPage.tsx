@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, MoreHorizontal, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -478,30 +478,41 @@ export default function HostsPage() {
 
                   {/* Row actions — admin only */}
                   <TableCell>
-                    {admin && (
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          asChild
-                        >
-                          <Link to={`/endpoints/${endpoint.id}/edit`}>
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit {endpoint.name}</span>
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(endpoint)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {endpoint.name}</span>
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions for {endpoint.name}</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {admin && (
+                            <DropdownMenuItem asChild>
+                              <Link to={`/endpoints/${endpoint.id}/edit`} className="flex items-center gap-2">
+                                <Pencil className="h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem asChild>
+                            <Link to={`/endpoints/new?clone=${endpoint.id}`} className="flex items-center gap-2">
+                              <Copy className="h-4 w-4" />
+                              Clone
+                            </Link>
+                          </DropdownMenuItem>
+                          {admin && (
+                            <DropdownMenuItem
+                              className="flex items-center gap-2 text-destructive focus:text-destructive"
+                              onSelect={() => setDeleteTarget(endpoint)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
