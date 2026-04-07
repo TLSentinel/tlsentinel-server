@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X, CheckCircle2, XCircle } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -36,18 +35,17 @@ import { fmtDate, plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
-// Type badge
+// Type label
 // ---------------------------------------------------------------------------
 
-const TYPE_META: Record<string, { label: string; className: string }> = {
-  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
-  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
-  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+const TYPE_LABEL: Record<string, string> = {
+  host:   'Host',
+  saml:   'SAML',
+  manual: 'Manual',
 }
 
-function TypeBadge({ type }: { type: string }) {
-  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
-  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+function TypeLabel({ type }: { type: string }) {
+  return <span className="text-sm text-muted-foreground">{TYPE_LABEL[type] ?? type}</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -430,7 +428,7 @@ export default function HostsPage() {
 
                   {/* Type */}
                   <TableCell>
-                    <TypeBadge type={endpoint.type} />
+                    <TypeLabel type={endpoint.type} />
                   </TableCell>
 
                   {/* Address — rendered differently per type */}
@@ -449,16 +447,15 @@ export default function HostsPage() {
                   {/* Enabled / Disabled */}
                   <TableCell>
                     {endpoint.enabled ? (
-                      <Badge
-                        variant="outline"
-                        className="border-blue-500 bg-blue-50 text-blue-700"
-                      >
+                      <span className="inline-flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
                         Enabled
-                      </Badge>
+                      </span>
                     ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground">
+                        <XCircle className="h-4 w-4 shrink-0" />
                         Disabled
-                      </Badge>
+                      </span>
                     )}
                   </TableCell>
 

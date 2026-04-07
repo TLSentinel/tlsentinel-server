@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
@@ -40,10 +39,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Severity primitives
 // ---------------------------------------------------------------------------
 
-const severityBorder: Record<TLSSeverity, string> = {
-  ok:       'border-green-500 bg-green-50 text-green-700',
-  warning:  'border-amber-400 bg-amber-50 text-amber-700',
-  critical: 'border-red-500  bg-red-50  text-red-700',
+const severityColor: Record<TLSSeverity, string> = {
+  ok:       'text-green-600 dark:text-green-400',
+  warning:  'text-amber-600 dark:text-amber-400',
+  critical: 'text-red-600 dark:text-red-400',
 }
 
 const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
@@ -52,13 +51,9 @@ const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
   critical: <ShieldX     className="h-4 w-4 text-red-600"   />,
 }
 
-function SeverityBadge({ severity }: { severity: TLSSeverity }) {
+function SeverityLabel({ severity }: { severity: TLSSeverity }) {
   const label = severity === 'ok' ? 'OK' : severity === 'warning' ? 'Warning' : 'Critical'
-  return (
-    <Badge variant="outline" className={severityBorder[severity]}>
-      {label}
-    </Badge>
-  )
+  return <span className={`text-sm font-medium ${severityColor[severity]}`}>{label}</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -72,9 +67,9 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm font-medium">{finding.name}</span>
-          <SeverityBadge severity={finding.severity} />
+          <SeverityLabel severity={finding.severity} />
           {preferred && (
-            <Badge variant="secondary" className="text-xs">Preferred</Badge>
+            <span className="text-xs italic text-muted-foreground">Preferred</span>
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{finding.reason}</p>
@@ -84,22 +79,17 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
 }
 
 // ---------------------------------------------------------------------------
-// Type badge
+// Type label
 // ---------------------------------------------------------------------------
 
-const TYPE_META: Record<string, { label: string; className: string }> = {
-  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
-  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
-  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+const TYPE_LABEL: Record<string, string> = {
+  host:   'Host',
+  saml:   'SAML',
+  manual: 'Manual',
 }
 
-function TypeBadge({ type }: { type: string }) {
-  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
-  return (
-    <Badge variant="outline" className={meta.className}>
-      {meta.label}
-    </Badge>
-  )
+function TypeLabel({ type }: { type: string }) {
+  return <span className="text-sm text-muted-foreground">{TYPE_LABEL[type] ?? type}</span>
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +262,7 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
         <div>
           <p className="text-xs text-muted-foreground">Security Posture</p>
           <div className="mt-1 space-y-1.5">
-            <SeverityBadge severity={classification.overallSeverity} />
+            <SeverityLabel severity={classification.overallSeverity} />
             <p className="text-sm text-muted-foreground">{postureDescription(classification)}</p>
           </div>
         </div>
@@ -486,7 +476,7 @@ export default function EndpointDetailPage() {
           {/* Endpoint Type */}
           <div className="space-y-3">
             <SectionHeader title="Endpoint Type" />
-            <TypeBadge type={endpoint.type} />
+            <TypeLabel type={endpoint.type} />
           </div>
 
           {/* Tags */}

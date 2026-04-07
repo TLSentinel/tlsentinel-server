@@ -1,28 +1,40 @@
 import { Link } from 'react-router-dom'
-import { Shield } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Shield, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react'
 import { fmtDate } from '@/lib/utils'
 
+
 // ---------------------------------------------------------------------------
-// ExpiryBadge — exported for use in page headers
+// ExpiryStatus — icon + text, no badge pill. Exported for use in page headers.
 // ---------------------------------------------------------------------------
 
-export function ExpiryBadge({ notAfter }: { notAfter: string }) {
+export function ExpiryStatus({ notAfter }: { notAfter: string }) {
   const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
-  if (days < 0) return <Badge variant="destructive">Expired</Badge>
+  if (days < 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-sm font-medium text-red-600 dark:text-red-400">
+        <XCircle className="h-4 w-4 shrink-0" />
+        Expired
+      </span>
+    )
+  }
   if (days <= 30) {
     return (
-      <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-700">
-        Expiring in {days}d
-      </Badge>
+      <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600 dark:text-amber-400">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        {days}d
+      </span>
     )
   }
   return (
-    <Badge variant="outline" className="border-green-500 bg-green-50 text-green-700">
+    <span className="inline-flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
+      <CheckCircle2 className="h-4 w-4 shrink-0" />
       Valid
-    </Badge>
+    </span>
   )
 }
+
+/** @deprecated Use ExpiryStatus instead */
+export const ExpiryBadge = ExpiryStatus
 
 // ---------------------------------------------------------------------------
 // CertCard
@@ -55,14 +67,13 @@ export function CertCard({
 
   return (
     <div className="rounded-lg border p-3">
-      {/* Badge row */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Shield className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <Badge variant="secondary" className="text-xs">{role}</Badge>
-        {isViewing && (
-          <Badge variant="secondary" className="text-xs">viewing</Badge>
-        )}
-        <ExpiryBadge notAfter={notAfter} />
+      {/* Status row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <Shield className="h-3.5 w-3.5 shrink-0" />
+          {role}{isViewing && ' · viewing'}
+        </span>
+        <ExpiryStatus notAfter={notAfter} />
       </div>
 
       {/* Common name */}

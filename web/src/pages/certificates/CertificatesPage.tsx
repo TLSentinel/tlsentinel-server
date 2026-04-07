@@ -35,6 +35,7 @@ import { can } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
+import { ExpiryStatus } from '@/components/CertCard'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,25 +60,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'common_name', label: 'Common name A→Z' },
 ]
 
-const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
-  expired:  { label: 'Expired',  className: 'bg-red-50    text-red-700    border border-red-500' },
-  critical: { label: 'Critical', className: 'bg-orange-50 text-orange-700 border border-orange-500' },
-  warning:  { label: 'Warning',  className: 'bg-amber-50  text-amber-700  border border-amber-500' },
-  ok:       { label: 'OK',       className: 'bg-green-50  text-green-700  border border-green-500' },
-}
-
-function StatusBadge({ notAfter }: { notAfter: string }) {
-  const [now] = useState(Date.now)
-  const days = Math.floor((new Date(notAfter).getTime() - now) / 86_400_000)
-  const status: CertStatus =
-    days < 0 ? 'expired' : days <= 7 ? 'critical' : days <= 30 ? 'warning' : 'ok'
-  const { label, className } = STATUS_META[status]
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>
-      {label}
-    </span>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Ingest Dialog
@@ -455,7 +437,7 @@ export default function CertificatesPage() {
                         (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge notAfter={cert.notAfter} />
+                    <ExpiryStatus notAfter={cert.notAfter} />
                   </TableCell>
                   <TableCell>{fmtDate(cert.notBefore)}</TableCell>
                   <TableCell>{fmtDate(cert.notAfter)}</TableCell>

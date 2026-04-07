@@ -11,24 +11,23 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
 import { ApiError } from '@/types/api'
 import type { CategoryWithTags } from '@/types/api'
 
-const TYPE_META: Record<string, { label: string; className: string }> = {
-  host:   { label: 'Host',   className: 'border-blue-500 bg-blue-50 text-blue-700' },
-  saml:   { label: 'SAML',   className: 'border-violet-500 bg-violet-50 text-violet-700' },
-  manual: { label: 'Manual', className: 'border-gray-400 bg-gray-50 text-gray-500' },
+const TYPE_LABEL: Record<string, string> = {
+  host:   'Host',
+  saml:   'SAML',
+  manual: 'Manual',
 }
-function TypeBadge({ type }: { type: string }) {
-  const meta = TYPE_META[type] ?? { label: type, className: 'border-border text-muted-foreground' }
-  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+function EndpointTypeLabel({ type }: { type: string }) {
+  return <span className="text-sm text-muted-foreground">{TYPE_LABEL[type] ?? type}</span>
 }
 import { fmtDate } from '@/lib/utils'
 import { fmtDays } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
+import { ExpiryStatus } from '@/components/CertCard'
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -38,19 +37,6 @@ type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
 type SortOption = '' | 'days_desc' | 'endpoint_name' | 'common_name'
 
-function getStatus(daysRemaining: number): CertStatus {
-  if (daysRemaining < 0) return 'expired'
-  if (daysRemaining <= 7) return 'critical'
-  if (daysRemaining <= 30) return 'warning'
-  return 'ok'
-}
-
-const STATUS_META: Record<CertStatus, { label: string; className: string }> = {
-  expired:  { label: 'Expired',  className: 'bg-red-50    text-red-700    border border-red-500' },
-  critical: { label: 'Critical', className: 'bg-orange-50 text-orange-700 border border-orange-500' },
-  warning:  { label: 'Warning',  className: 'bg-amber-50  text-amber-700  border border-amber-500' },
-  ok:       { label: 'OK',       className: 'bg-green-50  text-green-700  border border-green-500' },
-}
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: '',         label: 'All' },
@@ -66,16 +52,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'endpoint_name', label: 'Endpoint name A→Z' },
   { value: 'common_name', label: 'Common name A→Z' },
 ]
-
-function StatusBadge({ daysRemaining }: { daysRemaining: number }) {
-  const status = getStatus(daysRemaining)
-  const { label, className } = STATUS_META[status]
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>
-      {label}
-    </span>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -343,11 +319,11 @@ export default function ActivePage() {
                   </TableCell>
 
                   <TableCell>
-                    <TypeBadge type={item.endpointType} />
+                    <EndpointTypeLabel type={item.endpointType} />
                   </TableCell>
 
                   <TableCell>
-                    <StatusBadge daysRemaining={item.daysRemaining} />
+                    <ExpiryStatus notAfter={item.notAfter} />
                   </TableCell>
 
                   <TableCell className="text-sm text-muted-foreground">
