@@ -131,6 +131,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.EndpointsEdit))
 					r.Post("/", endpointHandler.Create)
+					r.Post("/bulk", endpointHandler.BulkImport)
 				})
 				r.Route("/{endpointID}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {

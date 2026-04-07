@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest } from '@/types/api'
+import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest, BulkImportRequest, BulkImportResponse } from '@/types/api'
 
 export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', sort = '', tagId = ''): Promise<EndpointList> {
   const params = new URLSearchParams({
@@ -48,4 +48,8 @@ export function getScanHistory(id: string, limit = 20): Promise<EndpointScanHist
 
 export function linkCertificate(id: string, pem: string): Promise<Endpoint> {
   return api.post<Endpoint>(`/endpoints/${id}/certificate`, { pem })
+}
+
+export function bulkImportEndpoints(req: BulkImportRequest): Promise<BulkImportResponse> {
+  return api.post<BulkImportResponse>('/endpoints/bulk', req)
 }

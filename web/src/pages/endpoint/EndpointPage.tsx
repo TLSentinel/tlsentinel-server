@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Copy, MoreHorizontal, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { Plus, Upload, Pencil, Trash2, Copy, MoreHorizontal, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,7 @@ import type { EndpointListItem, CategoryWithTags } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
+import BulkImportDialog from '@/components/BulkImportDialog'
 
 // ---------------------------------------------------------------------------
 // Type label
@@ -164,6 +165,7 @@ export default function HostsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<EndpointListItem | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   // Load tag categories once for the filter dropdown.
   useEffect(() => {
@@ -231,10 +233,16 @@ export default function HostsPage() {
           </p>
         </div>
         {admin && (
-          <Button onClick={() => navigate('/endpoints/new')}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add Endpoint
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1.5 h-4 w-4" />
+              Import
+            </Button>
+            <Button onClick={() => navigate('/endpoints/new')}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add Endpoint
+            </Button>
+          </div>
         )}
       </div>
 
@@ -553,6 +561,12 @@ export default function HostsPage() {
         endpoint={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={load}
+      />
+
+      <BulkImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onComplete={load}
       />
     </div>
   )
