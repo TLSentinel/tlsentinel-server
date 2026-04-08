@@ -75,6 +75,7 @@ export default function EndpointFormPage() {
   const [url, setUrl]               = useState('')
   const [scannerID, setScannerID]   = useState('')
   const [enabled, setEnabled]       = useState(true)
+  const [scanExempt, setScanExempt] = useState(false)
   const [notes, setNotes]           = useState('')
 
   const [pem, setPem]                   = useState('')
@@ -110,6 +111,7 @@ export default function EndpointFormPage() {
         setUrl(ep.url ?? '')
         setScannerID(ep.scannerId ?? '')
         setEnabled(ep.enabled)
+        setScanExempt(ep.scanExempt ?? false)
         setNotes(ep.notes ?? '')
         setPem('')  // PEM field always starts blank; only filled to replace/set a cert
       })
@@ -219,6 +221,7 @@ export default function EndpointFormPage() {
           name: name.trim(),
           type,
           enabled,
+          scanExempt,
           scannerId: type !== 'manual' ? sid : undefined,
           notes: notesVal,
           ...(type === 'host' && {
@@ -601,15 +604,28 @@ export default function EndpointFormPage() {
         </div>
       )}
 
-      {/* Enabled toggle — edit mode only */}
+      {/* Enabled / Scan Exempt toggles — edit mode only */}
       {isEdit && (
-        <div className="flex items-center gap-3">
-          <Switch
-            id="ep-enabled"
-            checked={enabled}
-            onCheckedChange={setEnabled}
-          />
-          <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="ep-scan-exempt"
+              checked={scanExempt}
+              onCheckedChange={setScanExempt}
+            />
+            <div>
+              <Label htmlFor="ep-scan-exempt" className="cursor-pointer">Exclude from scanning</Label>
+              <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="ep-enabled"
+              checked={enabled}
+              onCheckedChange={setEnabled}
+            />
+            <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
+          </div>
         </div>
       )}
 

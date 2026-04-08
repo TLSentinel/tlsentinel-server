@@ -89,6 +89,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Post("/", tokenHandler.Create)
 					r.Route("/{scannerID}", func(r chi.Router) {
 						r.Put("/", tokenHandler.Update)
+						r.Patch("/", tokenHandler.Patch)
 						r.Delete("/", tokenHandler.Delete)
 						r.Post("/default", tokenHandler.SetDefault)
 					})
@@ -144,6 +145,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.EndpointsEdit))
 						r.Put("/", endpointHandler.Update)
+						r.Patch("/", endpointHandler.Patch)
 						r.Delete("/", endpointHandler.Delete)
 						r.Post("/certificate", endpointHandler.LinkCertificate)
 						r.Put("/tags", tagHandler.SetEndpointTags)

@@ -66,6 +66,7 @@ export interface EndpointListItem {
   url?: string | null
   // common fields
   enabled: boolean
+  scanExempt: boolean
   scannerId: string | null
   scannerName: string | null
   /** Soonest notAfter across all current certs. Null when no certs recorded yet. */
@@ -89,6 +90,7 @@ export interface Endpoint {
   url?: string | null
   // common fields
   enabled: boolean
+  scanExempt: boolean
   scannerId: string | null
   scannerName: string | null
   activeCerts: EndpointCert[]
@@ -125,8 +127,25 @@ export interface UpdateEndpointRequest {
   url?: string
   // common fields
   enabled: boolean
+  scanExempt?: boolean
   scannerId?: string
   notes?: string
+}
+
+/** PATCH /endpoints/{id} — only include the fields you want to change. */
+export interface PatchEndpointRequest {
+  name?: string
+  // host-type fields
+  dnsName?: string
+  ipAddress?: string | null
+  port?: number
+  // saml-type fields
+  url?: string | null
+  // common fields
+  enabled?: boolean
+  scanExempt?: boolean
+  scannerId?: string | null   // null clears the scanner assignment
+  notes?: string | null       // null clears notes
 }
 
 export type EndpointList = PaginatedList<EndpointListItem>
@@ -208,6 +227,13 @@ export interface ScannerToken {
   scanConcurrency: number
   createdAt: string
   lastUsedAt: string | null
+}
+
+/** PATCH /scanners/{id} — only include the fields you want to change. */
+export interface PatchScannerRequest {
+  name?: string
+  scanIntervalSeconds?: number
+  scanConcurrency?: number
 }
 
 /** Returned only on creation — includes the raw bearer token shown once. */
