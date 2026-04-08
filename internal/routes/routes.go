@@ -160,6 +160,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Put("/", userHandler.UpdateMe)
 				r.Patch("/password", userHandler.ChangeMyPassword)
 				r.Post("/calendar-token", userHandler.RotateCalendarToken)
+				r.Get("/tag-subscriptions", userHandler.GetMySubscriptions)
+				r.Put("/tag-subscriptions", userHandler.SetMySubscriptions)
 			})
 
 			r.Route("/users", func(r chi.Router) {

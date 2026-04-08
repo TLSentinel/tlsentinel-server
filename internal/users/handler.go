@@ -232,6 +232,68 @@ func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// SetSubscriptionsRequest is the payload for replacing a user's tag subscriptions.
+type SetSubscriptionsRequest struct {
+	TagIDs []string `json:"tagIds"`
+}
+
+// @Summary      Get notification tag subscriptions
+// @Description  Returns the current user's tag notification subscriptions
+// @Tags         me
+// @Produce      json
+// @Success      200  {array}   models.TagWithCategory
+// @Failure      401  {string}  string  "unauthorized"
+// @Router       /me/tag-subscriptions [get]
+func (h *Handler) GetMySubscriptions(w http.ResponseWriter, r *http.Request) {
+	identity, ok := auth.GetIdentity(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	subs, err := h.store.GetUserTagSubscriptions(r.Context(), identity.UserID)
+	if err != nil {
+		http.Error(w, "failed to get subscriptions", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, subs)
+}
+
+// @Summary      Set notification tag subscriptions
+// @Description  Replaces the current user's tag notification subscriptions. Send an empty tagIds array to clear all subscriptions (reverts to notify-all).
+// @Tags         me
+// @Accept       json
+// @Produce      json
+// @Param        request  body      SetSubscriptionsRequest  true  "Tag IDs"
+// @Success      200      {array}   models.TagWithCategory
+// @Failure      400      {string}  string  "invalid request"
+// @Failure      401      {string}  string  "unauthorized"
+// @Router       /me/tag-subscriptions [put]
+func (h *Handler) SetMySubscriptions(w http.ResponseWriter, r *http.Request) {
+	identity, ok := auth.GetIdentity(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req SetSubscriptionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.TagIDs == nil {
+		req.TagIDs = []string{}
+	}
+	if err := h.store.SetUserTagSubscriptions(r.Context(), identity.UserID, req.TagIDs); err != nil {
+		http.Error(w, "failed to set subscriptions", http.StatusInternalServerError)
+		return
+	}
+	subs, err := h.store.GetUserTagSubscriptions(r.Context(), identity.UserID)
+	if err != nil {
+		http.Error(w, "failed to get updated subscriptions", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, subs)
+}
+
 // RotateCalendarToken generates a new calendar token for the authenticated user.
 func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
 	identity, ok := auth.GetIdentity(r.Context())

@@ -217,6 +217,14 @@ type UserGroup struct {
 	Role    string `bun:"role"`
 }
 
+// UserTagSubscription maps to tlsentinel.user_tag_subscriptions.
+type UserTagSubscription struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_tag_subscriptions"`
+
+	UserID string `bun:"user_id,pk,type:uuid"`
+	TagID  string `bun:"tag_id,pk,type:uuid"`
+}
+
 // TagCategory maps to tlsentinel.tag_categories.
 type TagCategory struct {
 	bun.BaseModel `bun:"table:tlsentinel.tag_categories,alias:tc"`
