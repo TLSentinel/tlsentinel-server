@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
+import type { ScannerToken, ScannerTokenCreated, PatchScannerRequest } from '@/types/api'
 
 export function listScanners(): Promise<ScannerToken[]> {
   return api.get<ScannerToken[]>('/scanners')
@@ -16,6 +16,10 @@ export function updateScanner(
   scanConcurrency: number,
 ): Promise<ScannerToken> {
   return api.put<ScannerToken>(`/scanners/${id}`, { name, scanIntervalSeconds, scanConcurrency })
+}
+
+export function patchScanner(id: string, req: PatchScannerRequest): Promise<ScannerToken> {
+  return api.patch<ScannerToken>(`/scanners/${id}`, req)
 }
 
 export function setDefaultScanner(id: string): Promise<void> {

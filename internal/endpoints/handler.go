@@ -299,6 +299,156 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
+// @Summary      Partially update an endpoint
+// @Description  Applies a partial update to an endpoint. Only fields present in the request body are changed; omitted fields retain their current values. scannerId and notes accept null to clear them.
+// @Tags         endpoints
+// @Accept       json
+// @Produce      json
+// @Param        endpointID  path      string  true  "Endpoint ID"
+// @Param        request     body      object  true  "Partial endpoint payload"
+// @Success      200         {object}  models.Endpoint
+// @Failure      400         {string}  string  "invalid request"
+// @Failure      404         {string}  string  "endpoint not found"
+// @Failure      500         {string}  string  "internal server error"
+// @Router       /endpoints/{endpointID} [patch]
+func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
+	endpointID := chi.URLParam(r, "endpointID")
+
+	// Decode as raw key map so we can distinguish absent fields from explicit null.
+	var rawFields map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&rawFields); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch current state to seed the update record.
+	current, err := h.store.GetEndpoint(r.Context(), endpointID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "endpoint not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get endpoint", http.StatusInternalServerError)
+		return
+	}
+
+	// Start from current values; only override what's present in the patch.
+	rec := models.EndpointRecord{
+		Name:       current.Name,
+		Type:       current.Type,
+		DNSName:    current.DNSName,
+		IPAddress:  current.IPAddress,
+		Port:       current.Port,
+		URL:        current.URL,
+		Enabled:    current.Enabled,
+		ScanExempt: current.ScanExempt,
+		ScannerID:  current.ScannerID,
+		Notes:      current.Notes,
+	}
+
+	if v, ok := rawFields["name"]; ok {
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil || s == "" {
+			http.Error(w, "name must be a non-empty string", http.StatusBadRequest)
+			return
+		}
+		rec.Name = s
+	}
+	if v, ok := rawFields["enabled"]; ok {
+		var b bool
+		if err := json.Unmarshal(v, &b); err != nil {
+			http.Error(w, "enabled must be a boolean", http.StatusBadRequest)
+			return
+		}
+		rec.Enabled = b
+	}
+	if v, ok := rawFields["scanExempt"]; ok {
+		var b bool
+		if err := json.Unmarshal(v, &b); err != nil {
+			http.Error(w, "scanExempt must be a boolean", http.StatusBadRequest)
+			return
+		}
+		rec.ScanExempt = b
+	}
+	if v, ok := rawFields["scannerId"]; ok {
+		if string(v) == "null" {
+			rec.ScannerID = nil
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				http.Error(w, "scannerId must be a string or null", http.StatusBadRequest)
+				return
+			}
+			rec.ScannerID = &s
+		}
+	}
+	if v, ok := rawFields["notes"]; ok {
+		if string(v) == "null" {
+			rec.Notes = nil
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				http.Error(w, "notes must be a string or null", http.StatusBadRequest)
+				return
+			}
+			rec.Notes = &s
+		}
+	}
+	if v, ok := rawFields["dnsName"]; ok {
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil || s == "" {
+			http.Error(w, "dnsName must be a non-empty string", http.StatusBadRequest)
+			return
+		}
+		rec.DNSName = s
+	}
+	if v, ok := rawFields["ipAddress"]; ok {
+		if string(v) == "null" {
+			rec.IPAddress = nil
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				http.Error(w, "ipAddress must be a string or null", http.StatusBadRequest)
+				return
+			}
+			rec.IPAddress = &s
+		}
+	}
+	if v, ok := rawFields["port"]; ok {
+		var p int
+		if err := json.Unmarshal(v, &p); err != nil || p < 1 || p > 65535 {
+			http.Error(w, "port must be between 1 and 65535", http.StatusBadRequest)
+			return
+		}
+		rec.Port = p
+	}
+	if v, ok := rawFields["url"]; ok {
+		if string(v) == "null" {
+			rec.URL = nil
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				http.Error(w, "url must be a string or null", http.StatusBadRequest)
+				return
+			}
+			rec.URL = &s
+		}
+	}
+
+	endpoint, err := h.store.UpdateEndpoint(r.Context(), endpointID, rec)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "endpoint not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to patch endpoint", http.StatusInternalServerError)
+		return
+	}
+
+	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+	response.JSON(w, http.StatusOK, endpoint)
+}
+
 // @Summary      Delete an endpoint
 // @Description  Removes an endpoint and its scan history
 // @Tags         endpoints

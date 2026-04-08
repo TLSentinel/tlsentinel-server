@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest, BulkImportRequest, BulkImportResponse } from '@/types/api'
+import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest, PatchEndpointRequest, BulkImportRequest, BulkImportResponse } from '@/types/api'
 
 export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', sort = '', tagId = ''): Promise<EndpointList> {
   const params = new URLSearchParams({
@@ -32,6 +32,10 @@ export function createEndpoint(req: CreateEndpointRequest): Promise<Endpoint> {
 
 export function updateEndpoint(id: string, req: UpdateEndpointRequest): Promise<Endpoint> {
   return api.put<Endpoint>(`/endpoints/${id}`, req)
+}
+
+export function patchEndpoint(id: string, req: PatchEndpointRequest): Promise<Endpoint> {
+  return api.patch<Endpoint>(`/endpoints/${id}`, req)
 }
 
 export function deleteEndpoint(id: string): Promise<void> {
