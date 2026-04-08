@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { User, UserList } from '@/types/api'
+import type { User, UserList, TagWithCategory } from '@/types/api'
 
 export function listUsers(page = 1, pageSize = 20, search = '', role = '', provider = '', sort = ''): Promise<UserList> {
   const params = new URLSearchParams({
@@ -74,4 +74,12 @@ export function changeMyPassword(currentPassword: string, newPassword: string): 
 
 export function rotateCalendarToken(): Promise<{ calendarToken: string }> {
   return api.post<{ calendarToken: string }>('/me/calendar-token', {})
+}
+
+export function getMyTagSubscriptions(): Promise<TagWithCategory[]> {
+  return api.get<TagWithCategory[]>('/me/tag-subscriptions')
+}
+
+export function setMyTagSubscriptions(tagIds: string[]): Promise<TagWithCategory[]> {
+  return api.put<TagWithCategory[]>('/me/tag-subscriptions', { tagIds })
 }

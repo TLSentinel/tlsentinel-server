@@ -5,17 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
 import { ChevronRight } from 'lucide-react'
 import type { User } from '@/types/api'
 
 export default function AccountProfilePage() {
-  const [_user, setUser]          = useState<User | null>(null)
+  const [user, setUser]           = useState<User | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName]   = useState('')
   const [email, setEmail]         = useState('')
-  const [notify, setNotify]       = useState(false)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [success, setSuccess]     = useState(false)
@@ -26,21 +23,22 @@ export default function AccountProfilePage() {
       setFirstName(u.firstName ?? '')
       setLastName(u.lastName ?? '')
       setEmail(u.email ?? '')
-      setNotify(u.notify)
     })
   }, [])
 
   async function save() {
+    if (!user) return
     setSaving(true)
     setError(null)
     setSuccess(false)
     try {
-      await updateMe({
-        notify,
+      const updated = await updateMe({
+        notify: user.notify, // preserve existing value — managed on Notifications page
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         email: email.trim() || undefined,
       })
+      setUser(updated)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch {
@@ -60,7 +58,7 @@ export default function AccountProfilePage() {
 
       <div>
         <h1 className="text-2xl font-semibold">Profile</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">Update your name, email address, and notification preferences.</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">Update your name and email address.</p>
       </div>
 
       <Card>
@@ -82,23 +80,6 @@ export default function AccountProfilePage() {
           <div className="space-y-1.5">
             <Label htmlFor="acc-email">Email</Label>
             <Input id="acc-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="acc-notify">Receive alert emails</Label>
-              <p className="text-xs text-muted-foreground">
-                {email.trim() ? 'Send certificate expiry alerts to your email.' : 'Requires an email address.'}
-              </p>
-            </div>
-            <Switch
-              id="acc-notify"
-              checked={notify}
-              onCheckedChange={setNotify}
-              disabled={!email.trim()}
-            />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

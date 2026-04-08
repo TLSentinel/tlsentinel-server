@@ -1,4 +1,4 @@
-import { User, KeyRound, CalendarDays, Users } from 'lucide-react'
+import { User, KeyRound, Bell } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 export default function AccountPage() {
@@ -16,7 +16,7 @@ export default function AccountPage() {
           to="/account/profile"
           icon={<User className="h-4 w-4" />}
           title="Profile"
-          description="Update your name, email address, and notification preferences."
+          description="Update your name and email address."
         />
         <HubCard
           to="/account/password"
@@ -25,16 +25,10 @@ export default function AccountPage() {
           description="Change your local account login password. This is not applicable to SSO users."
         />
         <HubCard
-          to="/account/calendar"
-          icon={<CalendarDays className="h-4 w-4" />}
-          title="Calendar Feed"
-          description="Subscribe to a live .ics feed of certificate expiry events in Outlook or Google Calendar."
-        />
-        <HubCard
-          icon={<Users className="h-4 w-4" />}
-          title="Groups"
-          description="Manage your group memberships and notification subscriptions."
-          soon
+          to="/account/notifications"
+          icon={<Bell className="h-4 w-4" />}
+          title="Notifications"
+          description="Configure alert email preferences and narrow scope by tag."
         />
       </div>
     </div>
