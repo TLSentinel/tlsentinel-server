@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	ical "github.com/arran4/golang-ical"
@@ -24,10 +23,8 @@ func NewHandler(store *db.Store) *Handler {
 // GET /calendar/u/{token}/*
 func (h *Handler) ServeUserCalendar(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	// feed =
-	_ = strings.TrimSuffix(chi.URLParam(r, "*"), ".ics")
 
-	_, err := h.store.GetUserByCalendarToken(r.Context(), token)
+	u, err := h.store.GetUserByCalendarToken(r.Context(), token)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.NotFound(w, r)
@@ -37,7 +34,7 @@ func (h *Handler) ServeUserCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	certs, err := h.store.ListExpiringActiveCerts(r.Context(), 365)
+	certs, err := h.store.ListExpiringActiveCertsTagged(r.Context(), u.ID, 365)
 	if err != nil {
 		http.Error(w, "failed to load certificates", http.StatusInternalServerError)
 		return

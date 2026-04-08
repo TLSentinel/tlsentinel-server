@@ -146,7 +146,7 @@ export default function AccountNotificationsPage() {
   }, [])
 
   const feedUrl = calendarToken
-    ? `${window.location.origin}/api/v1/calendar/u/${calendarToken}/all.ics`
+    ? `${window.location.origin}/api/v1/calendar/u/${calendarToken}/feed.ics`
     : ''
 
   async function generateCalendarToken() {
@@ -237,6 +237,72 @@ export default function AccountNotificationsPage() {
         </p>
       </div>
 
+      {/* ── Notification scope ────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Notification Scope</CardTitle>
+          <CardDescription>
+            Receive alerts for all endpoints, or narrow scope by selecting specific tags.
+            Applies to both email alerts and your calendar feed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Mode selector */}
+          <div className="flex gap-2">
+            {(['all', 'tags'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setFilterMode(mode)}
+                className={cn(
+                  'flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
+                  filterMode === mode
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border hover:bg-muted/40 text-foreground',
+                )}
+              >
+                <div className={cn(
+                  'h-3.5 w-3.5 rounded-full border-2 transition-colors',
+                  filterMode === mode ? 'border-primary bg-primary' : 'border-muted-foreground',
+                )} />
+                {mode === 'all' ? 'All endpoints' : 'Filter by tags'}
+              </button>
+            ))}
+          </div>
+
+          {/* Tag checkboxes — only shown in filter mode */}
+          {filterMode === 'tags' && (
+            categories.length === 0 ? (
+              <p className="text-sm italic text-muted-foreground">
+                No tags have been configured yet. Tags can be created in Settings → Tags.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {categories.map(cat => (
+                  <CategorySection
+                    key={cat.id}
+                    category={cat}
+                    selectedTagIds={selectedTagIds}
+                    disabled={false}
+                    onToggleTag={toggleTag}
+                    onToggleAll={toggleAll}
+                  />
+                ))}
+              </div>
+            )
+          )}
+
+          {tagsError   && <p className="text-sm text-destructive">{tagsError}</p>}
+          {tagsSuccess && <p className="text-sm text-green-600">Notification scope saved.</p>}
+
+          <div className="flex justify-end">
+            <Button onClick={saveTags} disabled={savingTags}>
+              {savingTags ? 'Saving…' : 'Save scope'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── Alert email toggle ─────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
@@ -272,8 +338,8 @@ export default function AccountNotificationsPage() {
         <CardHeader>
           <CardTitle>Calendar Feed</CardTitle>
           <CardDescription>
-            Subscribe to a live .ics feed of certificate expiry events in Outlook, Google Calendar,
-            or any iCal-compatible app. Updates automatically with reminders at 30, 14, 7, and 1 day before expiry.
+            Subscribe to a live .ics feed in Outlook, Google Calendar, or any iCal-compatible app.
+            Respects your notification scope above.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -306,77 +372,6 @@ export default function AccountNotificationsPage() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
-
-      {/* ── Notification scope ────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notification Scope</CardTitle>
-          <CardDescription>
-            Receive alerts for all endpoints, or narrow scope by selecting specific tags.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Mode selector */}
-          <div className={cn('flex gap-2', !notify && 'pointer-events-none opacity-50')}>
-            {(['all', 'tags'] as const).map(mode => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setFilterMode(mode)}
-                className={cn(
-                  'flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
-                  filterMode === mode
-                    ? 'border-primary bg-primary/5 text-primary'
-                    : 'border-border hover:bg-muted/40 text-foreground',
-                )}
-              >
-                <div className={cn(
-                  'h-3.5 w-3.5 rounded-full border-2 transition-colors',
-                  filterMode === mode ? 'border-primary bg-primary' : 'border-muted-foreground',
-                )} />
-                {mode === 'all' ? 'All endpoints' : 'Filter by tags'}
-              </button>
-            ))}
-          </div>
-
-          {/* Tag checkboxes — only shown in filter mode */}
-          {filterMode === 'tags' && (
-            categories.length === 0 ? (
-              <p className="text-sm italic text-muted-foreground">
-                No tags have been configured yet. Tags can be created in Settings → Tags.
-              </p>
-            ) : (
-              <div className={cn('space-y-2', !notify && 'pointer-events-none opacity-50')}>
-                {categories.map(cat => (
-                  <CategorySection
-                    key={cat.id}
-                    category={cat}
-                    selectedTagIds={selectedTagIds}
-                    disabled={!notify}
-                    onToggleTag={toggleTag}
-                    onToggleAll={toggleAll}
-                  />
-                ))}
-              </div>
-            )
-          )}
-
-          {!notify && (
-            <p className="text-xs text-muted-foreground">
-              Enable alert emails above to configure notification scope.
-            </p>
-          )}
-
-          {tagsError   && <p className="text-sm text-destructive">{tagsError}</p>}
-          {tagsSuccess && <p className="text-sm text-green-600">Notification scope saved.</p>}
-
-          <div className="flex justify-end">
-            <Button onClick={saveTags} disabled={savingTags || !notify}>
-              {savingTags ? 'Saving…' : 'Save scope'}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
