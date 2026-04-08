@@ -88,11 +88,12 @@ func (s *Store) ListExpiringActiveCertsTagged(ctx context.Context, userID string
 	return out, nil
 }
 
-// TryInsertExpiryAlert attempts to record that an alert was sent for the given
-// (fingerprint, thresholdDays) pair. Returns true if the row was inserted
-// (first-time alert), false if it already existed (duplicate, skip sending).
-func (s *Store) TryInsertExpiryAlert(ctx context.Context, fingerprint string, thresholdDays int) (bool, error) {
+// TryInsertExpiryAlert attempts to record that an alert was sent to a specific
+// user for the given (fingerprint, thresholdDays) pair. Returns true if the row
+// was inserted (first-time alert for this user), false if already sent.
+func (s *Store) TryInsertExpiryAlert(ctx context.Context, userID, fingerprint string, thresholdDays int) (bool, error) {
 	row := &CertificateExpiryAlert{
+		UserID:        userID,
 		Fingerprint:   fingerprint,
 		ThresholdDays: thresholdDays,
 	}

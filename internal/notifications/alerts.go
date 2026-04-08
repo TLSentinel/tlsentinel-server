@@ -15,7 +15,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
-	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
 // alertThreshold returns the single most-urgent threshold bucket for a cert
@@ -84,17 +83,6 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 	// Sort descending so alertThreshold() can find the most urgent bucket.
 	sort.Sort(sort.Reverse(sort.IntSlice(thresholds)))
 
-	// Fetch all certs expiring within the widest threshold.
-	certs, err := store.ListExpiringActiveCerts(ctx, thresholds[0])
-	if err != nil {
-		log.Error("expiry alerts: failed to list expiring certs", zap.Error(err))
-		return
-	}
-	if len(certs) == 0 {
-		log.Debug("expiry alerts: no expiring certs found")
-		return
-	}
-
 	// Fetch alert recipients.
 	recipients, err := store.ListNotifyUsers(ctx)
 	if err != nil {
@@ -107,64 +95,65 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 	}
 
 	sent, skipped := 0, 0
-	for _, cert := range certs {
-		threshold := alertThreshold(cert.DaysRemaining, thresholds)
-		if threshold == 0 {
+	for _, user := range recipients {
+		if user.Email == nil {
 			continue
 		}
 
-		// Attempt to claim the alert slot — returns false if already sent.
-		inserted, err := store.TryInsertExpiryAlert(ctx, cert.Fingerprint, threshold)
+		// Fetch certs scoped to this user's tag subscriptions.
+		certs, err := store.ListExpiringActiveCertsTagged(ctx, user.ID, thresholds[0])
 		if err != nil {
-			log.Error("expiry alerts: dedup insert failed",
-				zap.String("fingerprint", cert.Fingerprint),
-				zap.Int("threshold", threshold),
+			log.Error("expiry alerts: failed to list certs for user",
+				zap.String("user_id", user.ID),
 				zap.Error(err),
 			)
 			continue
 		}
-		if !inserted {
-			skipped++
-			continue
-		}
 
-		// Send one email per recipient.
-		subject := expirySubject(cert, threshold)
-		body := expiryBody(cert, threshold)
-		sendErr := sendToAll(sendCfg, recipients, subject, body, log)
-		if sendErr == 0 {
+		for _, cert := range certs {
+			threshold := alertThreshold(cert.DaysRemaining, thresholds)
+			if threshold == 0 {
+				continue
+			}
+
+			// Attempt to claim the per-user alert slot.
+			inserted, err := store.TryInsertExpiryAlert(ctx, user.ID, cert.Fingerprint, threshold)
+			if err != nil {
+				log.Error("expiry alerts: dedup insert failed",
+					zap.String("user_id", user.ID),
+					zap.String("fingerprint", cert.Fingerprint),
+					zap.Int("threshold", threshold),
+					zap.Error(err),
+				)
+				continue
+			}
+			if !inserted {
+				skipped++
+				continue
+			}
+
+			if err := mail.Send(sendCfg, *user.Email, expirySubject(cert, threshold), expiryBody(cert, threshold)); err != nil {
+				log.Error("expiry alert: failed to send email",
+					zap.String("to", *user.Email),
+					zap.Error(err),
+				)
+				continue
+			}
 			sent++
 			log.Info("expiry alert sent",
 				zap.String("endpoint", cert.EndpointName),
 				zap.String("endpoint_type", cert.EndpointType),
 				zap.Int("days_remaining", cert.DaysRemaining),
 				zap.Int("threshold", threshold),
-				zap.Int("recipients", len(recipients)),
+				zap.String("to", *user.Email),
 			)
 		}
 	}
 
 	log.Info("expiry alert run complete",
-		zap.Int("certs_checked", len(certs)),
+		zap.Int("recipients", len(recipients)),
 		zap.Int("alerts_sent", sent),
 		zap.Int("already_sent", skipped),
 	)
 }
 
-// sendToAll sends the email to every recipient. Returns the number of errors.
-func sendToAll(cfg mail.Config, recipients []models.User, subject, body string, log *zap.Logger) int {
-	errs := 0
-	for _, u := range recipients {
-		if u.Email == nil {
-			continue
-		}
-		if err := mail.Send(cfg, *u.Email, subject, body); err != nil {
-			log.Error("expiry alert: failed to send email",
-				zap.String("to", *u.Email),
-				zap.Error(err),
-			)
-			errs++
-		}
-	}
-	return errs
-}

@@ -164,11 +164,12 @@ type Setting struct {
 }
 
 // CertificateExpiryAlert maps to tlsentinel.certificate_expiry_alerts.
-// The composite PK (fingerprint, threshold_days) acts as the dedup key —
-// inserting a duplicate means the alert has already been sent.
+// The composite PK (user_id, fingerprint, threshold_days) acts as the dedup key —
+// inserting a duplicate means this alert has already been sent to this user.
 type CertificateExpiryAlert struct {
 	bun.BaseModel `bun:"table:tlsentinel.certificate_expiry_alerts"`
 
+	UserID        string    `bun:"user_id,pk,type:uuid"`
 	Fingerprint   string    `bun:"fingerprint,pk"`
 	ThresholdDays int       `bun:"threshold_days,pk"`
 	AlertedAt     time.Time `bun:"alerted_at"`
