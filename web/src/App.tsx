@@ -20,7 +20,7 @@ import NotFoundPage from '@/pages/NotFoundPage'
 import AccountPage from '@/pages/account/AccountPage'
 import AccountProfilePage from '@/pages/account/AccountProfilePage'
 import AccountPasswordPage from '@/pages/account/AccountPasswordPage'
-import AccountCalendarPage from '@/pages/account/AccountCalendarPage'
+import AccountNotificationsPage from '@/pages/account/AccountNotificationsPage'
 import GroupsPage from '@/pages/settings/GroupsPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
 import AuditLogPage from '@/pages/settings/AuditLogPage'
@@ -80,7 +80,8 @@ export default function App() {
             <Route index element={<AccountPage />} />
             <Route path="profile" element={<AccountProfilePage />} />
             <Route path="password" element={<AccountPasswordPage />} />
-            <Route path="calendar" element={<AccountCalendarPage />} />
+            <Route path="calendar" element={<Navigate to="/account/notifications" replace />} />
+            <Route path="notifications" element={<AccountNotificationsPage />} />
           </Route>
 
           {/* Settings hub + sub-pages */}
