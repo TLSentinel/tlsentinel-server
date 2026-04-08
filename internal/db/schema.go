@@ -34,6 +34,7 @@ type Endpoint struct {
 	Name          string     `bun:"name"`
 	Type          string     `bun:"type"`
 	Enabled       bool       `bun:"enabled"`
+	ScanExempt    bool       `bun:"scan_exempt"`
 	ScannerID     *string    `bun:"scanner_id,type:uuid"`
 	LastScannedAt *time.Time `bun:"last_scanned_at"`
 	LastScanError *string    `bun:"last_scan_error"`

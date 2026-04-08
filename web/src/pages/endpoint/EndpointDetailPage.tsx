@@ -136,7 +136,16 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
         )}
 
         {!isManual && (
-          <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
+          <Field label="Scanner">
+            {endpoint.scanExempt ? (
+              <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                Excluded from scanning
+              </span>
+            ) : (
+              endpoint.scannerName ?? 'Default'
+            )}
+          </Field>
         )}
         <Field label="Enabled">
           <span className="inline-flex items-center gap-1.5 text-muted-foreground">

@@ -66,6 +66,7 @@ export interface EndpointListItem {
   url?: string | null
   // common fields
   enabled: boolean
+  scanExempt: boolean
   scannerId: string | null
   scannerName: string | null
   /** Soonest notAfter across all current certs. Null when no certs recorded yet. */
@@ -89,6 +90,7 @@ export interface Endpoint {
   url?: string | null
   // common fields
   enabled: boolean
+  scanExempt: boolean
   scannerId: string | null
   scannerName: string | null
   activeCerts: EndpointCert[]
@@ -125,6 +127,7 @@ export interface UpdateEndpointRequest {
   url?: string
   // common fields
   enabled: boolean
+  scanExempt?: boolean
   scannerId?: string
   notes?: string
 }

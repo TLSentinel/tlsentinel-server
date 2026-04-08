@@ -47,6 +47,7 @@ func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
 		Port:           r.Port,
 		URL:            r.URL,
 		Enabled:        r.Enabled,
+		ScanExempt:     r.ScanExempt,
 		ScannerID:      r.ScannerID,
 		ScannerName:    r.ScannerName,
 		EarliestExpiry: r.EarliestExpiry,
@@ -66,6 +67,7 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 		Port:          r.Port,
 		URL:           r.URL,
 		Enabled:       r.Enabled,
+		ScanExempt:    r.ScanExempt,
 		ScannerID:     r.ScannerID,
 		ScannerName:   r.ScannerName,
 		ActiveCerts:   []models.EndpointCert{}, // populated separately by GetEndpoint
@@ -298,6 +300,7 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 			Set("name = ?", rec.Name).
 			Set("type = ?", rec.Type).
 			Set("enabled = ?", rec.Enabled).
+			Set("scan_exempt = ?", rec.ScanExempt).
 			Set("scanner_id = ?", rec.ScannerID).
 			Set("notes = ?", rec.Notes).
 			Set("updated_at = NOW()").
@@ -382,7 +385,7 @@ func (s *Store) GetScannerHostEndpoints(ctx context.Context, scannerID string) (
 		TableExpr("tlsentinel.endpoints AS h").
 		ColumnExpr("h.id, eh.dns_name, eh.ip_address, eh.port").
 		Join("JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id").
-		Where(`h.enabled = TRUE AND h.type = 'host' AND (
+		Where(`h.enabled = TRUE AND h.scan_exempt = FALSE AND h.type = 'host' AND (
 			h.scanner_id = ?::uuid
 			OR (h.scanner_id IS NULL AND EXISTS (
 				SELECT 1 FROM tlsentinel.scanners
@@ -420,7 +423,7 @@ func (s *Store) GetScannerSAMLEndpoints(ctx context.Context, scannerID string) (
 		TableExpr("tlsentinel.endpoints AS e").
 		ColumnExpr("e.id, es.url").
 		Join("JOIN tlsentinel.endpoint_saml AS es ON es.endpoint_id = e.id").
-		Where(`e.enabled = TRUE AND e.type = 'saml' AND (
+		Where(`e.enabled = TRUE AND e.scan_exempt = FALSE AND e.type = 'saml' AND (
 			e.scanner_id = ?::uuid
 			OR (e.scanner_id IS NULL AND EXISTS (
 				SELECT 1 FROM tlsentinel.scanners
