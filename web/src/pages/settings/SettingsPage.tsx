@@ -54,10 +54,10 @@ export default function SettingsPage() {
           soon
         />
         <HubCard
+          to="/settings/maintenance"
           icon={<Wrench className="h-4 w-4" />}
           title="Maintenance"
           description="Purge scan history, prune orphaned certificates, and other database housekeeping tasks."
-          soon
         />
         <HubCard
           to="/settings/general"

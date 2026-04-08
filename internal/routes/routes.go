@@ -215,11 +215,13 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsView))
 					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
+					r.Get("/scan-history-retention", settingsHandler.GetScanHistoryRetention)
 					r.Get("/audit-logs", auditHandler.List)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsEdit))
 					r.Put("/alert-thresholds", settingsHandler.SetAlertThresholds)
+					r.Put("/scan-history-retention", settingsHandler.SetScanHistoryRetention)
 				})
 				r.Route("/mail", func(r chi.Router) {
 					r.Group(func(r chi.Router) {

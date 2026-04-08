@@ -15,6 +15,7 @@ import MailConfigPage from '@/pages/settings/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
 import ActivePage from '@/pages/ActivePage'
 import GeneralSettingsPage from '@/pages/settings/GeneralSettingsPage'
+import MaintenancePage from '@/pages/settings/MaintenancePage'
 import AuthCallbackPage from '@/pages/AuthCallbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import AccountPage from '@/pages/account/AccountPage'
@@ -96,6 +97,7 @@ export default function App() {
             <Route path="audit-logs" element={<AuditLogPage />} />
             <Route path="tags" element={<TagsPage />} />
             <Route path="general" element={<GeneralSettingsPage />} />
+            <Route path="maintenance" element={<MaintenancePage />} />
             <Route path="about" element={<AboutPage />} />
           </Route>
 

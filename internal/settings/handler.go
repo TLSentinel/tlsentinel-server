@@ -118,3 +118,35 @@ func (h *Handler) SetAlertThresholds(w http.ResponseWriter, r *http.Request) {
 func DefaultAlertThresholds() alertThresholdsResponse {
 	return alertThresholdsResponse{Thresholds: models.DefaultAlertThresholds}
 }
+
+// scanHistoryRetentionResponse is the response envelope for scan history retention endpoints.
+type scanHistoryRetentionResponse struct {
+	Days int `json:"days"`
+}
+
+func (h *Handler) GetScanHistoryRetention(w http.ResponseWriter, r *http.Request) {
+	days, err := h.store.GetScanHistoryRetentionDays(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get scan history retention", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: days})
+}
+
+func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request) {
+	var req scanHistoryRetentionResponse
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Days < 1 || req.Days > 3650 {
+		http.Error(w, "retention must be between 1 and 3650 days", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.SetScanHistoryRetentionDays(r.Context(), req.Days); err != nil {
+		http.Error(w, "failed to save scan history retention", http.StatusInternalServerError)
+		return
+	}
+	h.logAudit(r, "settings.scan_history_retention.update")
+	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: req.Days})
+}
