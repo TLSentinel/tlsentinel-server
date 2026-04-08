@@ -80,9 +80,10 @@ type UpdateEndpointRequest struct {
 	// SAML-type fields.
 	URL       *string `json:"url"`
 	// Common fields.
-	Enabled   bool    `json:"enabled"`
-	ScannerID *string `json:"scannerId"`
-	Notes     *string `json:"notes"`
+	Enabled    bool    `json:"enabled"`
+	ScanExempt bool    `json:"scanExempt"`
+	ScannerID  *string `json:"scannerId"`
+	Notes      *string `json:"notes"`
 }
 
 // @Summary      List endpoints
@@ -181,6 +182,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Port:      req.Port,
 		URL:       req.URL,
 		Enabled:   true,
+		ScanExempt: false, // new endpoints are never scan-exempt
 		ScannerID: req.ScannerID,
 		Notes:     req.Notes,
 	}
@@ -278,6 +280,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		Port:      req.Port,
 		URL:       req.URL,
 		Enabled:   req.Enabled,
+		ScanExempt: req.ScanExempt,
 		ScannerID: req.ScannerID,
 		Notes:     req.Notes,
 	}

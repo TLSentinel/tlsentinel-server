@@ -144,6 +144,15 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
             {endpoint.enabled ? 'Enabled' : 'Disabled'}
           </span>
         </Field>
+
+        {!isManual && endpoint.scanExempt && (
+          <div className="col-span-2">
+            <div className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+              Excluded from scanning — no scanner will probe this endpoint
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

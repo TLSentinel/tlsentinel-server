@@ -33,9 +33,10 @@ type EndpointRecord struct {
 	// SAML-type fields.
 	URL       *string
 	// Common optional fields.
-	Enabled   bool
-	ScannerID *string
-	Notes     *string
+	Enabled    bool
+	ScanExempt bool
+	ScannerID  *string
+	Notes      *string
 }
 
 // Endpoint represents the full detail of a monitored endpoint.
@@ -51,6 +52,7 @@ type Endpoint struct {
 	URL         *string    `json:"url,omitempty"`
 	// Common fields.
 	Enabled       bool           `json:"enabled"`
+	ScanExempt    bool           `json:"scanExempt"`
 	ScannerID     *string        `json:"scannerId"`
 	ScannerName   *string        `json:"scannerName"`
 	ActiveCerts   []EndpointCert `json:"activeCerts"`
@@ -74,6 +76,7 @@ type EndpointListItem struct {
 	URL         *string    `json:"url,omitempty"`
 	// Common fields.
 	Enabled         bool              `json:"enabled"`
+	ScanExempt      bool              `json:"scanExempt"`
 	ScannerID       *string           `json:"scannerId"`
 	ScannerName     *string           `json:"scannerName"`
 	// EarliestExpiry is the soonest not_after across all current certs for this
