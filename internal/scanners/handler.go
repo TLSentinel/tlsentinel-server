@@ -203,6 +203,85 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, token)
 }
 
+// patchScannerTokenRequest contains the scanner fields that may be partially updated.
+// Only fields present in the JSON body are applied; omitted fields retain their current values.
+type patchScannerTokenRequest struct {
+	Name                *string `json:"name"`
+	ScanIntervalSeconds *int    `json:"scanIntervalSeconds"`
+	ScanConcurrency     *int    `json:"scanConcurrency"`
+}
+
+// @Summary      Partially update a scanner
+// @Description  Applies a partial update to a scanner token. Only fields present in the request body are changed.
+// @Tags         scanners
+// @Accept       json
+// @Produce      json
+// @Param        scannerID  path      string                    true  "Scanner token ID"
+// @Param        request    body      patchScannerTokenRequest  true  "Partial scanner payload"
+// @Success      200        {object}  models.ScannerTokenResponse
+// @Failure      400        {string}  string  "invalid request"
+// @Failure      404        {string}  string  "scanner token not found"
+// @Failure      500        {string}  string  "internal server error"
+// @Router       /scanners/{scannerID} [patch]
+func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+
+	current, err := h.store.GetScannerToken(r.Context(), scannerID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	var req patchScannerTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	name := current.Name
+	interval := current.ScanIntervalSeconds
+	concurrency := current.ScanConcurrency
+
+	if req.Name != nil {
+		if *req.Name == "" {
+			http.Error(w, "name must not be empty", http.StatusBadRequest)
+			return
+		}
+		name = *req.Name
+	}
+	if req.ScanIntervalSeconds != nil {
+		if *req.ScanIntervalSeconds <= 0 {
+			http.Error(w, "scanIntervalSeconds must be positive", http.StatusBadRequest)
+			return
+		}
+		interval = *req.ScanIntervalSeconds
+	}
+	if req.ScanConcurrency != nil {
+		if *req.ScanConcurrency <= 0 {
+			http.Error(w, "scanConcurrency must be positive", http.StatusBadRequest)
+			return
+		}
+		concurrency = *req.ScanConcurrency
+	}
+
+	token, err := h.store.UpdateScannerToken(r.Context(), scannerID, name, interval, concurrency)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to patch scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	h.logAudit(r, audit.ScannerUpdate, "scanner", scannerID)
+	response.JSON(w, http.StatusOK, token)
+}
+
 // @Summary      Set default scanner token
 // @Description  Marks the specified scanner as the default; clears the flag on all others
 // @Tags         scanners
