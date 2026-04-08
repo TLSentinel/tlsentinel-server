@@ -470,8 +470,50 @@ func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, limit
 	return items, nil
 }
 
+// scanResultChanged returns true when the incoming result differs meaningfully from
+// the last recorded history row and a new row should be written.
+//
+// Rules:
+//   - No prior history → always write (first scan)
+//   - Fingerprint changed → write (cert rotated or replaced)
+//   - TLS version changed → write
+//   - Resolved IP changed → write
+//   - Error state transitioned (nil ↔ non-nil) → write (healthy→error or recovery)
+//
+// Repeated identical errors are intentionally suppressed — only the transition matters.
+func scanResultChanged(last *EndpointScanHistory, req models.ScanResultRequest) bool {
+	if last == nil {
+		return true
+	}
+	if !ptrStrEq(last.Fingerprint, req.ActiveFingerprint) {
+		return true
+	}
+	if !ptrStrEq(last.TLSVersion, req.TLSVersion) {
+		return true
+	}
+	if !ptrStrEq(last.ResolvedIP, req.ResolvedIP) {
+		return true
+	}
+	// Only the nil↔non-nil transition matters for errors, not the message text.
+	if (last.ScanError == nil) != (req.Error == nil) {
+		return true
+	}
+	return false
+}
+
+func ptrStrEq(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.ScanResultRequest) error {
 	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Always update the endpoint's live scan state.
 		_, err := tx.NewUpdate().
 			TableExpr("tlsentinel.endpoints").
 			Set("last_scanned_at = NOW()").
@@ -487,15 +529,33 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 			return fmt.Errorf("failed to update endpoint scan state: %w", err)
 		}
 
-		_, err = tx.NewInsert().Model(&EndpointScanHistory{
-			EndpointID:  hostID,
-			Fingerprint: req.ActiveFingerprint,
-			ResolvedIP:  req.ResolvedIP,
-			TLSVersion:  req.TLSVersion,
-			ScanError:   req.Error,
-		}).ExcludeColumn("id", "scanned_at").Exec(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to insert scan history: %w", err)
+		// Fetch the most recent history row to compare against.
+		var last EndpointScanHistory
+		var lastPtr *EndpointScanHistory
+		err = tx.NewSelect().
+			Model(&last).
+			Where("endpoint_id = ?", hostID).
+			OrderExpr("scanned_at DESC").
+			Limit(1).
+			Scan(ctx)
+		if err == nil {
+			lastPtr = &last
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("failed to query last scan history: %w", err)
+		}
+
+		// Only write a history row when something meaningful changed.
+		if scanResultChanged(lastPtr, req) {
+			_, err = tx.NewInsert().Model(&EndpointScanHistory{
+				EndpointID:  hostID,
+				Fingerprint: req.ActiveFingerprint,
+				ResolvedIP:  req.ResolvedIP,
+				TLSVersion:  req.TLSVersion,
+				ScanError:   req.Error,
+			}).ExcludeColumn("id", "scanned_at").Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to insert scan history: %w", err)
+			}
 		}
 
 		// Only update endpoint_certs when there is a leaf cert (non-error scan).
