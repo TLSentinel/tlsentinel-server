@@ -609,14 +609,6 @@ export default function EndpointFormPage() {
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <Switch
-              id="ep-enabled"
-              checked={enabled}
-              onCheckedChange={setEnabled}
-            />
-            <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch
               id="ep-scan-exempt"
               checked={scanExempt}
               onCheckedChange={setScanExempt}
@@ -625,6 +617,14 @@ export default function EndpointFormPage() {
               <Label htmlFor="ep-scan-exempt" className="cursor-pointer">Exclude from scanning</Label>
               <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="ep-enabled"
+              checked={enabled}
+              onCheckedChange={setEnabled}
+            />
+            <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
           </div>
         </div>
       )}

@@ -136,7 +136,16 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
         )}
 
         {!isManual && (
-          <Field label="Scanner">{endpoint.scannerName ?? 'Default'}</Field>
+          <Field label="Scanner">
+            {endpoint.scanExempt ? (
+              <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                Excluded from scanning
+              </span>
+            ) : (
+              endpoint.scannerName ?? 'Default'
+            )}
+          </Field>
         )}
         <Field label="Enabled">
           <span className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -144,15 +153,6 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
             {endpoint.enabled ? 'Enabled' : 'Disabled'}
           </span>
         </Field>
-
-        {!isManual && endpoint.scanExempt && (
-          <div className="col-span-2">
-            <div className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-              Excluded from scanning — no scanner will probe this endpoint
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
