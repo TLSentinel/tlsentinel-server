@@ -10,6 +10,7 @@ import (
 
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/apikeys"
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
@@ -52,6 +53,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	groupHandler := groups.NewHandler(store)
 	auditHandler := audit.NewHandler(store)
 	tagHandler := tags.NewHandler(store)
+	apiKeyHandler := apikeys.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -163,6 +165,9 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/calendar-token", userHandler.RotateCalendarToken)
 				r.Get("/tag-subscriptions", userHandler.GetMySubscriptions)
 				r.Put("/tag-subscriptions", userHandler.SetMySubscriptions)
+				r.Get("/api-keys", apiKeyHandler.List)
+				r.Post("/api-keys", apiKeyHandler.Create)
+				r.Delete("/api-keys/{id}", apiKeyHandler.Delete)
 			})
 
 			r.Route("/users", func(r chi.Router) {
