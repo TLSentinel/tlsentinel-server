@@ -129,6 +129,11 @@ type scanHistoryRetentionResponse struct {
 	Days int `json:"days"`
 }
 
+// @Summary      Get scan history retention
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  scanHistoryRetentionResponse
+// @Router       /maintenance/scan-history-retention [get]
 func (h *Handler) GetScanHistoryRetention(w http.ResponseWriter, r *http.Request) {
 	days, err := h.store.GetScanHistoryRetentionDays(r.Context())
 	if err != nil {
@@ -138,6 +143,11 @@ func (h *Handler) GetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: days})
 }
 
+// @Summary      List scheduled jobs
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {array}   models.ScheduledJob
+// @Router       /maintenance/scheduled-jobs [get]
 func (h *Handler) GetScheduledJobs(w http.ResponseWriter, r *http.Request) {
 	jobs, err := h.store.ListScheduledJobs(r.Context())
 	if err != nil {
@@ -147,6 +157,18 @@ func (h *Handler) GetScheduledJobs(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, jobs)
 }
 
+// @Summary      Update scheduled job
+// @Description  Updates the cron expression and enabled state for a named scheduled job. Hot-reloads the scheduler immediately.
+// @Tags         maintenance
+// @Accept       json
+// @Produce      json
+// @Param        name     path   string  true  "Job name"
+// @Param        request  body   object  true  "Job update payload"
+// @Success      200  {object}  models.ScheduledJob
+// @Failure      400  {string}  string  "invalid request"
+// @Failure      404  {string}  string  "job not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/scheduled-jobs/{name} [put]
 func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	var req struct {
@@ -179,6 +201,13 @@ func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, job)
 }
 
+// @Summary      Set scan history retention
+// @Tags         maintenance
+// @Accept       json
+// @Produce      json
+// @Param        request  body      scanHistoryRetentionResponse  true  "Retention days"
+// @Success      200  {object}  scanHistoryRetentionResponse
+// @Router       /maintenance/scan-history-retention [put]
 func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request) {
 	var req scanHistoryRetentionResponse
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
