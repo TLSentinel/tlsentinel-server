@@ -90,29 +90,10 @@ func main() {
 		log.Info("reconciled certificate chain links", zap.Int64("count", n))
 	}
 
-	r, err := routes.RegisterRoutes(store, cfg)
-	if err != nil {
-		log.Fatal("failed to initialise routes", zap.Error(err))
-	}
-
-	srv := &http.Server{
-		Addr:    cfg.ListenAddr(),
-		Handler: r,
-	}
-
-	go func() {
-		log.Info("server listening", zap.String("addr", cfg.ListenAddr()))
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal("server error", zap.Error(err))
-		}
-	}()
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	enc := crypto.NewEncryptor(cfg.EncryptionKey)
 
 	// Build the registry of known job names → functions.
+	// The scheduler holds this registry so it can hot-reload jobs without main.go involvement.
 	jobRegistry := map[string]func(){
 		models.JobExpiryAlerts: func() {
 			notifications.RunExpiryAlerts(context.Background(), store, enc, log)
@@ -122,7 +103,7 @@ func main() {
 		},
 	}
 
-	sched := scheduler.New()
+	sched := scheduler.New(jobRegistry)
 	if dbJobs, err := store.ListScheduledJobs(context.Background()); err != nil {
 		log.Warn("failed to load scheduled jobs from DB, scheduler not started", zap.Error(err))
 	} else {
@@ -145,6 +126,26 @@ func main() {
 			})
 		}
 	}
+
+	r, err := routes.RegisterRoutes(store, cfg, sched)
+	if err != nil {
+		log.Fatal("failed to initialise routes", zap.Error(err))
+	}
+
+	srv := &http.Server{
+		Addr:    cfg.ListenAddr(),
+		Handler: r,
+	}
+
+	go func() {
+		log.Info("server listening", zap.String("addr", cfg.ListenAddr()))
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal("server error", zap.Error(err))
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	schedCtx, schedCancel := context.WithCancel(context.Background())
 	defer schedCancel()

@@ -13,17 +13,19 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
 // Handler handles HTTP requests for the settings endpoints.
 type Handler struct {
 	store *db.Store
+	sched *scheduler.Scheduler
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(store *db.Store) *Handler {
-	return &Handler{store: store}
+func NewHandler(store *db.Store, sched *scheduler.Scheduler) *Handler {
+	return &Handler{store: store, sched: sched}
 }
 
 func (h *Handler) logAudit(r *http.Request, action string) {
@@ -168,6 +170,11 @@ func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to update scheduled job", http.StatusInternalServerError)
 		return
 	}
+	// Hot-reload the scheduler if we have a registered function for this job.
+	if fn := h.sched.Func(name); fn != nil {
+		h.sched.Reload(name, req.CronExpression, req.Enabled, fn)
+	}
+
 	h.logAudit(r, "settings.scheduled_job.update")
 	response.JSON(w, http.StatusOK, job)
 }

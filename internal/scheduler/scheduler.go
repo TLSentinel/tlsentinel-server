@@ -20,36 +20,62 @@ type JobFunc struct {
 
 // Scheduler wraps a cron instance and manages named jobs.
 type Scheduler struct {
-	c    *cron.Cron
-	jobs []JobFunc
+	c        *cron.Cron
+	jobs     []JobFunc
+	entryIDs map[string]cron.EntryID  // job name → cron entry ID
+	registry map[string]func()        // job name → function
 }
 
 // New creates a scheduler that runs in the server's local timezone.
-func New() *Scheduler {
+func New(registry map[string]func()) *Scheduler {
 	c := cron.New()
-	return &Scheduler{c: c}
+	return &Scheduler{
+		c:        c,
+		entryIDs: make(map[string]cron.EntryID),
+		registry: registry,
+	}
+}
+
+// Func returns the registered function for a job name, or nil if not found.
+func (s *Scheduler) Func(name string) func() {
+	return s.registry[name]
 }
 
 // Add registers a job with the given cron spec. Call before Start.
 func (s *Scheduler) Add(spec, name string, fn func()) {
-	s.jobs = append(s.jobs, JobFunc{Name: name, Fn: fn})
-	j := s.jobs[len(s.jobs)-1]
-	if _, err := s.c.AddFunc(spec, func() {
-		zap.L().Info("job starting", zap.String("job", j.Name))
-		j.Fn()
-		zap.L().Info("job completed", zap.String("job", j.Name))
-	}); err != nil {
+	id, err := s.c.AddFunc(spec, func() {
+		zap.L().Info("job starting", zap.String("job", name))
+		fn()
+		zap.L().Info("job completed", zap.String("job", name))
+	})
+	if err != nil {
 		zap.L().Error("failed to register job",
-			zap.String("job", j.Name),
+			zap.String("job", name),
 			zap.String("spec", spec),
 			zap.Error(err),
 		)
-	} else {
-		zap.L().Info("job registered",
-			zap.String("job", j.Name),
-			zap.String("spec", spec),
-		)
+		return
 	}
+	s.entryIDs[name] = id
+	zap.L().Info("job registered",
+		zap.String("job", name),
+		zap.String("spec", spec),
+	)
+}
+
+// Reload removes the existing entry for a job and re-registers it with a new
+// spec and enabled flag. If enabled is false the job is removed and not re-added.
+func (s *Scheduler) Reload(name, spec string, enabled bool, fn func()) {
+	if id, ok := s.entryIDs[name]; ok {
+		s.c.Remove(id)
+		delete(s.entryIDs, name)
+		zap.L().Info("job removed for reload", zap.String("job", name))
+	}
+	if !enabled {
+		zap.L().Info("job disabled, not re-registering", zap.String("job", name))
+		return
+	}
+	s.Add(spec, name, fn)
 }
 
 // Start begins the cron loop. It returns immediately; jobs run in background
