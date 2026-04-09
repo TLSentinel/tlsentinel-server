@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Archive, Bell } from 'lucide-react'
+import { ChevronRight, Archive, Bell, ScrollText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import {
   getScanHistoryRetention, setScanHistoryRetention,
-  getScheduledJobs, updateScheduledJob, runPurgeScanHistory,
+  getAuditLogRetention, setAuditLogRetention,
+  getScheduledJobs, updateScheduledJob,
+  runPurgeScanHistory, runPurgeAuditLogs,
   type ScheduledJob,
 } from '@/api/settings'
 
@@ -268,14 +270,22 @@ export default function MaintenancePage() {
   const [retentionError, setRetentionError]     = useState<string | null>(null)
   const [retentionSuccess, setRetentionSuccess] = useState(false)
 
-  const [purgeJob, setPurgeJob]   = useState<ScheduledJob | null>(null)
-  const [alertsJob, setAlertsJob] = useState<ScheduledJob | null>(null)
+  const [auditRetentionDays, setAuditRetentionDays]       = useState(365)
+  const [savingAuditRetention, setSavingAuditRetention]   = useState(false)
+  const [auditRetentionError, setAuditRetentionError]     = useState<string | null>(null)
+  const [auditRetentionSuccess, setAuditRetentionSuccess] = useState(false)
+
+  const [purgeJob, setPurgeJob]         = useState<ScheduledJob | null>(null)
+  const [alertsJob, setAlertsJob]       = useState<ScheduledJob | null>(null)
+  const [auditPurgeJob, setAuditPurgeJob] = useState<ScheduledJob | null>(null)
 
   useEffect(() => {
     getScanHistoryRetention().then(r => setRetentionDays(r.days)).catch(() => {})
+    getAuditLogRetention().then(r => setAuditRetentionDays(r.days)).catch(() => {})
     getScheduledJobs().then(jobs => {
       setPurgeJob(jobs.find(j => j.name === 'purge_scan_history') ?? null)
       setAlertsJob(jobs.find(j => j.name === 'expiry_alerts') ?? null)
+      setAuditPurgeJob(jobs.find(j => j.name === 'purge_audit_logs') ?? null)
     }).catch(() => {})
   }, [])
 
@@ -292,6 +302,22 @@ export default function MaintenancePage() {
       setRetentionError('Failed to save retention setting.')
     } finally {
       setSavingRetention(false)
+    }
+  }
+
+  async function handleSaveAuditRetention() {
+    setSavingAuditRetention(true)
+    setAuditRetentionError(null)
+    setAuditRetentionSuccess(false)
+    try {
+      const r = await setAuditLogRetention(auditRetentionDays)
+      setAuditRetentionDays(r.days)
+      setAuditRetentionSuccess(true)
+      setTimeout(() => setAuditRetentionSuccess(false), 3000)
+    } catch {
+      setAuditRetentionError('Failed to save retention setting.')
+    } finally {
+      setSavingAuditRetention(false)
     }
   }
 
@@ -348,6 +374,41 @@ export default function MaintenancePage() {
           <div className="flex justify-end">
             <Button variant="outline" onClick={handleSaveRetention} disabled={savingRetention}>
               {savingRetention ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </JobScheduleCard>
+
+      <JobScheduleCard
+        job={auditPurgeJob}
+        icon={<ScrollText className="h-4 w-4 text-muted-foreground" />}
+        title="Purge Audit Logs"
+        description="Remove audit log entries older than the retention window."
+        onRun={async () => {
+          const r = await runPurgeAuditLogs()
+          return r.deleted === 1 ? 'Removed 1 entry.' : `Removed ${r.deleted} entries.`
+        }}
+      >
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Retention</Label>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="audit-retention-days" className="shrink-0 text-muted-foreground">Keep logs for</Label>
+            <Input
+              id="audit-retention-days"
+              type="number"
+              min={1}
+              max={3650}
+              value={auditRetentionDays}
+              onChange={e => setAuditRetentionDays(Number(e.target.value))}
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">days</span>
+          </div>
+          {auditRetentionError   && <p className="text-sm text-destructive">{auditRetentionError}</p>}
+          {auditRetentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={handleSaveAuditRetention} disabled={savingAuditRetention}>
+              {savingAuditRetention ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </div>

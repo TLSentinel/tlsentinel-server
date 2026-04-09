@@ -24,8 +24,15 @@ type ScheduledJob struct {
 	LastRunStatus  *string `json:"lastRunStatus"`
 }
 
+// AuditLogRetentionKey is the settings key for the audit log retention window in days.
+const AuditLogRetentionKey = "audit_log_retention_days"
+
+// DefaultAuditLogRetentionDays is used when the key is absent from the database.
+const DefaultAuditLogRetentionDays = 365
+
 // Known job names.
 const (
 	JobExpiryAlerts     = "expiry_alerts"
 	JobPurgeScanHistory = "purge_scan_history"
+	JobPurgeAuditLogs   = "purge_audit_logs"
 )

@@ -52,3 +52,23 @@ export interface PurgeScanHistoryResponse {
 export function runPurgeScanHistory(): Promise<PurgeScanHistoryResponse> {
   return api.post<PurgeScanHistoryResponse>('/maintenance/run/purge-scan-history')
 }
+
+export interface AuditLogRetentionResponse {
+  days: number
+}
+
+export function getAuditLogRetention(): Promise<AuditLogRetentionResponse> {
+  return api.get<AuditLogRetentionResponse>('/maintenance/audit-log-retention')
+}
+
+export function setAuditLogRetention(days: number): Promise<AuditLogRetentionResponse> {
+  return api.put<AuditLogRetentionResponse>('/maintenance/audit-log-retention', { days })
+}
+
+export interface PurgeAuditLogsResponse {
+  deleted: number
+}
+
+export function runPurgeAuditLogs(): Promise<PurgeAuditLogsResponse> {
+  return api.post<PurgeAuditLogsResponse>('/maintenance/run/purge-audit-logs')
+}

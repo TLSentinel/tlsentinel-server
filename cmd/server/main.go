@@ -111,6 +111,19 @@ func main() {
 			}
 			log.Info("purge scan history complete", zap.Int64("deleted", deleted), zap.Int("retention_days", days))
 		},
+		models.JobPurgeAuditLogs: func() {
+			days, err := store.GetAuditLogRetentionDays(context.Background())
+			if err != nil {
+				log.Error("purge audit logs: failed to get retention setting", zap.Error(err))
+				return
+			}
+			deleted, err := store.PurgeAuditLogs(context.Background(), days)
+			if err != nil {
+				log.Error("purge audit logs failed", zap.Error(err))
+				return
+			}
+			log.Info("purge audit logs complete", zap.Int64("deleted", deleted), zap.Int("retention_days", days))
+		},
 	}
 
 	sched := scheduler.New(jobRegistry)

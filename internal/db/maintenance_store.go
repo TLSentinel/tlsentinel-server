@@ -27,3 +27,20 @@ func (s *Store) PurgeScanHistory(ctx context.Context, days int) (int64, error) {
 	}
 	return n, nil
 }
+
+// PurgeAuditLogs deletes audit log entries older than the given number of days.
+// Returns the number of rows deleted.
+func (s *Store) PurgeAuditLogs(ctx context.Context, days int) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		DELETE FROM tlsentinel.audit_logs
+		WHERE created_at < NOW() - (? * INTERVAL '1 day')
+	`, days)
+	if err != nil {
+		return 0, fmt.Errorf("purge audit logs: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("purge audit logs rows affected: %w", err)
+	}
+	return n, nil
+}

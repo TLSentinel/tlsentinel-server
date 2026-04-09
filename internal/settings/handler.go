@@ -257,3 +257,78 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 	h.logAudit(r, "maintenance.purge_scan_history.run")
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
+
+// auditLogRetentionResponse is the response envelope for audit log retention endpoints.
+type auditLogRetentionResponse struct {
+	Days int `json:"days"`
+}
+
+// @Summary      Get audit log retention
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  auditLogRetentionResponse
+// @Router       /maintenance/audit-log-retention [get]
+func (h *Handler) GetAuditLogRetention(w http.ResponseWriter, r *http.Request) {
+	days, err := h.store.GetAuditLogRetentionDays(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get audit log retention", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, auditLogRetentionResponse{Days: days})
+}
+
+// @Summary      Set audit log retention
+// @Tags         maintenance
+// @Accept       json
+// @Produce      json
+// @Param        request  body      auditLogRetentionResponse  true  "Retention days"
+// @Success      200  {object}  auditLogRetentionResponse
+// @Router       /maintenance/audit-log-retention [put]
+func (h *Handler) SetAuditLogRetention(w http.ResponseWriter, r *http.Request) {
+	var req auditLogRetentionResponse
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Days < 1 || req.Days > 3650 {
+		http.Error(w, "retention must be between 1 and 3650 days", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.SetAuditLogRetentionDays(r.Context(), req.Days); err != nil {
+		http.Error(w, "failed to save audit log retention", http.StatusInternalServerError)
+		return
+	}
+	h.logAudit(r, "settings.audit_log_retention.update")
+	response.JSON(w, http.StatusOK, auditLogRetentionResponse{Days: req.Days})
+}
+
+// purgeAuditLogsResponse is the response envelope for an audit log purge run.
+type purgeAuditLogsResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
+// @Summary      Run purge audit logs
+// @Description  Immediately purges audit log entries older than the configured retention window.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  purgeAuditLogsResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/purge-audit-logs [post]
+func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
+	days, err := h.store.GetAuditLogRetentionDays(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get retention setting", http.StatusInternalServerError)
+		return
+	}
+	deleted, err := h.store.PurgeAuditLogs(r.Context(), days)
+	if err != nil {
+		http.Error(w, "purge failed", http.StatusInternalServerError)
+		return
+	}
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobPurgeAuditLogs,
+		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
+		slog.Warn("failed to update job last run after manual audit log purge", "err", err)
+	}
+	h.logAudit(r, "maintenance.purge_audit_logs.run")
+	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
+}
