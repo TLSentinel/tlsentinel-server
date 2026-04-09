@@ -137,7 +137,6 @@ function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: s
         </div>
       )}
 
-      <span className="font-mono text-xs text-muted-foreground">{scheduleToCron(sched)}</span>
     </div>
   )
 }
@@ -215,42 +214,47 @@ function JobScheduleCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {children && (
-          <>
-            {children}
-            <div className="border-t" />
-          </>
-        )}
-
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Automatic Schedule</Label>
+            <Label className="text-sm font-medium">Schedule</Label>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{enabled ? 'Enabled' : 'Disabled'}</span>
               <Switch checked={enabled} onCheckedChange={setEnabled} />
             </div>
           </div>
           <SchedulePicker value={cronExpr} onChange={setCronExpr} />
-          {job?.lastRunAt && (
-            <p className="text-xs text-muted-foreground">
-              Last run: {new Date(job.lastRunAt).toLocaleString()}
-              {job.lastRunStatus && ` — ${job.lastRunStatus}`}
-            </p>
-          )}
-          {error     && <p className="text-sm text-destructive">{error}</p>}
-          {success   && <p className="text-sm text-green-600">Schedule saved.</p>}
-          {runResult && <p className="text-sm text-green-600">{runResult}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleSave} disabled={saving || !job}>
-              {saving ? 'Saving…' : 'Save Schedule'}
-            </Button>
-            {onRun && (
-              <Button variant="destructive" onClick={handleRun} disabled={running}>
-                {running ? 'Running…' : 'Run Now'}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {job?.lastRunAt && (
+                <p className="text-xs text-muted-foreground">
+                  Last run: {new Date(job.lastRunAt).toLocaleString()}
+                  {job.lastRunStatus && ` — ${job.lastRunStatus}`}
+                </p>
+              )}
+              {onRun && (
+                <Button variant="ghost" size="sm" onClick={handleRun} disabled={running}
+                  className="text-xs text-muted-foreground hover:text-foreground">
+                  {running ? 'Running…' : 'Run Now'}
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              {error     && <p className="text-sm text-destructive">{error}</p>}
+              {success   && <p className="text-sm text-green-600">Schedule saved.</p>}
+              {runResult && <p className="text-sm text-green-600">{runResult}</p>}
+              <Button variant="outline" size="sm" onClick={handleSave} disabled={saving || !job}>
+                {saving ? 'Saving…' : 'Save Schedule'}
               </Button>
-            )}
+            </div>
           </div>
         </div>
+
+        {children && (
+          <>
+            <div className="border-t" />
+            {children}
+          </>
+        )}
       </CardContent>
     </Card>
   )

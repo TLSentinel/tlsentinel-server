@@ -50,7 +50,7 @@ export default function SettingsPage() {
         <HubCard
           icon={<Webhook className="h-4 w-4" />}
           title="Webhooks"
-          description="POST alerts to Slack, PagerDuty, or any HTTP endpoint on cert or scan events."
+          description="POST alerts to any HTTP endpoint on cert or scan events."
           soon
         />
         <HubCard
