@@ -2,9 +2,12 @@ package settings
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sort"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
@@ -131,6 +134,42 @@ func (h *Handler) GetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 		return
 	}
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: days})
+}
+
+func (h *Handler) GetScheduledJobs(w http.ResponseWriter, r *http.Request) {
+	jobs, err := h.store.ListScheduledJobs(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get scheduled jobs", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, jobs)
+}
+
+func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	var req struct {
+		CronExpression string `json:"cronExpression"`
+		Enabled        bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.CronExpression == "" {
+		http.Error(w, "cronExpression is required", http.StatusBadRequest)
+		return
+	}
+	job, err := h.store.UpsertScheduledJob(r.Context(), name, req.CronExpression, req.Enabled)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "job not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to update scheduled job", http.StatusInternalServerError)
+		return
+	}
+	h.logAudit(r, "settings.scheduled_job.update")
+	response.JSON(w, http.StatusOK, job)
 }
 
 func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request) {

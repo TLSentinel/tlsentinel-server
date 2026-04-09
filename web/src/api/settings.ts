@@ -23,3 +23,20 @@ export function getScanHistoryRetention(): Promise<ScanHistoryRetentionResponse>
 export function setScanHistoryRetention(days: number): Promise<ScanHistoryRetentionResponse> {
   return api.put<ScanHistoryRetentionResponse>('/settings/scan-history-retention', { days })
 }
+
+export interface ScheduledJob {
+  name: string
+  displayName: string
+  cronExpression: string
+  enabled: boolean
+  lastRunAt: string | null
+  lastRunStatus: string | null
+}
+
+export function getScheduledJobs(): Promise<ScheduledJob[]> {
+  return api.get<ScheduledJob[]>('/settings/scheduled-jobs')
+}
+
+export function updateScheduledJob(name: string, cronExpression: string, enabled: boolean): Promise<ScheduledJob> {
+  return api.put<ScheduledJob>(`/settings/scheduled-jobs/${name}`, { cronExpression, enabled })
+}

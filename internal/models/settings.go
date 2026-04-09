@@ -13,3 +13,19 @@ const ScanHistoryRetentionKey = "scan_history_retention_days"
 
 // DefaultScanHistoryRetentionDays is used when the key is absent from the database.
 const DefaultScanHistoryRetentionDays = 90
+
+// ScheduledJob represents a named recurring job whose schedule is stored in the DB.
+type ScheduledJob struct {
+	Name           string  `json:"name"`
+	DisplayName    string  `json:"displayName"`
+	CronExpression string  `json:"cronExpression"`
+	Enabled        bool    `json:"enabled"`
+	LastRunAt      *string `json:"lastRunAt"`  // ISO 8601 or null
+	LastRunStatus  *string `json:"lastRunStatus"`
+}
+
+// Known job names.
+const (
+	JobExpiryAlerts     = "expiry_alerts"
+	JobPurgeScanHistory = "purge_scan_history"
+)

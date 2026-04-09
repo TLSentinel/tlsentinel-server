@@ -16,6 +16,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/notifications"
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
@@ -111,10 +112,39 @@ func main() {
 
 	enc := crypto.NewEncryptor(cfg.EncryptionKey)
 
+	// Build the registry of known job names → functions.
+	jobRegistry := map[string]func(){
+		models.JobExpiryAlerts: func() {
+			notifications.RunExpiryAlerts(context.Background(), store, enc, log)
+		},
+		models.JobPurgeScanHistory: func() {
+			// TODO: implement purge scan history job
+		},
+	}
+
 	sched := scheduler.New()
-	sched.Add("0 * * * *", "expiry-alerts", func() {
-		notifications.RunExpiryAlerts(context.Background(), store, enc, log)
-	})
+	if dbJobs, err := store.ListScheduledJobs(context.Background()); err != nil {
+		log.Warn("failed to load scheduled jobs from DB, scheduler not started", zap.Error(err))
+	} else {
+		for _, job := range dbJobs {
+			if !job.Enabled {
+				log.Info("job disabled, skipping", zap.String("job", job.Name))
+				continue
+			}
+			fn, ok := jobRegistry[job.Name]
+			if !ok {
+				log.Warn("no handler registered for job", zap.String("job", job.Name))
+				continue
+			}
+			jobName := job.Name
+			sched.Add(job.CronExpression, job.DisplayName, func() {
+				fn()
+				if err := store.UpdateJobLastRun(context.Background(), jobName, "success"); err != nil {
+					log.Warn("failed to update job last run", zap.String("job", jobName), zap.Error(err))
+				}
+			})
+		}
+	}
 
 	schedCtx, schedCancel := context.WithCancel(context.Background())
 	defer schedCancel()
