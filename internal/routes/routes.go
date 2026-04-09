@@ -216,14 +216,10 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsView))
 					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
-					r.Get("/scan-history-retention", settingsHandler.GetScanHistoryRetention)
-					r.Get("/scheduled-jobs", settingsHandler.GetScheduledJobs)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsEdit))
 					r.Put("/alert-thresholds", settingsHandler.SetAlertThresholds)
-					r.Put("/scan-history-retention", settingsHandler.SetScanHistoryRetention)
-					r.Put("/scheduled-jobs/{name}", settingsHandler.UpdateScheduledJob)
 				})
 				r.Route("/mail", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
@@ -236,6 +232,14 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Post("/test", mailHandler.Test)
 					})
 				})
+			})
+
+			r.Route("/maintenance", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.Maintenance))
+				r.Get("/scheduled-jobs", settingsHandler.GetScheduledJobs)
+				r.Put("/scheduled-jobs/{name}", settingsHandler.UpdateScheduledJob)
+				r.Get("/scan-history-retention", settingsHandler.GetScanHistoryRetention)
+				r.Put("/scan-history-retention", settingsHandler.SetScanHistoryRetention)
 			})
 
 			r.Route("/logs", func(r chi.Router) {

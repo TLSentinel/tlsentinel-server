@@ -31,6 +31,9 @@ const (
 	// Logs (audit log, job run history, etc.)
 	LogsView = "logs:view"
 
+	// Maintenance (scheduled jobs, purge tasks, etc.)
+	Maintenance = "maintenance"
+
 	// Tags
 	TagsView = "tags:view"
 	TagsEdit = "tags:edit"
@@ -69,6 +72,7 @@ var RolePermissions = map[string][]string{
 		TagsView,
 		TagsEdit,
 		LogsView,
+		Maintenance,
 		SelfRead,
 	},
 }

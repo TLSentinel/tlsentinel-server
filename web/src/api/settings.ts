@@ -16,12 +16,16 @@ export interface ScanHistoryRetentionResponse {
   days: number
 }
 
+export interface ScanHistoryRetentionResponse {
+  days: number
+}
+
 export function getScanHistoryRetention(): Promise<ScanHistoryRetentionResponse> {
-  return api.get<ScanHistoryRetentionResponse>('/settings/scan-history-retention')
+  return api.get<ScanHistoryRetentionResponse>('/maintenance/scan-history-retention')
 }
 
 export function setScanHistoryRetention(days: number): Promise<ScanHistoryRetentionResponse> {
-  return api.put<ScanHistoryRetentionResponse>('/settings/scan-history-retention', { days })
+  return api.put<ScanHistoryRetentionResponse>('/maintenance/scan-history-retention', { days })
 }
 
 export interface ScheduledJob {
@@ -34,9 +38,9 @@ export interface ScheduledJob {
 }
 
 export function getScheduledJobs(): Promise<ScheduledJob[]> {
-  return api.get<ScheduledJob[]>('/settings/scheduled-jobs')
+  return api.get<ScheduledJob[]>('/maintenance/scheduled-jobs')
 }
 
 export function updateScheduledJob(name: string, cronExpression: string, enabled: boolean): Promise<ScheduledJob> {
-  return api.put<ScheduledJob>(`/settings/scheduled-jobs/${name}`, { cronExpression, enabled })
+  return api.put<ScheduledJob>(`/maintenance/scheduled-jobs/${name}`, { cronExpression, enabled })
 }
