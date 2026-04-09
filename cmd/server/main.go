@@ -111,6 +111,14 @@ func main() {
 			}
 			log.Info("purge scan history complete", zap.Int64("deleted", deleted), zap.Int("retention_days", days))
 		},
+		models.JobPurgeExpiryAlerts: func() {
+			deleted, err := store.PurgeExpiryAlerts(context.Background())
+			if err != nil {
+				log.Error("purge expiry alerts failed", zap.Error(err))
+				return
+			}
+			log.Info("purge expiry alerts complete", zap.Int64("deleted", deleted))
+		},
 		models.JobPurgeAuditLogs: func() {
 			days, err := store.GetAuditLogRetentionDays(context.Background())
 			if err != nil {

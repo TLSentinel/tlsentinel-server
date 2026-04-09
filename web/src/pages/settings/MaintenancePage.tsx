@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Archive, Bell, ScrollText } from 'lucide-react'
+import { ChevronRight, Archive, Bell, ScrollText, BellOff } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,7 @@ import {
   getScanHistoryRetention, setScanHistoryRetention,
   getAuditLogRetention, setAuditLogRetention,
   getScheduledJobs, updateScheduledJob,
-  runPurgeScanHistory, runPurgeAuditLogs,
+  runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts,
   type ScheduledJob,
 } from '@/api/settings'
 
@@ -275,9 +275,10 @@ export default function MaintenancePage() {
   const [auditRetentionError, setAuditRetentionError]     = useState<string | null>(null)
   const [auditRetentionSuccess, setAuditRetentionSuccess] = useState(false)
 
-  const [purgeJob, setPurgeJob]         = useState<ScheduledJob | null>(null)
-  const [alertsJob, setAlertsJob]       = useState<ScheduledJob | null>(null)
-  const [auditPurgeJob, setAuditPurgeJob] = useState<ScheduledJob | null>(null)
+  const [purgeJob, setPurgeJob]               = useState<ScheduledJob | null>(null)
+  const [alertsJob, setAlertsJob]             = useState<ScheduledJob | null>(null)
+  const [auditPurgeJob, setAuditPurgeJob]     = useState<ScheduledJob | null>(null)
+  const [expiryPurgeJob, setExpiryPurgeJob]   = useState<ScheduledJob | null>(null)
 
   useEffect(() => {
     getScanHistoryRetention().then(r => setRetentionDays(r.days)).catch(() => {})
@@ -286,6 +287,7 @@ export default function MaintenancePage() {
       setPurgeJob(jobs.find(j => j.name === 'purge_scan_history') ?? null)
       setAlertsJob(jobs.find(j => j.name === 'expiry_alerts') ?? null)
       setAuditPurgeJob(jobs.find(j => j.name === 'purge_audit_logs') ?? null)
+      setExpiryPurgeJob(jobs.find(j => j.name === 'purge_expiry_alerts') ?? null)
     }).catch(() => {})
   }, [])
 
@@ -341,6 +343,17 @@ export default function MaintenancePage() {
         icon={<Bell className="h-4 w-4 text-muted-foreground" />}
         title="Certificate Expiry Alerts"
         description="Send email alerts to subscribers when certificates approach their expiry thresholds."
+      />
+
+      <JobScheduleCard
+        job={expiryPurgeJob}
+        icon={<BellOff className="h-4 w-4 text-muted-foreground" />}
+        title="Purge Expiry Alert Records"
+        description="Remove sent-alert tracking records for certificates that are no longer active on any endpoint. Clears the slate for replaced certificates so fresh alerts fire for new ones, while preserving records for active certs to prevent duplicate notifications."
+        onRun={async () => {
+          const r = await runPurgeExpiryAlerts()
+          return r.deleted === 1 ? 'Removed 1 record.' : `Removed ${r.deleted} records.`
+        }}
       />
 
       <JobScheduleCard
@@ -413,6 +426,7 @@ export default function MaintenancePage() {
           </div>
         </div>
       </JobScheduleCard>
+
     </div>
   )
 }

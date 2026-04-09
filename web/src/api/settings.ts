@@ -72,3 +72,11 @@ export interface PurgeAuditLogsResponse {
 export function runPurgeAuditLogs(): Promise<PurgeAuditLogsResponse> {
   return api.post<PurgeAuditLogsResponse>('/maintenance/run/purge-audit-logs')
 }
+
+export interface PurgeExpiryAlertsResponse {
+  deleted: number
+}
+
+export function runPurgeExpiryAlerts(): Promise<PurgeExpiryAlertsResponse> {
+  return api.post<PurgeExpiryAlertsResponse>('/maintenance/run/purge-expiry-alerts')
+}

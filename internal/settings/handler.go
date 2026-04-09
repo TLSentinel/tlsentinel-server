@@ -258,6 +258,32 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
 
+// purgeExpiryAlertsResponse is the response envelope for an expiry alerts purge run.
+type purgeExpiryAlertsResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
+// @Summary      Run purge expiry alerts
+// @Description  Immediately purges certificate_expiry_alerts rows for certificates that have already expired.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  purgeExpiryAlertsResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/purge-expiry-alerts [post]
+func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
+	deleted, err := h.store.PurgeExpiryAlerts(r.Context())
+	if err != nil {
+		http.Error(w, "purge failed", http.StatusInternalServerError)
+		return
+	}
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobPurgeExpiryAlerts,
+		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
+		slog.Warn("failed to update job last run after manual expiry alerts purge", "err", err)
+	}
+	h.logAudit(r, "maintenance.purge_expiry_alerts.run")
+	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
+}
+
 // auditLogRetentionResponse is the response envelope for audit log retention endpoints.
 type auditLogRetentionResponse struct {
 	Days int `json:"days"`

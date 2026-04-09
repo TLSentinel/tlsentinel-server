@@ -28,6 +28,29 @@ func (s *Store) PurgeScanHistory(ctx context.Context, days int) (int64, error) {
 	return n, nil
 }
 
+// PurgeExpiryAlerts deletes certificate_expiry_alerts rows for certificates that are
+// no longer the current cert on any endpoint. This wipes the dedup slate for replaced
+// certs so fresh alerts will fire for any new cert approaching expiry, while preserving
+// records for certs that are still active (preventing repeat alert spam).
+// Returns the number of rows deleted.
+func (s *Store) PurgeExpiryAlerts(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		DELETE FROM tlsentinel.certificate_expiry_alerts
+		WHERE fingerprint NOT IN (
+			SELECT DISTINCT fingerprint FROM tlsentinel.endpoint_certs
+			WHERE is_current = TRUE
+		)
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("purge expiry alerts: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("purge expiry alerts rows affected: %w", err)
+	}
+	return n, nil
+}
+
 // PurgeAuditLogs deletes audit log entries older than the given number of days.
 // Returns the number of rows deleted.
 func (s *Store) PurgeAuditLogs(ctx context.Context, days int) (int64, error) {

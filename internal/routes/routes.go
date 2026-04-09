@@ -244,6 +244,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Put("/audit-log-retention", settingsHandler.SetAuditLogRetention)
 				r.Post("/run/purge-scan-history", settingsHandler.RunPurgeScanHistory)
 				r.Post("/run/purge-audit-logs", settingsHandler.RunPurgeAuditLogs)
+				r.Post("/run/purge-expiry-alerts", settingsHandler.RunPurgeExpiryAlerts)
 			})
 
 			r.Route("/logs", func(r chi.Router) {
