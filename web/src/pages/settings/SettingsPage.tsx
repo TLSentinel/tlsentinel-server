@@ -36,7 +36,7 @@ export default function SettingsPage() {
           description="Send certificate expiry warnings and scan error alerts via email."
         />
         <HubCard
-          to="/settings/audit-logs"
+          to="/logs/audit"
           icon={<ScrollText className="h-4 w-4" />}
           title="Audit Log"
           description="Track user logins, certificate changes, and other administrative actions."
@@ -50,14 +50,14 @@ export default function SettingsPage() {
         <HubCard
           icon={<Webhook className="h-4 w-4" />}
           title="Webhooks"
-          description="POST alerts to Slack, PagerDuty, or any HTTP endpoint on cert or scan events."
+          description="POST alerts to any HTTP endpoint on cert or scan events."
           soon
         />
         <HubCard
+          to="/settings/maintenance"
           icon={<Wrench className="h-4 w-4" />}
           title="Maintenance"
           description="Purge scan history, prune orphaned certificates, and other database housekeeping tasks."
-          soon
         />
         <HubCard
           to="/settings/general"

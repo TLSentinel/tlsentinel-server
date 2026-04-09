@@ -128,9 +128,9 @@ export default function AuditLogPage() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground transition-colors">Settings</Link>
+        <Link to="/logs" className="hover:text-foreground transition-colors">Logs</Link>
         <span>/</span>
-        <span className="text-foreground">Audit Log</span>
+        <span className="text-foreground">Audit</span>
       </nav>
 
       <div className="flex items-start justify-between gap-4">

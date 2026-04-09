@@ -270,3 +270,16 @@ type VActiveCertificate struct {
 	NotAfter      time.Time `bun:"not_after"`
 	DaysRemaining int       `bun:"days_remaining"`
 }
+
+// ScheduledJob maps to tlsentinel.scheduled_jobs.
+type ScheduledJob struct {
+	bun.BaseModel `bun:"table:tlsentinel.scheduled_jobs"`
+
+	Name           string     `bun:"name,pk"`
+	DisplayName    string     `bun:"display_name"`
+	CronExpression string     `bun:"cron_expression"`
+	Enabled        bool       `bun:"enabled"`
+	LastRunAt      *time.Time `bun:"last_run_at"`
+	LastRunStatus  *string    `bun:"last_run_status"`
+	UpdatedAt      time.Time  `bun:"updated_at"`
+}

@@ -1,0 +1,432 @@
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronRight, Archive, Bell, ScrollText, BellOff } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import {
+  getScanHistoryRetention, setScanHistoryRetention,
+  getAuditLogRetention, setAuditLogRetention,
+  getScheduledJobs, updateScheduledJob,
+  runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts,
+  type ScheduledJob,
+} from '@/api/settings'
+
+// ── Schedule picker ───────────────────────────────────────────────────────────
+
+type Frequency = 'hourly' | 'daily' | 'weekly' | 'monthly'
+
+interface Schedule {
+  frequency: Frequency
+  hour: number
+  minute: number
+  weekday: number
+  day: number
+}
+
+function cronToSchedule(expr: string): Schedule | null {
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return null
+  const [min, hr, dom, , dow] = parts
+
+  if (min === '0' && hr === '*' && dom === '*' && dow === '*')
+    return { frequency: 'hourly', hour: 0, minute: 0, weekday: 0, day: 1 }
+
+  const h = parseInt(hr), m = parseInt(min)
+  if (isNaN(h) || isNaN(m)) return null
+
+  if (dom === '*' && dow === '*')
+    return { frequency: 'daily', hour: h, minute: m, weekday: 0, day: 1 }
+
+  if (dom === '*' && dow !== '*') {
+    const d = parseInt(dow)
+    if (isNaN(d)) return null
+    return { frequency: 'weekly', hour: h, minute: m, weekday: d, day: 1 }
+  }
+
+  if (dom !== '*' && dow === '*') {
+    const d = parseInt(dom)
+    if (isNaN(d)) return null
+    return { frequency: 'monthly', hour: h, minute: m, weekday: 0, day: d }
+  }
+
+  return null
+}
+
+function scheduleToCron(s: Schedule): string {
+  switch (s.frequency) {
+    case 'hourly':  return `0 * * * *`
+    case 'daily':   return `${s.minute} ${s.hour} * * *`
+    case 'weekly':  return `${s.minute} ${s.hour} * * ${s.weekday}`
+    case 'monthly': return `${s.minute} ${s.hour} ${s.day} * *`
+  }
+}
+
+const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+const HOURS    = Array.from({ length: 24 }, (_, i) => i)
+const MINUTES  = [0, 15, 30, 45]
+
+function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
+  const [sched, setSched] = useState<Schedule>(
+    cronToSchedule(value) ?? { frequency: 'daily', hour: 2, minute: 0, weekday: 0, day: 1 }
+  )
+
+  useEffect(() => {
+    const parsed = cronToSchedule(value)
+    if (parsed) setSched(parsed)
+  }, [value])
+
+  function update(patch: Partial<Schedule>) {
+    const next = { ...sched, ...patch }
+    setSched(next)
+    onChange(scheduleToCron(next))
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Select value={sched.frequency} onValueChange={v => update({ frequency: v as Frequency })}>
+        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="hourly">Hourly</SelectItem>
+          <SelectItem value="daily">Daily</SelectItem>
+          <SelectItem value="weekly">Weekly</SelectItem>
+          <SelectItem value="monthly">Monthly</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {sched.frequency === 'weekly' && (
+        <Select value={String(sched.weekday)} onValueChange={v => update({ weekday: parseInt(v) })}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {WEEKDAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+
+      {sched.frequency === 'monthly' && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">on day</span>
+          <Input
+            type="number" min={1} max={28}
+            value={sched.day}
+            onChange={e => update({ day: parseInt(e.target.value) || 1 })}
+            className="w-16"
+          />
+        </div>
+      )}
+
+      {sched.frequency !== 'hourly' && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">at</span>
+          <Select value={String(sched.hour)} onValueChange={v => update({ hour: parseInt(v) })}>
+            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {HOURS.map(h => <SelectItem key={h} value={String(h)}>{pad(h)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-muted-foreground">:</span>
+          <Select value={String(sched.minute)} onValueChange={v => update({ minute: parseInt(v) })}>
+            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MINUTES.map(m => <SelectItem key={m} value={String(m)}>{pad(m)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+// ── Reusable job schedule card ────────────────────────────────────────────────
+
+function JobScheduleCard({
+  job,
+  icon,
+  title,
+  description,
+  onRun,
+  children,
+}: {
+  job: ScheduledJob | null
+  icon: React.ReactNode
+  title: string
+  description: string
+  onRun?: () => Promise<string | undefined>
+  children?: React.ReactNode
+}) {
+  const [cronExpr, setCronExpr]     = useState(job?.cronExpression ?? '0 * * * *')
+  const [enabled, setEnabled]       = useState(job?.enabled ?? true)
+  const [saving, setSaving]         = useState(false)
+  const [running, setRunning]       = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [runResult, setRunResult]   = useState<string | null>(null)
+  const [success, setSuccess]       = useState(false)
+
+  useEffect(() => {
+    if (job) { setCronExpr(job.cronExpression); setEnabled(job.enabled) }
+  }, [job])
+
+  async function handleSave() {
+    if (!job) return
+    setSaving(true)
+    setError(null)
+    setSuccess(false)
+    try {
+      await updateScheduledJob(job.name, cronExpr, enabled)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch {
+      setError('Failed to save schedule.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRun() {
+    if (!onRun) return
+    setRunning(true)
+    setRunResult(null)
+    setError(null)
+    try {
+      const msg = await onRun()
+      if (msg) {
+        setRunResult(msg)
+        setTimeout(() => setRunResult(null), 6000)
+      }
+    } catch {
+      setError('Run failed.')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Schedule</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{enabled ? 'Enabled' : 'Disabled'}</span>
+              <Switch checked={enabled} onCheckedChange={setEnabled} />
+            </div>
+          </div>
+          <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {job?.lastRunAt && (
+                <p className="text-xs text-muted-foreground">
+                  Last run: {new Date(job.lastRunAt).toLocaleString()}
+                  {job.lastRunStatus && ` — ${job.lastRunStatus}`}
+                </p>
+              )}
+              {onRun && (
+                <Button variant="ghost" size="sm" onClick={handleRun} disabled={running}
+                  className="text-xs text-muted-foreground hover:text-foreground">
+                  {running ? 'Running…' : 'Run Now'}
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              {error     && <p className="text-sm text-destructive">{error}</p>}
+              {success   && <p className="text-sm text-green-600">Schedule saved.</p>}
+              {runResult && <p className="text-sm text-green-600">{runResult}</p>}
+              <Button variant="outline" size="sm" onClick={handleSave} disabled={saving || !job}>
+                {saving ? 'Saving…' : 'Save Schedule'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {children && (
+          <>
+            <div className="border-t" />
+            {children}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function MaintenancePage() {
+  const [retentionDays, setRetentionDays]       = useState(90)
+  const [savingRetention, setSavingRetention]   = useState(false)
+  const [retentionError, setRetentionError]     = useState<string | null>(null)
+  const [retentionSuccess, setRetentionSuccess] = useState(false)
+
+  const [auditRetentionDays, setAuditRetentionDays]       = useState(365)
+  const [savingAuditRetention, setSavingAuditRetention]   = useState(false)
+  const [auditRetentionError, setAuditRetentionError]     = useState<string | null>(null)
+  const [auditRetentionSuccess, setAuditRetentionSuccess] = useState(false)
+
+  const [purgeJob, setPurgeJob]               = useState<ScheduledJob | null>(null)
+  const [alertsJob, setAlertsJob]             = useState<ScheduledJob | null>(null)
+  const [auditPurgeJob, setAuditPurgeJob]     = useState<ScheduledJob | null>(null)
+  const [expiryPurgeJob, setExpiryPurgeJob]   = useState<ScheduledJob | null>(null)
+
+  useEffect(() => {
+    getScanHistoryRetention().then(r => setRetentionDays(r.days)).catch(() => {})
+    getAuditLogRetention().then(r => setAuditRetentionDays(r.days)).catch(() => {})
+    getScheduledJobs().then(jobs => {
+      setPurgeJob(jobs.find(j => j.name === 'purge_scan_history') ?? null)
+      setAlertsJob(jobs.find(j => j.name === 'expiry_alerts') ?? null)
+      setAuditPurgeJob(jobs.find(j => j.name === 'purge_audit_logs') ?? null)
+      setExpiryPurgeJob(jobs.find(j => j.name === 'purge_expiry_alerts') ?? null)
+    }).catch(() => {})
+  }, [])
+
+  async function handleSaveRetention() {
+    setSavingRetention(true)
+    setRetentionError(null)
+    setRetentionSuccess(false)
+    try {
+      const r = await setScanHistoryRetention(retentionDays)
+      setRetentionDays(r.days)
+      setRetentionSuccess(true)
+      setTimeout(() => setRetentionSuccess(false), 3000)
+    } catch {
+      setRetentionError('Failed to save retention setting.')
+    } finally {
+      setSavingRetention(false)
+    }
+  }
+
+  async function handleSaveAuditRetention() {
+    setSavingAuditRetention(true)
+    setAuditRetentionError(null)
+    setAuditRetentionSuccess(false)
+    try {
+      const r = await setAuditLogRetention(auditRetentionDays)
+      setAuditRetentionDays(r.days)
+      setAuditRetentionSuccess(true)
+      setTimeout(() => setAuditRetentionSuccess(false), 3000)
+    } catch {
+      setAuditRetentionError('Failed to save retention setting.')
+    } finally {
+      setSavingAuditRetention(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/settings" className="hover:text-foreground">Settings</Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="text-foreground">Maintenance</span>
+      </nav>
+
+      <div>
+        <h1 className="text-2xl font-semibold">Maintenance</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Database housekeeping tasks and their automated schedules.
+        </p>
+      </div>
+
+      <JobScheduleCard
+        job={alertsJob}
+        icon={<Bell className="h-4 w-4 text-muted-foreground" />}
+        title="Certificate Expiry Alerts"
+        description="Send email alerts to subscribers when certificates approach their expiry thresholds."
+      />
+
+      <JobScheduleCard
+        job={expiryPurgeJob}
+        icon={<BellOff className="h-4 w-4 text-muted-foreground" />}
+        title="Purge Expiry Alert Records"
+        description="Remove sent-alert tracking records for certificates that are no longer active on any endpoint. Clears the slate for replaced certificates so fresh alerts fire for new ones, while preserving records for active certs to prevent duplicate notifications."
+        onRun={async () => {
+          const r = await runPurgeExpiryAlerts()
+          return r.deleted === 1 ? 'Removed 1 record.' : `Removed ${r.deleted} records.`
+        }}
+      />
+
+      <JobScheduleCard
+        job={purgeJob}
+        icon={<Archive className="h-4 w-4 text-muted-foreground" />}
+        title="Purge Scan History"
+        description="Remove scan history records older than the retention window. The most recent entry per endpoint is always kept regardless of age."
+        onRun={async () => {
+          const r = await runPurgeScanHistory()
+          return r.deleted === 1 ? 'Removed 1 row.' : `Removed ${r.deleted} rows.`
+        }}
+      >
+        {/* Retention setting lives inside the purge card */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Retention</Label>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="retention-days" className="shrink-0 text-muted-foreground">Keep history for</Label>
+            <Input
+              id="retention-days"
+              type="number"
+              min={1}
+              max={3650}
+              value={retentionDays}
+              onChange={e => setRetentionDays(Number(e.target.value))}
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">days</span>
+          </div>
+          {retentionError   && <p className="text-sm text-destructive">{retentionError}</p>}
+          {retentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={handleSaveRetention} disabled={savingRetention}>
+              {savingRetention ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </JobScheduleCard>
+
+      <JobScheduleCard
+        job={auditPurgeJob}
+        icon={<ScrollText className="h-4 w-4 text-muted-foreground" />}
+        title="Purge Audit Logs"
+        description="Remove audit log entries older than the retention window."
+        onRun={async () => {
+          const r = await runPurgeAuditLogs()
+          return r.deleted === 1 ? 'Removed 1 entry.' : `Removed ${r.deleted} entries.`
+        }}
+      >
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Retention</Label>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="audit-retention-days" className="shrink-0 text-muted-foreground">Keep logs for</Label>
+            <Input
+              id="audit-retention-days"
+              type="number"
+              min={1}
+              max={3650}
+              value={auditRetentionDays}
+              onChange={e => setAuditRetentionDays(Number(e.target.value))}
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">days</span>
+          </div>
+          {auditRetentionError   && <p className="text-sm text-destructive">{auditRetentionError}</p>}
+          {auditRetentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={handleSaveAuditRetention} disabled={savingAuditRetention}>
+              {savingAuditRetention ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </JobScheduleCard>
+
+    </div>
+  )
+}

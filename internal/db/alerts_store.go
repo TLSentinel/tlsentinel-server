@@ -100,7 +100,7 @@ func (s *Store) TryInsertExpiryAlert(ctx context.Context, userID, fingerprint st
 	res, err := s.db.NewInsert().
 		Model(row).
 		Value("alerted_at", "NOW()").
-		On("CONFLICT (fingerprint, threshold_days) DO NOTHING").
+		On("CONFLICT (user_id, fingerprint, threshold_days) DO NOTHING").
 		Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to insert expiry alert: %w", err)

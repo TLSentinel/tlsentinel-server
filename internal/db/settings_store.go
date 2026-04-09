@@ -74,3 +74,47 @@ func (s *Store) SetAlertThresholds(ctx context.Context, thresholds []int) error 
 	return s.SetSetting(ctx, models.AlertThresholdsKey, thresholds)
 }
 
+// GetScanHistoryRetentionDays returns the configured scan history retention
+// window in days. Falls back to the default if the key is not set.
+func (s *Store) GetScanHistoryRetentionDays(ctx context.Context) (int, error) {
+	raw, err := s.GetSetting(ctx, models.ScanHistoryRetentionKey)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return models.DefaultScanHistoryRetentionDays, nil
+		}
+		return 0, err
+	}
+	var days int
+	if err := json.Unmarshal(raw, &days); err != nil {
+		return 0, fmt.Errorf("decode scan history retention: %w", err)
+	}
+	return days, nil
+}
+
+// SetScanHistoryRetentionDays persists the scan history retention window.
+func (s *Store) SetScanHistoryRetentionDays(ctx context.Context, days int) error {
+	return s.SetSetting(ctx, models.ScanHistoryRetentionKey, days)
+}
+
+// GetAuditLogRetentionDays returns the configured audit log retention window in days.
+// Falls back to the default if the key is not set.
+func (s *Store) GetAuditLogRetentionDays(ctx context.Context) (int, error) {
+	raw, err := s.GetSetting(ctx, models.AuditLogRetentionKey)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return models.DefaultAuditLogRetentionDays, nil
+		}
+		return 0, err
+	}
+	var days int
+	if err := json.Unmarshal(raw, &days); err != nil {
+		return 0, fmt.Errorf("decode audit log retention: %w", err)
+	}
+	return days, nil
+}
+
+// SetAuditLogRetentionDays persists the audit log retention window.
+func (s *Store) SetAuditLogRetentionDays(ctx context.Context, days int) error {
+	return s.SetSetting(ctx, models.AuditLogRetentionKey, days)
+}
+

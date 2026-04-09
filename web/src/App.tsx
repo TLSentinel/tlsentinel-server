@@ -15,6 +15,7 @@ import MailConfigPage from '@/pages/settings/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
 import ActivePage from '@/pages/ActivePage'
 import GeneralSettingsPage from '@/pages/settings/GeneralSettingsPage'
+import MaintenancePage from '@/pages/settings/MaintenancePage'
 import AuthCallbackPage from '@/pages/AuthCallbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import AccountPage from '@/pages/account/AccountPage'
@@ -85,6 +86,10 @@ export default function App() {
           </Route>
 
           {/* Settings hub + sub-pages */}
+          <Route path="logs">
+            <Route path="audit" element={<AuditLogPage />} />
+          </Route>
+
           <Route path="settings">
             <Route index element={<SettingsPage />} />
             <Route path="scanners" element={<ScannersPage />} />
@@ -93,9 +98,10 @@ export default function App() {
             <Route path="groups/new" element={<GroupFormPage />} />
             <Route path="groups/:id/edit" element={<GroupFormPage />} />
             <Route path="mail" element={<MailConfigPage />} />
-            <Route path="audit-logs" element={<AuditLogPage />} />
+            <Route path="audit-logs" element={<Navigate to="/logs/audit" replace />} />
             <Route path="tags" element={<TagsPage />} />
             <Route path="general" element={<GeneralSettingsPage />} />
+            <Route path="maintenance" element={<MaintenancePage />} />
             <Route path="about" element={<AboutPage />} />
           </Route>
 
