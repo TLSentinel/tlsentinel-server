@@ -68,10 +68,14 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = [0, 15, 30, 45]
 
 function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
-  const parsed = cronToSchedule(value)
   const [sched, setSched] = useState<Schedule>(
-    parsed ?? { frequency: 'daily', hour: 2, minute: 0, weekday: 0, day: 1 }
+    cronToSchedule(value) ?? { frequency: 'daily', hour: 2, minute: 0, weekday: 0, day: 1 }
   )
+
+  useEffect(() => {
+    const parsed = cronToSchedule(value)
+    if (parsed) setSched(parsed)
+  }, [value])
 
   function update(patch: Partial<Schedule>) {
     const next = { ...sched, ...patch }
