@@ -99,7 +99,17 @@ func main() {
 			notifications.RunExpiryAlerts(context.Background(), store, enc, log)
 		},
 		models.JobPurgeScanHistory: func() {
-			// TODO: implement purge scan history job
+			days, err := store.GetScanHistoryRetentionDays(context.Background())
+			if err != nil {
+				log.Error("purge scan history: failed to get retention setting", zap.Error(err))
+				return
+			}
+			deleted, err := store.PurgeScanHistory(context.Background(), days)
+			if err != nil {
+				log.Error("purge scan history failed", zap.Error(err))
+				return
+			}
+			log.Info("purge scan history complete", zap.Int64("deleted", deleted), zap.Int("retention_days", days))
 		},
 	}
 

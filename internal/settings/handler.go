@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -224,4 +225,35 @@ func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 	}
 	h.logAudit(r, "settings.scan_history_retention.update")
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: req.Days})
+}
+
+// purgeScanHistoryResponse is the response envelope for a purge run.
+type purgeScanHistoryResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
+// @Summary      Run purge scan history
+// @Description  Immediately purges scan history rows older than the configured retention window. Always preserves the most recent entry per endpoint.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  purgeScanHistoryResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/purge-scan-history [post]
+func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
+	days, err := h.store.GetScanHistoryRetentionDays(r.Context())
+	if err != nil {
+		http.Error(w, "failed to get retention setting", http.StatusInternalServerError)
+		return
+	}
+	deleted, err := h.store.PurgeScanHistory(r.Context(), days)
+	if err != nil {
+		http.Error(w, "purge failed", http.StatusInternalServerError)
+		return
+	}
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobPurgeScanHistory,
+		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
+		slog.Warn("failed to update job last run after manual purge", "err", err)
+	}
+	h.logAudit(r, "maintenance.purge_scan_history.run")
+	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }

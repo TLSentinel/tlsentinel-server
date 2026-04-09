@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import {
   getScanHistoryRetention, setScanHistoryRetention,
-  getScheduledJobs, updateScheduledJob,
+  getScheduledJobs, updateScheduledJob, runPurgeScanHistory,
   type ScheduledJob,
 } from '@/api/settings'
 
@@ -156,7 +156,7 @@ function JobScheduleCard({
   icon: React.ReactNode
   title: string
   description: string
-  onRun: () => void
+  onRun?: () => Promise<string | undefined>
   children?: React.ReactNode
 }) {
   const [cronExpr, setCronExpr]     = useState(job?.cronExpression ?? '0 * * * *')
@@ -164,6 +164,7 @@ function JobScheduleCard({
   const [saving, setSaving]         = useState(false)
   const [running, setRunning]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
+  const [runResult, setRunResult]   = useState<string | null>(null)
   const [success, setSuccess]       = useState(false)
 
   useEffect(() => {
@@ -186,10 +187,22 @@ function JobScheduleCard({
     }
   }
 
-  function handleRun() {
+  async function handleRun() {
+    if (!onRun) return
     setRunning(true)
-    onRun()
-    setTimeout(() => setRunning(false), 1500)
+    setRunResult(null)
+    setError(null)
+    try {
+      const msg = await onRun()
+      if (msg) {
+        setRunResult(msg)
+        setTimeout(() => setRunResult(null), 6000)
+      }
+    } catch {
+      setError('Run failed.')
+    } finally {
+      setRunning(false)
+    }
   }
 
   return (
@@ -224,15 +237,18 @@ function JobScheduleCard({
               {job.lastRunStatus && ` — ${job.lastRunStatus}`}
             </p>
           )}
-          {error   && <p className="text-sm text-destructive">{error}</p>}
-          {success && <p className="text-sm text-green-600">Schedule saved.</p>}
+          {error     && <p className="text-sm text-destructive">{error}</p>}
+          {success   && <p className="text-sm text-green-600">Schedule saved.</p>}
+          {runResult && <p className="text-sm text-green-600">{runResult}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleSave} disabled={saving || !job}>
               {saving ? 'Saving…' : 'Save Schedule'}
             </Button>
-            <Button variant="destructive" onClick={handleRun} disabled={running}>
-              {running ? 'Running…' : 'Run Now'}
-            </Button>
+            {onRun && (
+              <Button variant="destructive" onClick={handleRun} disabled={running}>
+                {running ? 'Running…' : 'Run Now'}
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
@@ -295,7 +311,6 @@ export default function MaintenancePage() {
         icon={<Bell className="h-4 w-4 text-muted-foreground" />}
         title="Certificate Expiry Alerts"
         description="Send email alerts to subscribers when certificates approach their expiry thresholds."
-        onRun={() => {}}
       />
 
       <JobScheduleCard
@@ -303,7 +318,10 @@ export default function MaintenancePage() {
         icon={<Archive className="h-4 w-4 text-muted-foreground" />}
         title="Purge Scan History"
         description="Remove scan history records older than the retention window. The most recent entry per endpoint is always kept regardless of age."
-        onRun={() => {}}
+        onRun={async () => {
+          const r = await runPurgeScanHistory()
+          return r.deleted === 1 ? 'Removed 1 row.' : `Removed ${r.deleted} rows.`
+        }}
       >
         {/* Retention setting lives inside the purge card */}
         <div className="space-y-3">

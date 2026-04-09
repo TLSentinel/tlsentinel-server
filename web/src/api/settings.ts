@@ -44,3 +44,11 @@ export function getScheduledJobs(): Promise<ScheduledJob[]> {
 export function updateScheduledJob(name: string, cronExpression: string, enabled: boolean): Promise<ScheduledJob> {
   return api.put<ScheduledJob>(`/maintenance/scheduled-jobs/${name}`, { cronExpression, enabled })
 }
+
+export interface PurgeScanHistoryResponse {
+  deleted: number
+}
+
+export function runPurgeScanHistory(): Promise<PurgeScanHistoryResponse> {
+  return api.post<PurgeScanHistoryResponse>('/maintenance/run/purge-scan-history')
+}

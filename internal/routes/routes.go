@@ -240,6 +240,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Put("/scheduled-jobs/{name}", settingsHandler.UpdateScheduledJob)
 				r.Get("/scan-history-retention", settingsHandler.GetScanHistoryRetention)
 				r.Put("/scan-history-retention", settingsHandler.SetScanHistoryRetention)
+				r.Post("/run/purge-scan-history", settingsHandler.RunPurgeScanHistory)
 			})
 
 			r.Route("/logs", func(r chi.Router) {
