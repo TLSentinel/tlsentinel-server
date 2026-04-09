@@ -218,7 +218,6 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
 					r.Get("/scan-history-retention", settingsHandler.GetScanHistoryRetention)
 					r.Get("/scheduled-jobs", settingsHandler.GetScheduledJobs)
-					r.Get("/audit-logs", auditHandler.List)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsEdit))
@@ -237,6 +236,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Post("/test", mailHandler.Test)
 					})
 				})
+			})
+
+			r.Route("/logs", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.LogsView))
+				r.Get("/audit", auditHandler.List)
 			})
 
 			r.Route("/tags", func(r chi.Router) {

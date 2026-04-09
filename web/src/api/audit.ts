@@ -14,5 +14,5 @@ export async function listAuditLogs(
   if (username) params.set('username', username)
   if (action) params.set('action', action)
 
-  return api.get<AuditLogList>(`/settings/audit-logs?${params}`)
+  return api.get<AuditLogList>(`/logs/audit?${params}`)
 }

@@ -28,6 +28,9 @@ const (
 	SettingsView = "settings:view"
 	SettingsEdit = "settings:edit"
 
+	// Logs (audit log, job run history, etc.)
+	LogsView = "logs:view"
+
 	// Tags
 	TagsView = "tags:view"
 	TagsEdit = "tags:edit"
@@ -65,6 +68,7 @@ var RolePermissions = map[string][]string{
 		SettingsView,
 		TagsView,
 		TagsEdit,
+		LogsView,
 		SelfRead,
 	},
 }
