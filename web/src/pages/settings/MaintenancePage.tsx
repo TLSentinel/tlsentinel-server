@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Archive } from 'lucide-react'
+import { ChevronRight, Archive, Bell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,10 +19,10 @@ type Frequency = 'hourly' | 'daily' | 'weekly' | 'monthly'
 
 interface Schedule {
   frequency: Frequency
-  hour: number    // 0–23
-  minute: number  // 0–59
-  weekday: number // 0=Sun … 6=Sat (weekly only)
-  day: number     // 1–28 (monthly only)
+  hour: number
+  minute: number
+  weekday: number
+  day: number
 }
 
 function cronToSchedule(expr: string): Schedule | null {
@@ -64,8 +64,8 @@ function scheduleToCron(s: Schedule): string {
 }
 
 const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
-const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const MINUTES = [0, 15, 30, 45]
+const HOURS    = Array.from({ length: 24 }, (_, i) => i)
+const MINUTES  = [0, 15, 30, 45]
 
 function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
   const [sched, setSched] = useState<Schedule>(
@@ -142,27 +142,120 @@ function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: s
   )
 }
 
+// ── Reusable job schedule card ────────────────────────────────────────────────
+
+function JobScheduleCard({
+  job,
+  icon,
+  title,
+  description,
+  onRun,
+  children,
+}: {
+  job: ScheduledJob | null
+  icon: React.ReactNode
+  title: string
+  description: string
+  onRun: () => void
+  children?: React.ReactNode
+}) {
+  const [cronExpr, setCronExpr]     = useState(job?.cronExpression ?? '0 * * * *')
+  const [enabled, setEnabled]       = useState(job?.enabled ?? true)
+  const [saving, setSaving]         = useState(false)
+  const [running, setRunning]       = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [success, setSuccess]       = useState(false)
+
+  useEffect(() => {
+    if (job) { setCronExpr(job.cronExpression); setEnabled(job.enabled) }
+  }, [job])
+
+  async function handleSave() {
+    if (!job) return
+    setSaving(true)
+    setError(null)
+    setSuccess(false)
+    try {
+      await updateScheduledJob(job.name, cronExpr, enabled)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch {
+      setError('Failed to save schedule.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleRun() {
+    setRunning(true)
+    onRun()
+    setTimeout(() => setRunning(false), 1500)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {children && (
+          <>
+            {children}
+            <div className="border-t" />
+          </>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Automatic Schedule</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{enabled ? 'Enabled' : 'Disabled'}</span>
+              <Switch checked={enabled} onCheckedChange={setEnabled} />
+            </div>
+          </div>
+          <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+          {job?.lastRunAt && (
+            <p className="text-xs text-muted-foreground">
+              Last run: {new Date(job.lastRunAt).toLocaleString()}
+              {job.lastRunStatus && ` — ${job.lastRunStatus}`}
+            </p>
+          )}
+          {error   && <p className="text-sm text-destructive">{error}</p>}
+          {success && <p className="text-sm text-green-600">Schedule saved.</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleSave} disabled={saving || !job}>
+              {saving ? 'Saving…' : 'Save Schedule'}
+            </Button>
+            <Button variant="destructive" onClick={handleRun} disabled={running}>
+              {running ? 'Running…' : 'Run Now'}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function MaintenancePage() {
-  const [retentionDays, setRetentionDays] = useState(90)
-  const [job, setJob]                     = useState<ScheduledJob | null>(null)
-  const [cronExpr, setCronExpr]           = useState('0 2 * * *')
-  const [enabled, setEnabled]             = useState(true)
-
-  const [savingRetention, setSavingRetention] = useState(false)
-  const [savingSchedule, setSavingSchedule]   = useState(false)
-  const [running, setRunning]                 = useState(false)
-  const [retentionError, setRetentionError]   = useState<string | null>(null)
-  const [scheduleError, setScheduleError]     = useState<string | null>(null)
+  const [retentionDays, setRetentionDays]       = useState(90)
+  const [savingRetention, setSavingRetention]   = useState(false)
+  const [retentionError, setRetentionError]     = useState<string | null>(null)
   const [retentionSuccess, setRetentionSuccess] = useState(false)
-  const [scheduleSuccess, setScheduleSuccess]   = useState(false)
+
+  const [purgeJob, setPurgeJob]   = useState<ScheduledJob | null>(null)
+  const [alertsJob, setAlertsJob] = useState<ScheduledJob | null>(null)
 
   useEffect(() => {
     getScanHistoryRetention().then(r => setRetentionDays(r.days)).catch(() => {})
     getScheduledJobs().then(jobs => {
-      const j = jobs.find(j => j.name === 'purge_scan_history') ?? null
-      if (j) { setJob(j); setCronExpr(j.cronExpression); setEnabled(j.enabled) }
+      setPurgeJob(jobs.find(j => j.name === 'purge_scan_history') ?? null)
+      setAlertsJob(jobs.find(j => j.name === 'expiry_alerts') ?? null)
     }).catch(() => {})
   }, [])
 
@@ -182,28 +275,6 @@ export default function MaintenancePage() {
     }
   }
 
-  async function handleSaveSchedule() {
-    if (!job) return
-    setSavingSchedule(true)
-    setScheduleError(null)
-    setScheduleSuccess(false)
-    try {
-      const updated = await updateScheduledJob(job.name, cronExpr, enabled)
-      setJob(updated)
-      setScheduleSuccess(true)
-      setTimeout(() => setScheduleSuccess(false), 3000)
-    } catch {
-      setScheduleError('Failed to save schedule.')
-    } finally {
-      setSavingSchedule(false)
-    }
-  }
-
-  function handleRun() {
-    setRunning(true)
-    setTimeout(() => setRunning(false), 1500) // placeholder until API exists
-  }
-
   return (
     <div className="space-y-6 max-w-2xl">
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -219,76 +290,46 @@ export default function MaintenancePage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Archive className="h-4 w-4 text-muted-foreground" />
-            Purge Scan History
-          </CardTitle>
-          <CardDescription>
-            Remove scan history records older than the retention window. The most recent
-            entry per endpoint is always kept regardless of age.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+      <JobScheduleCard
+        job={alertsJob}
+        icon={<Bell className="h-4 w-4 text-muted-foreground" />}
+        title="Certificate Expiry Alerts"
+        description="Send email alerts to subscribers when certificates approach their expiry thresholds."
+        onRun={() => {}}
+      />
 
-          {/* Retention setting */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Retention</Label>
-            <div className="flex items-center gap-3">
-              <Label htmlFor="retention-days" className="shrink-0 text-muted-foreground">Keep history for</Label>
-              <Input
-                id="retention-days"
-                type="number"
-                min={1}
-                max={3650}
-                value={retentionDays}
-                onChange={e => setRetentionDays(Number(e.target.value))}
-                className="w-24"
-              />
-              <span className="text-sm text-muted-foreground">days</span>
-            </div>
-            {retentionError   && <p className="text-sm text-destructive">{retentionError}</p>}
-            {retentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={handleSaveRetention} disabled={savingRetention}>
-                {savingRetention ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
+      <JobScheduleCard
+        job={purgeJob}
+        icon={<Archive className="h-4 w-4 text-muted-foreground" />}
+        title="Purge Scan History"
+        description="Remove scan history records older than the retention window. The most recent entry per endpoint is always kept regardless of age."
+        onRun={() => {}}
+      >
+        {/* Retention setting lives inside the purge card */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Retention</Label>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="retention-days" className="shrink-0 text-muted-foreground">Keep history for</Label>
+            <Input
+              id="retention-days"
+              type="number"
+              min={1}
+              max={3650}
+              value={retentionDays}
+              onChange={e => setRetentionDays(Number(e.target.value))}
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">days</span>
           </div>
-
-          <div className="border-t" />
-
-          {/* Schedule */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Automatic Schedule</Label>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{enabled ? 'Enabled' : 'Disabled'}</span>
-                <Switch checked={enabled} onCheckedChange={setEnabled} />
-              </div>
-            </div>
-            <SchedulePicker value={cronExpr} onChange={setCronExpr} />
-            {job?.lastRunAt && (
-              <p className="text-xs text-muted-foreground">
-                Last run: {new Date(job.lastRunAt).toLocaleString()}
-                {job.lastRunStatus && ` — ${job.lastRunStatus}`}
-              </p>
-            )}
-            {scheduleError   && <p className="text-sm text-destructive">{scheduleError}</p>}
-            {scheduleSuccess && <p className="text-sm text-green-600">Schedule saved.</p>}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={handleSaveSchedule} disabled={savingSchedule || !job}>
-                {savingSchedule ? 'Saving…' : 'Save Schedule'}
-              </Button>
-              <Button variant="destructive" onClick={handleRun} disabled={running}>
-                {running ? 'Running…' : 'Run Now'}
-              </Button>
-            </div>
+          {retentionError   && <p className="text-sm text-destructive">{retentionError}</p>}
+          {retentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={handleSaveRetention} disabled={savingRetention}>
+              {savingRetention ? 'Saving…' : 'Save'}
+            </Button>
           </div>
-
-        </CardContent>
-      </Card>
+        </div>
+      </JobScheduleCard>
     </div>
   )
 }
