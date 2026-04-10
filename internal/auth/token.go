@@ -14,7 +14,7 @@ import (
 const agentTokenPrefix = "scanner_"
 
 // APIKeyPrefix is the prefix for all user API keys.
-const APIKeyPrefix = "strix_"
+const APIKeyPrefix = "stx_p_"
 
 // GenerateScannerToken creates a new opaque scanner token.
 // Returns the raw token (shown to the user once) and its bcrypt hash (stored in DB).
@@ -51,7 +51,7 @@ func GenerateAPIKey() (raw string, hash string, prefix string, err error) {
 	}
 	raw = APIKeyPrefix + hex.EncodeToString(b)
 	hash = db.HashAPIKey(raw)
-	prefix = raw[:12] // "strix_" (6) + first 6 hex chars
+	prefix = raw[:12] // "stx_p_" (6) + first 6 hex chars
 	return raw, hash, prefix, nil
 }
 

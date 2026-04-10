@@ -156,18 +156,26 @@ export default function AccountAPIKeysPage() {
 
       {/* One-time reveal dialog */}
       <Dialog open={!!revealToken} onOpenChange={() => { setRevealToken(null); setCopied(false) }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>API Key Created</DialogTitle>
-            <DialogDescription>
-              Copy your key now — it won't be shown again.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-3xl">
+          <div className="flex items-center gap-4">
+            <img
+              src="/strix.png"
+              alt="Strix the owl"
+              className="w-16 shrink-0 opacity-80 select-none"
+              draggable={false}
+            />
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">API Key Created</DialogTitle>
+              <DialogDescription>
+                Copy your key now — it won't be shown again.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
           <div className="flex items-center gap-2 mt-2">
-            <code className="flex-1 rounded bg-muted px-3 py-2 text-sm font-mono break-all">
+            <code className="flex-1 rounded bg-muted px-3 py-2 text-sm font-mono whitespace-nowrap overflow-x-auto">
               {revealToken}
             </code>
-            <Button variant="outline" size="icon" onClick={handleCopy}>
+            <Button variant="outline" size="icon" className="shrink-0" onClick={handleCopy}>
               {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>

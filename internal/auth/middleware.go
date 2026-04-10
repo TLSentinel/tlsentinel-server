@@ -13,7 +13,7 @@ import (
 )
 
 // Authenticate is Chi middleware that validates bearer tokens.
-// It handles JWTs (users), scanner tokens (scanner_ prefix), and API keys (strix_ prefix).
+// It handles JWTs (users), scanner tokens (scanner_ prefix), and API keys (stx_p_ prefix).
 // Returns 401 immediately on failure.
 func Authenticate(store *db.Store, cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
