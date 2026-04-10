@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -444,9 +445,6 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: Categor
 type TabValue = 'tags' | 'categories'
 
 export default function TagsPage() {
-  const [categories, setCategories] = useState<CategoryWithTags[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
   const [tab, setTab] = useState<TabValue>('tags')
 
   // Tag dialog state
@@ -463,24 +461,18 @@ export default function TagsPage() {
 
   const admin = can('tags:edit')
 
-  const load = useCallback(async () => {
-    try {
-      setCategories(await listTagCategories())
-    } catch {
-      setLoadError('Failed to load tags')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
+  const { data: categoriesData, isLoading, error: fetchError, refetch } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+  })
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   function openDeleteDialog(label: string, warning: string | undefined, onConfirm: () => Promise<void>) {
     setDeleteDialog({ open: true, label, warning, onConfirm })
   }
 
-  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
-  if (loadError) return <div className="py-8 text-center text-sm text-destructive">{loadError}</div>
+  if (isLoading) return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+  if (fetchError) return <div className="py-8 text-center text-sm text-destructive">{fetchError.message}</div>
 
   // Flatten categories to TagCategory[] for the tag dialog dropdown
   const categoryList: TagCategory[] = categories.map(c => ({
@@ -534,7 +526,7 @@ export default function TagsPage() {
           onDelete={(tag, _catName) => openDeleteDialog(
             tag.name,
             `This will remove the tag from all endpoints it is currently assigned to.`,
-            async () => { await deleteTag(tag.id); await load(); setDeleteDialog(d => ({ ...d, open: false })) },
+            async () => { await deleteTag(tag.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
           )}
         />
       ) : (
@@ -546,7 +538,7 @@ export default function TagsPage() {
           onDelete={cat => openDeleteDialog(
             cat.name,
             `This will also delete all tags in this category and remove them from any endpoints.`,
-            async () => { await deleteTagCategory(cat.id); await load(); setDeleteDialog(d => ({ ...d, open: false })) },
+            async () => { await deleteTagCategory(cat.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
           )}
         />
       )}
@@ -557,14 +549,14 @@ export default function TagsPage() {
         initial={tagDialog.tag}
         categories={categoryList}
         onClose={() => setTagDialog({ open: false })}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       <CategoryDialog
         open={catDialog.open}
         initial={catDialog.cat}
         onClose={() => setCatDialog({ open: false })}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       <DeleteDialog

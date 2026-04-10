@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
@@ -10,6 +9,7 @@ import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLS
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
+import { useQuery } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Layout primitives
@@ -401,64 +401,70 @@ function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null
 // Page
 // ---------------------------------------------------------------------------
 
-type EndpointState =
-  | { status: 'loading' }
-  | { status: 'ready'; endpoint: Endpoint }
-  | { status: 'error'; message: string }
-
 export default function EndpointDetailPage() {
-  const { id }      = useParams<{ id: string }>()
-  const navigate    = useNavigate()
+  const { id }   = useParams<{ id: string }>()
+  const navigate = useNavigate()
 
-  const [endpointState, setEndpointState] = useState<EndpointState>({ status: 'loading' })
-  const [tlsState, setTLSState]           = useState<TLSState>({ status: 'loading' })
-  const [history, setHistory]             = useState<EndpointScanHistoryItem[] | null>(null)
-  const [tags, setTags]                   = useState<TagWithCategory[]>([])
+  const { data: endpoint, isLoading: endpointLoading, error: endpointError } = useQuery({
+    queryKey: ['endpoint', id],
+    queryFn: () => getEndpoint(id!),
+    enabled: !!id,
+  })
 
-  useEffect(() => {
-    if (!id) return
-    getEndpoint(id)
-      .then((endpoint) => setEndpointState({ status: 'ready', endpoint }))
-      .catch((err) => setEndpointState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load endpoint.' }))
-  }, [id])
+  const { data: tlsProfile, isLoading: tlsLoading, error: tlsError } = useQuery({
+    queryKey: ['endpoint', id, 'tls'],
+    queryFn: () => getTLSProfile(id!),
+    enabled: !!id,
+  })
 
-  useEffect(() => {
-    if (!id) return
-    getTLSProfile(id)
-      .then((profile) => setTLSState({ status: 'ready', profile }))
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) setTLSState({ status: 'none' })
-        else setTLSState({ status: 'error', message: err instanceof ApiError ? err.message : 'Failed to load TLS profile.' })
-      })
-  }, [id])
+  const { data: historyData } = useQuery({
+    queryKey: ['endpoint', id, 'history'],
+    queryFn: () => getScanHistory(id!),
+    enabled: !!id,
+  })
 
-  useEffect(() => {
-    if (!id) return
-    getScanHistory(id).then((r) => setHistory(r.items)).catch(() => setHistory([]))
-  }, [id])
+  const { data: tagsData } = useQuery({
+    queryKey: ['endpoint', id, 'tags'],
+    queryFn: () => getEndpointTags(id!),
+    enabled: !!id,
+  })
 
-  useEffect(() => {
-    if (!id) return
-    getEndpointTags(id).then(setTags).catch(() => {})
-  }, [id])
+  const history: EndpointScanHistoryItem[] | null = historyData?.items ?? null
+  const tags: TagWithCategory[] = tagsData ?? []
+
+  // Derive TLS state from query result
+  let tlsState: TLSState
+  if (tlsLoading) {
+    tlsState = { status: 'loading' }
+  } else if (tlsError) {
+    if (tlsError instanceof ApiError && tlsError.status === 404) {
+      tlsState = { status: 'none' }
+    } else {
+      tlsState = { status: 'error', message: tlsError instanceof ApiError ? tlsError.message : 'Failed to load TLS profile.' }
+    }
+  } else if (tlsProfile) {
+    tlsState = { status: 'ready', profile: tlsProfile }
+  } else {
+    tlsState = { status: 'none' }
+  }
 
   const backLink = (
     <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
       <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
       <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-foreground">{endpointState.status === 'ready' ? endpointState.endpoint.name : '…'}</span>
+      <span className="text-foreground">{endpoint ? endpoint.name : '…'}</span>
     </nav>
   )
 
-  if (endpointState.status === 'loading') {
+  if (endpointLoading) {
     return <div className="space-y-4">{backLink}<p className="text-sm text-muted-foreground">Loading…</p></div>
   }
 
-  if (endpointState.status === 'error') {
-    return <div className="space-y-4">{backLink}<p className="text-sm text-destructive">{endpointState.message}</p></div>
+  if (endpointError) {
+    return <div className="space-y-4">{backLink}<p className="text-sm text-destructive">{endpointError instanceof ApiError ? endpointError.message : 'Failed to load endpoint.'}</p></div>
   }
 
-  const { endpoint } = endpointState
+  if (!endpoint) return null
 
   return (
     <div className="space-y-5">

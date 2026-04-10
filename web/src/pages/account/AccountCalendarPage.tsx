@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { getMe, rotateCalendarToken } from '@/api/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -10,9 +11,14 @@ export default function AccountCalendarPage() {
   const [token, setToken]       = useState<string | null>(null)
   const [rotating, setRotating] = useState(false)
 
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+  })
+
   useEffect(() => {
-    getMe().then(u => setToken(u.calendarToken ?? null))
-  }, [])
+    if (me) setToken(me.calendarToken ?? null)
+  }, [me])
 
   async function generate() {
     setRotating(true)

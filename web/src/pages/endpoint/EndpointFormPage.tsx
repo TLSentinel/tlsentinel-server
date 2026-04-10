@@ -21,6 +21,7 @@ import {
 import { ArrowLeft, FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
+import { useQuery } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,8 +65,8 @@ export default function EndpointFormPage() {
   const isEdit            = Boolean(id)
   const isClone           = Boolean(cloneId)
 
-  const [loading, setLoading]       = useState(isEdit || isClone)
   const [loadError, setLoadError]   = useState<string | null>(null)
+  const [formReady, setFormReady]   = useState(!isEdit && !isClone)
 
   const [type, setType]             = useState<EndpointType>('host')
   const [name, setName]             = useState('')
@@ -82,8 +83,6 @@ export default function EndpointFormPage() {
   const [fileName, setFileName]         = useState<string | null>(null)
   const fileInputRef                    = useRef<HTMLInputElement>(null)
 
-  const [scanners, setScanners]         = useState<ScannerToken[]>([])
-  const [categories, setCategories]     = useState<CategoryWithTags[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
   const [showTagPicker, setShowTagPicker] = useState(false)
   const [resolving, setResolving]         = useState(false)
@@ -91,16 +90,22 @@ export default function EndpointFormPage() {
   const [saving, setSaving]             = useState(false)
   const [error, setError]               = useState<string | null>(null)
 
-  // Load scanners and tag categories
-  useEffect(() => {
-    listScanners().then(setScanners).catch(() => {})
-    listTagCategories().then(setCategories).catch(() => {})
-  }, [])
+  // Load scanners and tag categories via useQuery
+  const { data: scannersData } = useQuery({
+    queryKey: ['scanners'],
+    queryFn: listScanners,
+  })
+  const scanners: ScannerToken[] = scannersData ?? []
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+  })
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   // Load existing endpoint in edit mode
   useEffect(() => {
     if (!id) return
-    setLoading(true)
     getEndpoint(id)
       .then((ep) => {
         setType(ep.type as EndpointType)
@@ -114,9 +119,9 @@ export default function EndpointFormPage() {
         setScanExempt(ep.scanExempt ?? false)
         setNotes(ep.notes ?? '')
         setPem('')  // PEM field always starts blank; only filled to replace/set a cert
+        setFormReady(true)
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load endpoint.'))
-      .finally(() => setLoading(false))
     getEndpointTags(id).then(tags => {
       setSelectedTagIds(new Set(tags.map(t => t.id)))
     }).catch(() => {})
@@ -125,7 +130,6 @@ export default function EndpointFormPage() {
   // Pre-fill from a source endpoint in clone mode
   useEffect(() => {
     if (!cloneId) return
-    setLoading(true)
     getEndpoint(cloneId)
       .then((ep) => {
         setType(ep.type as EndpointType)
@@ -138,9 +142,9 @@ export default function EndpointFormPage() {
         setEnabled(true)
         setNotes(ep.notes ?? '')
         setPem('')
+        setFormReady(true)
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load source endpoint.'))
-      .finally(() => setLoading(false))
     getEndpointTags(cloneId).then(tags => {
       setSelectedTagIds(new Set(tags.map(t => t.id)))
     }).catch(() => {})
@@ -274,7 +278,7 @@ export default function EndpointFormPage() {
   const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : 'New Endpoint'
 
   // Loading state
-  if (loading) {
+  if ((isEdit || isClone) && !formReady && !loadError) {
     return (
       <div className="space-y-6 max-w-2xl">
         <div className="flex items-center gap-3">

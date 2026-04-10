@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, Search, ChevronDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Add / Edit dialog
@@ -475,16 +476,13 @@ export default function UsersPage() {
   const admin = can('users:edit')
   const currentUserID = getIdentity()?.uid ?? ''
 
-  const [users, setUsers] = useState<User[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('')
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
   // Incremented each time "Add User" is clicked so the dialog remounts fresh.
   const [addSeq, setAddSeq] = useState(0)
@@ -504,30 +502,20 @@ export default function UsersPage() {
     setPage(1)
   }, [debouncedSearch, roleFilter, providerFilter, sortOption])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listUsers(page, PAGE_SIZE, debouncedSearch, roleFilter, providerFilter, sortOption)
-      setUsers(result.items ?? [])
-      setTotalCount(result.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load users.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, roleFilter, providerFilter, sortOption])
+  const { data, isLoading, error: fetchError, refetch } = useQuery({
+    queryKey: ['users', page, debouncedSearch, roleFilter, providerFilter, sortOption],
+    queryFn: () => listUsers(page, PAGE_SIZE, debouncedSearch, roleFilter, providerFilter, sortOption),
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const users = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
 
   async function handleToggleEnabled(user: User) {
     try {
-      const updated = await setUserEnabled(user.id, !user.enabled)
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+      await setUserEnabled(user.id, !user.enabled)
+      refetch()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update user.')
+      setMutationError(err instanceof ApiError ? err.message : 'Failed to update user.')
     }
   }
 
@@ -661,7 +649,8 @@ export default function UsersPage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
+      {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
       {/* Table */}
       <Table>
@@ -677,7 +666,7 @@ export default function UsersPage() {
           </TableRow>
         </TableHeader>
         <TableBody className="[&_tr]:border-b-0">
-          {loading && (
+          {isLoading && (
             <TableRow>
               <TableCell
                 colSpan={admin ? 7 : 5}
@@ -688,7 +677,7 @@ export default function UsersPage() {
             </TableRow>
           )}
 
-          {!loading && users.length === 0 && (
+          {!isLoading && users.length === 0 && (
             <TableRow>
               <TableCell
                 colSpan={admin ? 7 : 5}
@@ -701,7 +690,7 @@ export default function UsersPage() {
             </TableRow>
           )}
 
-          {!loading &&
+          {!isLoading &&
             users.map((user) => (
               <TableRow
                 key={user.id}
@@ -835,7 +824,7 @@ export default function UsersPage() {
         user={editTarget}
         open={addOpen || editTarget !== null}
         onClose={handleCloseDialog}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       {/* Keyed by user ID so it remounts (fresh password fields) for each user. */}
@@ -848,7 +837,7 @@ export default function UsersPage() {
       <DeleteDialog
         user={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
     </div>
   )

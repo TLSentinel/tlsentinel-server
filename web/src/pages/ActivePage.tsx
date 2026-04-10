@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronLeft, ChevronRight, Check, Search, Tag, X } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -11,10 +11,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { listActive, type ExpiringCertItem } from '@/api/certificates'
+import { listActive } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
-import { ApiError } from '@/types/api'
 import type { CategoryWithTags } from '@/types/api'
+import { useQuery } from '@tanstack/react-query'
 
 const TYPE_LABEL: Record<string, string> = {
   host:   'Host',
@@ -60,21 +60,12 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const PAGE_SIZE = 20
 
 export default function ActivePage() {
-  const [items, setItems] = useState<ExpiringCertItem[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
   const [tagFilter, setTagFilter] = useState('')
-  const [categories, setCategories] = useState<CategoryWithTags[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    listTagCategories().then(setCategories).catch(() => {})
-  }, [])
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -85,23 +76,19 @@ export default function ActivePage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter)
-      setItems(data.items ?? [])
-      setTotalCount(data.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load active certificates.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, statusFilter, sortOption, tagFilter])
+  const { data, isLoading, error: fetchError } = useQuery({
+    queryKey: ['active', page, debouncedSearch, statusFilter, sortOption, tagFilter],
+    queryFn: () => listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+  })
+
+  const items = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   function handleStatusChange(value: StatusFilter) {
     setStatusFilter(value)
@@ -259,7 +246,7 @@ export default function ActivePage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
       <Table>
@@ -274,7 +261,7 @@ export default function ActivePage() {
           </TableRow>
         </TableHeader>
         <TableBody className="[&_tr]:border-b-0">
-          {loading && (
+          {isLoading && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                 Loading…
@@ -282,7 +269,7 @@ export default function ActivePage() {
             </TableRow>
           )}
 
-          {!loading && items.length === 0 && (
+          {!isLoading && items.length === 0 && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center">
                 {debouncedSearch || statusFilter
@@ -292,7 +279,7 @@ export default function ActivePage() {
             </TableRow>
           )}
 
-          {!loading && items.map((item) => (
+          {!isLoading && items.map((item) => (
             <TableRow key={`${item.endpointId}-${item.fingerprint}`}>
               <TableCell className="font-medium">
                 <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">

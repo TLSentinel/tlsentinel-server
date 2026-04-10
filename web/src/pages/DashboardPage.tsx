@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Server, Shield, Clock, AlertCircle, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
@@ -107,36 +107,31 @@ function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
 // ---------------------------------------------------------------------------
 
 export default function DashboardPage() {
-  const [hostCount, setHostCount] = useState<number | null>(null)
-  const [certCount, setCertCount] = useState<number | null>(null)
-  const [expiring, setExpiring] = useState<ExpiringCertItem[] | null>(null)
-  const [errorHosts, setErrorHosts] = useState<EndpointListItem[] | null>(null)
-  const [errorCount, setErrorCount] = useState<number | null>(null)
+  const { data: endpointData } = useQuery({
+    queryKey: ['dashboard', 'endpoint-count'],
+    queryFn: () => listEndpoints(1, 1),
+  })
 
-  useEffect(() => {
-    listEndpoints(1, 1)
-      .then((r) => setHostCount(r.totalCount))
-      .catch(() => setHostCount(0))
-  }, [])
+  const { data: errorData } = useQuery({
+    queryKey: ['dashboard', 'errors'],
+    queryFn: () => listErrorEndpoints(1, 10),
+  })
 
-  useEffect(() => {
-    listErrorEndpoints(1, 10)
-      .then((r) => { setErrorHosts(r.items); setErrorCount(r.totalCount) })
-      .catch(() => { setErrorHosts([]); setErrorCount(0) })
-  }, [])
+  const { data: certData } = useQuery({
+    queryKey: ['dashboard', 'cert-count'],
+    queryFn: () => listCertificates(1, 1),
+  })
 
-  useEffect(() => {
-    listCertificates(1, 1)
-      .then((r) => setCertCount(r.totalCount))
-      .catch(() => setCertCount(0))
-  }, [])
+  const { data: expiringData } = useQuery({
+    queryKey: ['dashboard', 'expiring'],
+    queryFn: () => getExpiringCerts(30),
+  })
 
-  useEffect(() => {
-    getExpiringCerts(30)
-      .then((r) => setExpiring(r.items))
-      .catch(() => setExpiring([]))
-  }, [])
-
+  const hostCount = endpointData?.totalCount ?? null
+  const certCount = certData?.totalCount ?? null
+  const expiring = expiringData?.items ?? null
+  const errorHosts = errorData?.items ?? null
+  const errorCount = errorData?.totalCount ?? null
   const expiringCount = expiring?.length ?? null
 
   return (
