@@ -302,61 +302,59 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew }: TagsTableProp
           </Button>
         </div>
       )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Description</TableHead>
+            {admin && <TableHead className="w-20" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {rows.length === 0 ? (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Description</TableHead>
-              {admin && <TableHead className="w-20" />}
+              <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">
+                No tags yet. Create a category first, then add tags.
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">
-                  No tags yet. Create a category first, then add tags.
+          ) : (
+            rows.map(tag => (
+              <TableRow key={tag.id}>
+                <TableCell className="font-medium">{tag.name}</TableCell>
+                <TableCell className="text-muted-foreground">{tag.categoryName}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {tag.description ?? <span className="italic text-muted-foreground/50">—</span>}
                 </TableCell>
-              </TableRow>
-            ) : (
-              rows.map(tag => (
-                <TableRow key={tag.id}>
-                  <TableCell className="font-medium">{tag.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{tag.categoryName}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {tag.description ?? <span className="italic text-muted-foreground/50">—</span>}
+                {admin && (
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={() => onEdit(tag)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit {tag.name}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => onDelete(tag, tag.categoryName)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete {tag.name}</span>
+                      </Button>
+                    </div>
                   </TableCell>
-                  {admin && (
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          onClick={() => onEdit(tag)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {tag.name}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => onDelete(tag, tag.categoryName)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {tag.name}</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                )}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }
@@ -384,59 +382,57 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: Categor
           </Button>
         </div>
       )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
+            {admin && <TableHead className="w-20" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {categories.length === 0 ? (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              {admin && <TableHead className="w-20" />}
+              <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center text-sm text-muted-foreground">
+                No categories yet.
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center text-sm text-muted-foreground">
-                  No categories yet.
+          ) : (
+            categories.map(cat => (
+              <TableRow key={cat.id}>
+                <TableCell className="font-medium">{cat.name}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {cat.description ?? <span className="italic text-muted-foreground/50">—</span>}
                 </TableCell>
-              </TableRow>
-            ) : (
-              categories.map(cat => (
-                <TableRow key={cat.id}>
-                  <TableCell className="font-medium">{cat.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {cat.description ?? <span className="italic text-muted-foreground/50">—</span>}
+                {admin && (
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={() => onEdit(cat)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit {cat.name}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => onDelete(cat)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete {cat.name}</span>
+                      </Button>
+                    </div>
                   </TableCell>
-                  {admin && (
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          onClick={() => onEdit(cat)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {cat.name}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => onDelete(cat)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {cat.name}</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                )}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

@@ -664,139 +664,137 @@ export default function UsersPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>User</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Provider</TableHead>
+            <TableHead>Created</TableHead>
+            {admin && <TableHead className="w-8">Enabled</TableHead>}
+            {admin && <TableHead className="w-28" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading && (
             <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Provider</TableHead>
-              <TableHead>Created</TableHead>
-              {admin && <TableHead className="w-8">Enabled</TableHead>}
-              {admin && <TableHead className="w-28" />}
+              <TableCell
+                colSpan={admin ? 7 : 5}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell
-                  colSpan={admin ? 7 : 5}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Loading…
-                </TableCell>
-              </TableRow>
-            )}
+          )}
 
-            {!loading && users.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={admin ? 7 : 5}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  {debouncedSearch || roleFilter || providerFilter
-                    ? 'No users match your filters.'
-                    : <>No users yet. Click <strong>Add User</strong> to get started.</>}
-                </TableCell>
-              </TableRow>
-            )}
+          {!loading && users.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={admin ? 7 : 5}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                {debouncedSearch || roleFilter || providerFilter
+                  ? 'No users match your filters.'
+                  : <>No users yet. Click <strong>Add User</strong> to get started.</>}
+              </TableCell>
+            </TableRow>
+          )}
 
-            {!loading &&
-              users.map((user) => (
-                <TableRow
-                  key={user.id}
-                  className={!user.enabled ? 'opacity-50' : undefined}
-                >
-                  {/* User: full name (if set) + username */}
-                  <TableCell>
-                    {(user.firstName || user.lastName) && (
-                      <p className="font-medium">
-                        {[user.firstName, user.lastName].filter(Boolean).join(' ')}
-                      </p>
-                    )}
-                    <p className={user.firstName || user.lastName ? 'text-sm text-muted-foreground' : 'font-medium'}>
-                      {user.username}
+          {!loading &&
+            users.map((user) => (
+              <TableRow
+                key={user.id}
+                className={!user.enabled ? 'opacity-50' : undefined}
+              >
+                {/* User: full name (if set) + username */}
+                <TableCell>
+                  {(user.firstName || user.lastName) && (
+                    <p className="font-medium">
+                      {[user.firstName, user.lastName].filter(Boolean).join(' ')}
                     </p>
-                  </TableCell>
-
-                  {/* Email */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {user.email ?? <span className="text-muted-foreground/50">—</span>}
-                  </TableCell>
-
-                  {/* Role */}
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {user.role === 'admin' ? 'Admin' : user.role === 'operator' ? 'Operator' : 'Viewer'}
-                    </span>
-                  </TableCell>
-
-                  {/* Provider */}
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {user.provider === 'oidc' ? 'OIDC' : 'Local'}
-                    </span>
-                  </TableCell>
-
-                  {/* Created */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtDate(user.createdAt)}
-                  </TableCell>
-
-                  {/* Enabled toggle — admin only */}
-                  {admin && (
-                    <TableCell>
-                      <Switch
-                        checked={user.enabled}
-                        disabled={user.id === currentUserID}
-                        onCheckedChange={() => handleToggleEnabled(user)}
-                        aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
-                      />
-                    </TableCell>
                   )}
+                  <p className={user.firstName || user.lastName ? 'text-sm text-muted-foreground' : 'font-medium'}>
+                    {user.username}
+                  </p>
+                </TableCell>
 
-                  {/* Row actions — admin only */}
-                  {admin && (
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
+                {/* Email */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {user.email ?? <span className="text-muted-foreground/50">—</span>}
+                </TableCell>
+
+                {/* Role */}
+                <TableCell>
+                  <span className="text-sm text-muted-foreground">
+                    {user.role === 'admin' ? 'Admin' : user.role === 'operator' ? 'Operator' : 'Viewer'}
+                  </span>
+                </TableCell>
+
+                {/* Provider */}
+                <TableCell>
+                  <span className="text-sm text-muted-foreground">
+                    {user.provider === 'oidc' ? 'OIDC' : 'Local'}
+                  </span>
+                </TableCell>
+
+                {/* Created */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtDate(user.createdAt)}
+                </TableCell>
+
+                {/* Enabled toggle — admin only */}
+                {admin && (
+                  <TableCell>
+                    <Switch
+                      checked={user.enabled}
+                      disabled={user.id === currentUserID}
+                      onCheckedChange={() => handleToggleEnabled(user)}
+                      aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
+                    />
+                  </TableCell>
+                )}
+
+                {/* Row actions — admin only */}
+                {admin && (
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={() => setEditTarget(user)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit {user.username}</span>
+                      </Button>
+                      {user.provider === 'local' && (
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground"
-                          onClick={() => setEditTarget(user)}
+                          onClick={() => setPasswordTarget(user)}
                         >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {user.username}</span>
+                          <KeyRound className="h-4 w-4" />
+                          <span className="sr-only">Change password for {user.username}</span>
                         </Button>
-                        {user.provider === 'local' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground"
-                            onClick={() => setPasswordTarget(user)}
-                          >
-                            <KeyRound className="h-4 w-4" />
-                            <span className="sr-only">Change password for {user.username}</span>
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(user)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {user.username}</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteTarget(user)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete {user.username}</span>
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">

@@ -391,77 +391,75 @@ export default function CertificatesPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Common Name</TableHead>
+            <TableHead>SANs</TableHead>
+            <TableHead className="w-28">Status</TableHead>
+            <TableHead>Issued</TableHead>
+            <TableHead>Expires</TableHead>
+            <TableHead className="w-10" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading && (
             <TableRow>
-              <TableHead>Common Name</TableHead>
-              <TableHead>SANs</TableHead>
-              <TableHead className="w-28">Status</TableHead>
-              <TableHead>Issued</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead className="w-10" />
+              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  Loading…
+          )}
+
+          {!loading && certs.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center">
+                {debouncedSearch || statusFilter
+                  ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+                  : <StrixEmpty message="No certificates yet." />}
+              </TableCell>
+            </TableRow>
+          )}
+
+          {!loading &&
+            certs.map((cert) => (
+              <TableRow
+                key={cert.fingerprint}
+                className="cursor-pointer"
+                onClick={() => navigate(`/certificates/${cert.fingerprint}`)}
+              >
+                <TableCell className="font-medium">{cert.commonName || '—'}</TableCell>
+                <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                  {cert.sans.length === 0
+                    ? '—'
+                    : cert.sans.slice(0, 3).join(', ') +
+                      (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
+                </TableCell>
+                <TableCell>
+                  <ExpiryStatus notAfter={cert.notAfter} />
+                </TableCell>
+                <TableCell>{fmtDate(cert.notBefore)}</TableCell>
+                <TableCell>{fmtDate(cert.notAfter)}</TableCell>
+                <TableCell>
+                  {admin && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget(cert)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
-            )}
-
-            {!loading && certs.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                    : <StrixEmpty message="No certificates yet." />}
-                </TableCell>
-              </TableRow>
-            )}
-
-            {!loading &&
-              certs.map((cert) => (
-                <TableRow
-                  key={cert.fingerprint}
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/certificates/${cert.fingerprint}`)}
-                >
-                  <TableCell className="font-medium">{cert.commonName || '—'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                    {cert.sans.length === 0
-                      ? '—'
-                      : cert.sans.slice(0, 3).join(', ') +
-                        (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
-                  </TableCell>
-                  <TableCell>
-                    <ExpiryStatus notAfter={cert.notAfter} />
-                  </TableCell>
-                  <TableCell>{fmtDate(cert.notBefore)}</TableCell>
-                  <TableCell>{fmtDate(cert.notAfter)}</TableCell>
-                  <TableCell>
-                    {admin && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteTarget(cert)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">

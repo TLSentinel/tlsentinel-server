@@ -262,99 +262,96 @@ export default function ActivePage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Endpoint</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead className="w-28">Status</TableHead>
+            <TableHead>Common Name</TableHead>
+            <TableHead>Expires</TableHead>
+            <TableHead className="w-20 text-right">Days</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading && (
             <TableRow>
-              <TableHead>Endpoint</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="w-28">Status</TableHead>
-              <TableHead>Common Name</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead className="w-20 text-right">Days</TableHead>
+              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            )}
+          )}
 
-            {!loading && items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                    : <StrixEmpty message="No endpoints with active certificates yet." />}
-                </TableCell>
-              </TableRow>
-            )}
+          {!loading && items.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center">
+                {debouncedSearch || statusFilter
+                  ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+                  : <StrixEmpty message="No endpoints with active certificates yet." />}
+              </TableCell>
+            </TableRow>
+          )}
 
-            {!loading &&
-              items.map((item) => (
-                <TableRow key={`${item.endpointId}-${item.fingerprint}`}>
-                  <TableCell className="font-medium">
-                    <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
-                      {item.endpointName}
-                    </Link>
-                    {item.tags && item.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {item.tags.map(tag => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => handleTagChange(tagFilter === tag.id ? '' : tag.id)}
-                            title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
-                          >
-                            <span className="opacity-60">{tag.categoryName}:</span>
-                            {tag.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
+          {!loading && items.map((item) => (
+            <TableRow key={`${item.endpointId}-${item.fingerprint}`}>
+              <TableCell className="font-medium">
+                <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
+                  {item.endpointName}
+                </Link>
+                {item.tags && item.tags.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {item.tags.map(tag => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => handleTagChange(tagFilter === tag.id ? '' : tag.id)}
+                        title={`Filter by ${tag.categoryName}: ${tag.name}`}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                      >
+                        <span className="opacity-60">{tag.categoryName}:</span>
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </TableCell>
 
-                  <TableCell>
-                    <EndpointTypeLabel type={item.endpointType} />
-                  </TableCell>
+              <TableCell>
+                <EndpointTypeLabel type={item.endpointType} />
+              </TableCell>
 
-                  <TableCell>
-                    <ExpiryStatus notAfter={item.notAfter} />
-                  </TableCell>
+              <TableCell>
+                <ExpiryStatus notAfter={item.notAfter} />
+              </TableCell>
 
-                  <TableCell className="text-sm text-muted-foreground">
-                    {item.commonName}
-                  </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {item.commonName}
+              </TableCell>
 
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtDate(item.notAfter)}
-                  </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {fmtDate(item.notAfter)}
+              </TableCell>
 
-                  <TableCell className="text-right">
-                    <span
-                      className={[
-                        'font-mono text-sm font-medium',
-                        item.daysRemaining < 0
-                          ? 'text-red-600'
-                          : item.daysRemaining <= 7
-                          ? 'text-orange-600'
-                          : item.daysRemaining <= 30
-                          ? 'text-amber-600'
-                          : 'text-muted-foreground',
-                      ].join(' ')}
-                    >
-                      {fmtDays(item.daysRemaining)}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+              <TableCell className="text-right">
+                <span
+                  className={[
+                    'font-mono text-sm font-medium',
+                    item.daysRemaining < 0
+                      ? 'text-red-600'
+                      : item.daysRemaining <= 7
+                      ? 'text-orange-600'
+                      : item.daysRemaining <= 30
+                      ? 'text-amber-600'
+                      : 'text-muted-foreground',
+                  ].join(' ')}
+                >
+                  {fmtDays(item.daysRemaining)}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
