@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Trash2, Search } from 'lucide-react'
+import { ChevronRight, Trash2 } from 'lucide-react'
+import SearchInput from '@/components/SearchInput'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -83,15 +84,12 @@ export default function APIKeysPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-8"
-          placeholder="Search by name, user, or prefix…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search by name, user, or prefix…"
+        className="max-w-sm"
+      />
 
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
@@ -110,8 +108,10 @@ export default function APIKeysPage() {
         <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {!isLoading && filtered.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                {search ? 'No keys match your search.' : 'No API keys found.'}
+              <TableCell colSpan={6} className="py-10 text-center">
+                {search
+                  ? <span className="text-sm text-muted-foreground">No keys match your search.</span>
+                  : <StrixEmpty message="No API keys have been created yet." />}
               </TableCell>
             </TableRow>
           )}

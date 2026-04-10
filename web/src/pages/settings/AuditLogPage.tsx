@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { listAuditLogs } from '@/api/audit'
 import type { AuditLog } from '@/types/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import SearchInput from '@/components/SearchInput'
+import TablePagination from '@/components/TablePagination'
 import {
   Table,
   TableBody,
@@ -133,12 +132,12 @@ export default function AuditLogPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 max-w-sm">
-        <Input
-          placeholder="Filter by username…"
+      <div className="flex items-center gap-3">
+        <SearchInput
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="h-8 text-sm"
+          onChange={setSearch}
+          placeholder="Filter by username…"
+          className="max-w-sm flex-1"
         />
       </div>
 
@@ -191,31 +190,14 @@ export default function AuditLogPage() {
       </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          Page {page} of {totalPages} &middot; {totalCount} total
-        </span>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPrev={() => setPage(p => Math.max(1, p - 1))}
+        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+        noun="entry"
+      />
     </div>
   )
 }

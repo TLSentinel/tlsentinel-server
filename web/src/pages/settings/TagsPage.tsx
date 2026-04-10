@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -317,8 +318,8 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isL
         <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">
-                No tags yet. Create a category first, then add tags.
+              <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center">
+                <StrixEmpty message="No tags yet." />
               </TableCell>
             </TableRow>
           ) : (
@@ -398,8 +399,8 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetchin
         <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {categories.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center text-sm text-muted-foreground">
-                No categories yet.
+              <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center">
+                <StrixEmpty message="No categories yet." />
               </TableCell>
             </TableRow>
           ) : (
