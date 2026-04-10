@@ -82,6 +82,45 @@ func (s *Store) DeleteAPIKey(ctx context.Context, userID, keyID string) error {
 	return nil
 }
 
+// DeleteAPIKeyAdmin deletes any API key by ID without scoping to a user.
+// Intended for admin revocation. Returns ErrNotFound if the key doesn't exist.
+func (s *Store) DeleteAPIKeyAdmin(ctx context.Context, keyID string) error {
+	res, err := s.db.NewDelete().
+		Model(&UserAPIKey{}).
+		Where("id = ?", keyID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("delete api key (admin): %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// APIKeyWithUser extends UserAPIKey with the owning user's username.
+type APIKeyWithUser struct {
+	UserAPIKey
+	Username string `bun:"username"`
+}
+
+// ListAllAPIKeys returns all API keys across all users, joined with username,
+// ordered by created_at desc.
+func (s *Store) ListAllAPIKeys(ctx context.Context) ([]APIKeyWithUser, error) {
+	var rows []APIKeyWithUser
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.user_api_keys k").
+		ColumnExpr("k.*, u.username").
+		Join("JOIN tlsentinel.users u ON u.id = k.user_id").
+		OrderExpr("k.created_at DESC").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("list all api keys: %w", err)
+	}
+	return rows, nil
+}
+
 // HashAPIKey returns the SHA-256 hex digest of the given raw key.
 func HashAPIKey(raw string) string {
 	sum := sha256.Sum256([]byte(raw))

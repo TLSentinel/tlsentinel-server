@@ -23,3 +23,20 @@ export function createAPIKey(name: string): Promise<CreatedAPIKey> {
 export function deleteAPIKey(id: string): Promise<void> {
   return api.delete(`/me/api-keys/${id}`)
 }
+
+// ---------------------------------------------------------------------------
+// Admin — all users' keys
+// ---------------------------------------------------------------------------
+
+export interface AdminAPIKey extends APIKey {
+  userId: string
+  username: string
+}
+
+export function listAllAPIKeys(): Promise<AdminAPIKey[]> {
+  return api.get<AdminAPIKey[]>('/admin/api-keys')
+}
+
+export function revokeAPIKey(id: string): Promise<void> {
+  return api.delete(`/admin/api-keys/${id}`)
+}

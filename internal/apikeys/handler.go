@@ -127,3 +127,56 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// ---------------------------------------------------------------------------
+// Admin endpoints
+// ---------------------------------------------------------------------------
+
+type adminAPIKeyResponse struct {
+	apiKeyResponse
+	UserID   string `json:"userId"`
+	Username string `json:"username"`
+}
+
+// @Summary      List all API keys (admin)
+// @Description  Returns all API keys across all users. Requires users:view permission.
+// @Tags         admin
+// @Produce      json
+// @Success      200  {array}   adminAPIKeyResponse
+// @Router       /admin/api-keys [get]
+func (h *Handler) ListAll(w http.ResponseWriter, r *http.Request) {
+	keys, err := h.store.ListAllAPIKeys(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list api keys", http.StatusInternalServerError)
+		return
+	}
+	out := make([]adminAPIKeyResponse, len(keys))
+	for i, k := range keys {
+		out[i] = adminAPIKeyResponse{
+			apiKeyResponse: toResponse(k.UserAPIKey),
+			UserID:         k.UserID,
+			Username:       k.Username,
+		}
+	}
+	response.JSON(w, http.StatusOK, out)
+}
+
+// @Summary      Revoke any API key (admin)
+// @Description  Revokes any user's API key by ID. Requires users:edit permission.
+// @Tags         admin
+// @Param        id  path  string  true  "API key ID"
+// @Success      204
+// @Failure      404  {string}  string  "not found"
+// @Router       /admin/api-keys/{id} [delete]
+func (h *Handler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
+	keyID := chi.URLParam(r, "id")
+	if err := h.store.DeleteAPIKeyAdmin(r.Context(), keyID); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to revoke api key", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
