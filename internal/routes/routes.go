@@ -11,6 +11,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/apikeys"
+	"github.com/tlsentinel/tlsentinel-server/internal/notificationtemplates"
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
@@ -54,6 +55,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	auditHandler := audit.NewHandler(store)
 	tagHandler := tags.NewHandler(store)
 	apiKeyHandler := apikeys.NewHandler(store)
+	notifTemplateHandler := notificationtemplates.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -217,7 +219,20 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				})
 			})
 
-			r.Route("/settings", func(r chi.Router) {
+			r.Route("/notification-templates", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.SettingsView))
+						r.Get("/", notifTemplateHandler.List)
+						r.Get("/{eventType}/{channel}", notifTemplateHandler.Get)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.SettingsEdit))
+						r.Put("/{eventType}/{channel}", notifTemplateHandler.Update)
+						r.Delete("/{eventType}/{channel}", notifTemplateHandler.Reset)
+					})
+				})
+
+				r.Route("/settings", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsView))
 					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
