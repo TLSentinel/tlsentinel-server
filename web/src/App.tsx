@@ -25,6 +25,7 @@ import AccountPasswordPage from '@/pages/account/AccountPasswordPage'
 import AccountNotificationsPage from '@/pages/account/AccountNotificationsPage'
 import AccountAPIKeysPage from '@/pages/account/AccountAPIKeysPage'
 import GroupsPage from '@/pages/settings/GroupsPage'
+import APIKeysPage from '@/pages/settings/APIKeysPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
 import AuditLogPage from '@/pages/settings/AuditLogPage'
 import TagsPage from '@/pages/settings/TagsPage'
@@ -106,6 +107,7 @@ export default function App() {
             <Route path="general" element={<GeneralSettingsPage />} />
             <Route path="maintenance" element={<MaintenancePage />} />
             <Route path="notification-templates" element={<NotificationTemplatesPage />} />
+            <Route path="api-keys" element={<APIKeysPage />} />
             <Route path="about" element={<AboutPage />} />
           </Route>
 
