@@ -51,7 +51,7 @@ export default function SettingsPage() {
           to="/settings/tags"
           icon={<Tag className="h-4 w-4" />}
           title="Tags"
-          description="Manage tag categories and tags to organize endpoints by environment, owner, application, and more."
+          description="Manage tag categories and tags to organize endpoints."
         />
         <HubCard
           icon={<Webhook className="h-4 w-4" />}
