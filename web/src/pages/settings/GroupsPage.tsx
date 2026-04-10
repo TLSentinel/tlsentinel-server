@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { listGroups, deleteGroup } from '@/api/groups'
 import type { Group } from '@/types/api'
 import { Button } from '@/components/ui/button'
@@ -20,9 +20,10 @@ export default function GroupsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
   const [deleting, setDeleting]         = useState(false)
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['groups', page],
     queryFn: () => listGroups(page, PAGE_SIZE),
+    placeholderData: keepPreviousData,
   })
   const groups: Group[] = data?.items ?? []
   const total = data?.totalCount ?? 0
@@ -74,7 +75,7 @@ export default function GroupsPage() {
             <TableHead className="w-[100px]" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading ? (
             <TableRow>
               <TableCell colSpan={3} className="text-center text-muted-foreground py-8">Loading…</TableCell>

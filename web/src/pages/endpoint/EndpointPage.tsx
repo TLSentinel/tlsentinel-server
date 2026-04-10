@@ -34,7 +34,7 @@ import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import BulkImportDialog from '@/components/BulkImportDialog'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Type label
@@ -172,9 +172,10 @@ export default function HostsPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading, error: fetchError, refetch } = useQuery({
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
     queryKey: ['endpoints', page, debouncedSearch, statusFilter, sortOption, tagFilter],
     queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+    placeholderData: keepPreviousData,
   })
 
   const { data: categoriesData } = useQuery({
@@ -371,7 +372,7 @@ export default function HostsPage() {
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading && (
             <TableRow>
               <TableCell

@@ -36,7 +36,7 @@ import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
 import { ExpiryStatus } from '@/components/CertCard'
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, keepPreviousData } from "@tanstack/react-query"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -268,9 +268,10 @@ export default function CertificatesPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading, error: fetchError, refetch } = useQuery({
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
     queryKey: ['certificates', page, debouncedSearch, statusFilter, sortOption],
     queryFn: () => listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption),
+    placeholderData: keepPreviousData,
   })
 
   const certs = data?.items ?? []
@@ -389,7 +390,7 @@ export default function CertificatesPage() {
             <TableHead className="w-10" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">

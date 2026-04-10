@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -285,9 +285,11 @@ interface TagsTableProps {
   onEdit: (tag: Tag) => void
   onDelete: (tag: Tag, categoryName: string) => void
   onNew: () => void
+  isFetching?: boolean
+  isLoading?: boolean
 }
 
-function TagsTable({ categories, admin, onEdit, onDelete, onNew }: TagsTableProps) {
+function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isLoading }: TagsTableProps) {
   // Flatten all tags with their category name for the table
   const rows = categories.flatMap(cat =>
     cat.tags.map(tag => ({ ...tag, categoryName: cat.name }))
@@ -312,7 +314,7 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew }: TagsTableProp
             {admin && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">
@@ -370,9 +372,11 @@ interface CategoriesTableProps {
   onEdit: (cat: TagCategory) => void
   onDelete: (cat: TagCategory) => void
   onNew: () => void
+  isFetching?: boolean
+  isLoading?: boolean
 }
 
-function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: CategoriesTableProps) {
+function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isLoading }: CategoriesTableProps) {
   return (
     <div className="space-y-4">
       {admin && (
@@ -391,7 +395,7 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: Categor
             {admin && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {categories.length === 0 ? (
             <TableRow>
               <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center text-sm text-muted-foreground">
@@ -461,9 +465,10 @@ export default function TagsPage() {
 
   const admin = can('tags:edit')
 
-  const { data: categoriesData, isLoading, error: fetchError, refetch } = useQuery({
+  const { data: categoriesData, isLoading, isFetching, error: fetchError, refetch } = useQuery({
     queryKey: ['tag-categories'],
     queryFn: listTagCategories,
+    placeholderData: keepPreviousData,
   })
   const categories: CategoryWithTags[] = categoriesData ?? []
 
@@ -521,6 +526,8 @@ export default function TagsPage() {
         <TagsTable
           categories={categories}
           admin={admin}
+          isFetching={isFetching}
+          isLoading={isLoading}
           onNew={() => setTagDialog({ open: true, tag: null })}
           onEdit={tag => setTagDialog({ open: true, tag })}
           onDelete={(tag, _catName) => openDeleteDialog(
@@ -533,6 +540,8 @@ export default function TagsPage() {
         <CategoriesTable
           categories={categories}
           admin={admin}
+          isFetching={isFetching}
+          isLoading={isLoading}
           onNew={() => setCatDialog({ open: true, cat: null })}
           onEdit={cat => setCatDialog({ open: true, cat })}
           onDelete={cat => openDeleteDialog(

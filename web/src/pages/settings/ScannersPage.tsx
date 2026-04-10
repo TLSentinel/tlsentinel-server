@@ -26,7 +26,7 @@ import { can } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -378,9 +378,10 @@ export default function ScannersPage() {
   const [deleteTarget, setDeleteTarget] = useState<ScannerToken | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const { data: scannersData, isLoading, error: fetchError, refetch } = useQuery({
+  const { data: scannersData, isLoading, isFetching, error: fetchError, refetch } = useQuery({
     queryKey: ['scanners'],
     queryFn: listScanners,
+    placeholderData: keepPreviousData,
   })
   const scanners: ScannerToken[] = scannersData ?? []
 
@@ -445,7 +446,7 @@ export default function ScannersPage() {
             <TableHead className="w-28" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading && (
             <TableRow>
               <TableCell

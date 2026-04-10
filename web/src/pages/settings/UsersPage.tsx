@@ -31,7 +31,7 @@ import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Add / Edit dialog
@@ -502,9 +502,10 @@ export default function UsersPage() {
     setPage(1)
   }, [debouncedSearch, roleFilter, providerFilter, sortOption])
 
-  const { data, isLoading, error: fetchError, refetch } = useQuery({
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
     queryKey: ['users', page, debouncedSearch, roleFilter, providerFilter, sortOption],
     queryFn: () => listUsers(page, PAGE_SIZE, debouncedSearch, roleFilter, providerFilter, sortOption),
+    placeholderData: keepPreviousData,
   })
 
   const users = data?.items ?? []
@@ -665,7 +666,7 @@ export default function UsersPage() {
             {admin && <TableHead className="w-28" />}
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading && (
             <TableRow>
               <TableCell

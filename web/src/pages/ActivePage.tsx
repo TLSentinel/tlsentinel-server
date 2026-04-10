@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { listActive } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
 import type { CategoryWithTags } from '@/types/api'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 const TYPE_LABEL: Record<string, string> = {
   host:   'Host',
@@ -76,9 +76,10 @@ export default function ActivePage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading, error: fetchError } = useQuery({
+  const { data, isLoading, isFetching, error: fetchError } = useQuery({
     queryKey: ['active', page, debouncedSearch, statusFilter, sortOption, tagFilter],
     queryFn: () => listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+    placeholderData: keepPreviousData,
   })
 
   const { data: categoriesData } = useQuery({
@@ -260,7 +261,7 @@ export default function ActivePage() {
             <TableHead className="w-20 text-right">Days</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -105,9 +105,10 @@ export default function AuditLogPage() {
     }
   }, [search])
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['audit-logs', page, debouncedSearch],
     queryFn: () => listAuditLogs(page, PAGE_SIZE, debouncedSearch),
+    placeholderData: keepPreviousData,
   })
   const logs: AuditLog[] = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
@@ -152,7 +153,7 @@ export default function AuditLogPage() {
             <TableHead className="w-36 hidden md:table-cell">IP Address</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading ? (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
