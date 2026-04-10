@@ -7,9 +7,14 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
 
 const agentTokenPrefix = "scanner_"
+
+// APIKeyPrefix is the prefix for all user API keys.
+const APIKeyPrefix = "stx_p_"
 
 // GenerateScannerToken creates a new opaque scanner token.
 // Returns the raw token (shown to the user once) and its bcrypt hash (stored in DB).
@@ -34,4 +39,23 @@ func IsScannerToken(token string) bool {
 // CheckScannerToken compares a raw token against a bcrypt hash.
 func CheckScannerToken(raw, hash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(raw)) == nil
+}
+
+// GenerateAPIKey creates a new user API key.
+// Returns the raw token (shown once), its SHA-256 hash (stored in DB),
+// and the display prefix (first 12 chars of the raw token).
+func GenerateAPIKey() (raw string, hash string, prefix string, err error) {
+	b := make([]byte, 32)
+	if _, err = rand.Read(b); err != nil {
+		return "", "", "", fmt.Errorf("generate api key: %w", err)
+	}
+	raw = APIKeyPrefix + hex.EncodeToString(b)
+	hash = db.HashAPIKey(raw)
+	prefix = raw[:12] // "stx_p_" (6) + first 6 hex chars
+	return raw, hash, prefix, nil
+}
+
+// IsAPIKey returns true if the token has the API key prefix.
+func IsAPIKey(token string) bool {
+	return strings.HasPrefix(token, APIKeyPrefix)
 }

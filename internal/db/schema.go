@@ -108,6 +108,33 @@ type User struct {
 	UpdatedAt     time.Time `bun:"updated_at"`
 }
 
+// UserAPIKey maps to tlsentinel.user_api_keys.
+type UserAPIKey struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_api_keys"`
+
+	ID          string     `bun:"id,pk,type:uuid"`
+	UserID      string     `bun:"user_id,type:uuid"`
+	Name        string     `bun:"name"`
+	KeyHash     string     `bun:"key_hash"`
+	Prefix      string     `bun:"prefix"`
+	LastUsedAt  *time.Time `bun:"last_used_at"`
+	CreatedAt   time.Time  `bun:"created_at"`
+}
+
+// NotificationTemplate maps to tlsentinel.notification_templates.
+// The primary key is (event_type, channel). A row only exists when the admin
+// has customised the template; the embedded default is used otherwise.
+type NotificationTemplate struct {
+	bun.BaseModel `bun:"table:tlsentinel.notification_templates"`
+
+	EventType string    `bun:"event_type,pk"`
+	Channel   string    `bun:"channel,pk"`
+	Subject   *string   `bun:"subject"` // nil for channels that have no subject (e.g. webhook)
+	Body      string    `bun:"body"`
+	Format    string    `bun:"format"` // "html" or "text"
+	UpdatedAt time.Time `bun:"updated_at"`
+}
+
 // MailConfig maps to tlsentinel.mail_config (singleton row, id = 1).
 type MailConfig struct {
 	bun.BaseModel `bun:"table:tlsentinel.mail_config"`
@@ -164,11 +191,12 @@ type Setting struct {
 }
 
 // CertificateExpiryAlert maps to tlsentinel.certificate_expiry_alerts.
-// The composite PK (fingerprint, threshold_days) acts as the dedup key —
-// inserting a duplicate means the alert has already been sent.
+// The composite PK (user_id, fingerprint, threshold_days) acts as the dedup key —
+// inserting a duplicate means this alert has already been sent to this user.
 type CertificateExpiryAlert struct {
 	bun.BaseModel `bun:"table:tlsentinel.certificate_expiry_alerts"`
 
+	UserID        string    `bun:"user_id,pk,type:uuid"`
 	Fingerprint   string    `bun:"fingerprint,pk"`
 	ThresholdDays int       `bun:"threshold_days,pk"`
 	AlertedAt     time.Time `bun:"alerted_at"`
@@ -217,6 +245,14 @@ type UserGroup struct {
 	Role    string `bun:"role"`
 }
 
+// UserTagSubscription maps to tlsentinel.user_tag_subscriptions.
+type UserTagSubscription struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_tag_subscriptions"`
+
+	UserID string `bun:"user_id,pk,type:uuid"`
+	TagID  string `bun:"tag_id,pk,type:uuid"`
+}
+
 // TagCategory maps to tlsentinel.tag_categories.
 type TagCategory struct {
 	bun.BaseModel `bun:"table:tlsentinel.tag_categories,alias:tc"`
@@ -260,4 +296,17 @@ type VActiveCertificate struct {
 	NotBefore     time.Time `bun:"not_before"`
 	NotAfter      time.Time `bun:"not_after"`
 	DaysRemaining int       `bun:"days_remaining"`
+}
+
+// ScheduledJob maps to tlsentinel.scheduled_jobs.
+type ScheduledJob struct {
+	bun.BaseModel `bun:"table:tlsentinel.scheduled_jobs"`
+
+	Name           string     `bun:"name,pk"`
+	DisplayName    string     `bun:"display_name"`
+	CronExpression string     `bun:"cron_expression"`
+	Enabled        bool       `bun:"enabled"`
+	LastRunAt      *time.Time `bun:"last_run_at"`
+	LastRunStatus  *string    `bun:"last_run_status"`
+	UpdatedAt      time.Time  `bun:"updated_at"`
 }

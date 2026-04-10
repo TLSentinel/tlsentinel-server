@@ -10,6 +10,8 @@ import (
 
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/apikeys"
+	"github.com/tlsentinel/tlsentinel-server/internal/notificationtemplates"
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/calendar"
@@ -25,6 +27,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
+	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/tags"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
@@ -32,7 +35,7 @@ import (
 	tlsetinelWeb "github.com/tlsentinel/tlsentinel-server/web"
 )
 
-func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
+func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Scheduler) (http.Handler, error) {
 
 	authHandler := auth.NewHandler(store, cfg)
 	oidcHandler, err := oidc.NewHandler(context.Background(), store, cfg)
@@ -42,7 +45,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	tokenHandler := scanners.NewHandler(store)
 	scannerHandler := probe.NewHandler(store)
 	userHandler := users.NewHandler(store)
-	settingsHandler := settings.NewHandler(store)
+	settingsHandler := settings.NewHandler(store, sched)
 	certHandler := certificates.NewHandler(store)
 	endpointHandler := endpoints.NewHandler(store)
 	utilsHandler := utils.NewHandler()
@@ -51,6 +54,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 	groupHandler := groups.NewHandler(store)
 	auditHandler := audit.NewHandler(store)
 	tagHandler := tags.NewHandler(store)
+	apiKeyHandler := apikeys.NewHandler(store)
+	notifTemplateHandler := notificationtemplates.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -160,6 +165,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				r.Put("/", userHandler.UpdateMe)
 				r.Patch("/password", userHandler.ChangeMyPassword)
 				r.Post("/calendar-token", userHandler.RotateCalendarToken)
+				r.Get("/tag-subscriptions", userHandler.GetMySubscriptions)
+				r.Put("/tag-subscriptions", userHandler.SetMySubscriptions)
+				r.Get("/api-keys", apiKeyHandler.List)
+				r.Post("/api-keys", apiKeyHandler.Create)
+				r.Delete("/api-keys/{id}", apiKeyHandler.Delete)
 			})
 
 			r.Route("/users", func(r chi.Router) {
@@ -209,11 +219,23 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 				})
 			})
 
-			r.Route("/settings", func(r chi.Router) {
+			r.Route("/notification-templates", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.SettingsView))
+						r.Get("/", notifTemplateHandler.List)
+						r.Get("/{eventType}/{channel}", notifTemplateHandler.Get)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.SettingsEdit))
+						r.Put("/{eventType}/{channel}", notifTemplateHandler.Update)
+						r.Delete("/{eventType}/{channel}", notifTemplateHandler.Reset)
+					})
+				})
+
+				r.Route("/settings", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsView))
 					r.Get("/alert-thresholds", settingsHandler.GetAlertThresholds)
-					r.Get("/audit-logs", auditHandler.List)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.SettingsEdit))
@@ -230,6 +252,24 @@ func RegisterRoutes(store *db.Store, cfg *config.Config) (http.Handler, error) {
 						r.Post("/test", mailHandler.Test)
 					})
 				})
+			})
+
+			r.Route("/maintenance", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.Maintenance))
+				r.Get("/scheduled-jobs", settingsHandler.GetScheduledJobs)
+				r.Put("/scheduled-jobs/{name}", settingsHandler.UpdateScheduledJob)
+				r.Get("/scan-history-retention", settingsHandler.GetScanHistoryRetention)
+				r.Put("/scan-history-retention", settingsHandler.SetScanHistoryRetention)
+				r.Get("/audit-log-retention", settingsHandler.GetAuditLogRetention)
+				r.Put("/audit-log-retention", settingsHandler.SetAuditLogRetention)
+				r.Post("/run/purge-scan-history", settingsHandler.RunPurgeScanHistory)
+				r.Post("/run/purge-audit-logs", settingsHandler.RunPurgeAuditLogs)
+				r.Post("/run/purge-expiry-alerts", settingsHandler.RunPurgeExpiryAlerts)
+			})
+
+			r.Route("/logs", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.LogsView))
+				r.Get("/audit", auditHandler.List)
 			})
 
 			r.Route("/tags", func(r chi.Router) {
