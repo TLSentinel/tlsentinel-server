@@ -3,10 +3,12 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { listGroups, deleteGroup } from '@/api/groups'
 import type { Group } from '@/types/api'
+import StrixEmpty from '@/components/StrixEmpty'
+import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 const PAGE_SIZE = 20
 
@@ -82,7 +84,9 @@ export default function GroupsPage() {
             </TableRow>
           ) : groups.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={3} className="text-center text-muted-foreground py-8">No groups yet.</TableCell>
+              <TableCell colSpan={3} className="py-10 text-center">
+                <StrixEmpty message="No groups yet." />
+              </TableCell>
             </TableRow>
           ) : groups.map((g) => (
             <TableRow key={g.id}>
@@ -106,23 +110,14 @@ export default function GroupsPage() {
       </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {total === 0
-            ? 'No groups'
-            : `Page ${page} of ${totalPages} · ${total} total`}
-        </span>
-        <div className="flex gap-1">
-          <Button variant="outline" size="icon-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <Button variant="outline" size="icon-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={total}
+        onPrev={() => setPage(p => p - 1)}
+        onNext={() => setPage(p => p + 1)}
+        noun="group"
+      />
 
       {/* Delete confirmation */}
       <Dialog open={deleteTarget !== null} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
