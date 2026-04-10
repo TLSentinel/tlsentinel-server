@@ -1,4 +1,4 @@
-import { User, KeyRound, Bell } from 'lucide-react'
+import { User, KeyRound, Bell, Key } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 export default function AccountPage() {
@@ -29,6 +29,12 @@ export default function AccountPage() {
           icon={<Bell className="h-4 w-4" />}
           title="Notifications"
           description="Configure alert email preferences and narrow scope by tag."
+        />
+        <HubCard
+          to="/account/api-keys"
+          icon={<Key className="h-4 w-4" />}
+          title="API Keys"
+          description="Generate long-lived keys for CLI and automation access."
         />
       </div>
     </div>

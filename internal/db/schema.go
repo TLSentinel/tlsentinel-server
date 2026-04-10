@@ -108,6 +108,19 @@ type User struct {
 	UpdatedAt     time.Time `bun:"updated_at"`
 }
 
+// UserAPIKey maps to tlsentinel.user_api_keys.
+type UserAPIKey struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_api_keys"`
+
+	ID          string     `bun:"id,pk,type:uuid"`
+	UserID      string     `bun:"user_id,type:uuid"`
+	Name        string     `bun:"name"`
+	KeyHash     string     `bun:"key_hash"`
+	Prefix      string     `bun:"prefix"`
+	LastUsedAt  *time.Time `bun:"last_used_at"`
+	CreatedAt   time.Time  `bun:"created_at"`
+}
+
 // MailConfig maps to tlsentinel.mail_config (singleton row, id = 1).
 type MailConfig struct {
 	bun.BaseModel `bun:"table:tlsentinel.mail_config"`
