@@ -121,6 +121,20 @@ type UserAPIKey struct {
 	CreatedAt   time.Time  `bun:"created_at"`
 }
 
+// NotificationTemplate maps to tlsentinel.notification_templates.
+// The primary key is (event_type, channel). A row only exists when the admin
+// has customised the template; the embedded default is used otherwise.
+type NotificationTemplate struct {
+	bun.BaseModel `bun:"table:tlsentinel.notification_templates"`
+
+	EventType string    `bun:"event_type,pk"`
+	Channel   string    `bun:"channel,pk"`
+	Subject   *string   `bun:"subject"` // nil for channels that have no subject (e.g. webhook)
+	Body      string    `bun:"body"`
+	Format    string    `bun:"format"` // "html" or "text"
+	UpdatedAt time.Time `bun:"updated_at"`
+}
+
 // MailConfig maps to tlsentinel.mail_config (singleton row, id = 1).
 type MailConfig struct {
 	bun.BaseModel `bun:"table:tlsentinel.mail_config"`

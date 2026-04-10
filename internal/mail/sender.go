@@ -1,9 +1,13 @@
 package mail
 
 import (
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
+	"html"
 	"net/smtp"
+	"regexp"
 	"strings"
 )
 
@@ -19,9 +23,10 @@ type Config struct {
 	TLSMode      string // none | starttls | tls
 }
 
-// Send dispatches an email with the given subject and plain-text body.
-func Send(cfg Config, to, subject, body string) error {
-	return send(cfg, to, subject, body)
+// Send dispatches an email with the given subject and HTML body.
+// A plain-text fallback is generated automatically from the HTML.
+func Send(cfg Config, to, subject, htmlBody string) error {
+	return send(cfg, to, subject, htmlBody)
 }
 
 // SendTestEmail sends a test message. If to is empty it falls back to the
@@ -30,12 +35,16 @@ func SendTestEmail(cfg Config, to string) error {
 	if to == "" {
 		to = cfg.FromAddress
 	}
-	return send(cfg, to, "TLSentinel Test Email",
-		"This is a test email from TLSentinel.\r\nYour SMTP configuration is working correctly.")
+	const testHTML = `<!DOCTYPE html>
+<html><body style="font-family:sans-serif;padding:32px;color:#18181b;">
+<h2 style="margin:0 0 8px;">TLSentinel Test Email</h2>
+<p style="color:#71717a;">Your SMTP configuration is working correctly.</p>
+</body></html>`
+	return send(cfg, to, "TLSentinel Test Email", testHTML)
 }
 
 // send is the internal dispatch function.
-func send(cfg Config, to, subject, body string) error {
+func send(cfg Config, to, subject, htmlBody string) error {
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 
 	auth, err := buildAuth(cfg)
@@ -43,7 +52,7 @@ func send(cfg Config, to, subject, body string) error {
 		return err
 	}
 
-	msg := buildMessage(cfg.FromAddress, cfg.FromName, to, subject, body)
+	msg := buildMessage(cfg.FromAddress, cfg.FromName, to, subject, htmlBody)
 
 	switch cfg.TLSMode {
 	case "tls":
@@ -133,21 +142,72 @@ func writeMessage(c *smtp.Client, from, to string, msg []byte) error {
 	return w.Close()
 }
 
-// buildMessage formats a minimal RFC 5322 message.
-func buildMessage(fromAddr, fromName, to, subject, body string) []byte {
+// buildMessage formats a multipart/alternative RFC 5322 message with both a
+// plain-text fallback (auto-stripped from HTML) and the full HTML part.
+func buildMessage(fromAddr, fromName, to, subject, htmlBody string) []byte {
 	from := fromAddr
 	if fromName != "" {
 		from = fmt.Sprintf("%s <%s>", fromName, fromAddr)
 	}
+
+	boundary := randomBoundary()
+	plainText := htmlToText(htmlBody)
+
 	var sb strings.Builder
 	sb.WriteString("From: " + from + "\r\n")
 	sb.WriteString("To: " + to + "\r\n")
 	sb.WriteString("Subject: " + subject + "\r\n")
 	sb.WriteString("MIME-Version: 1.0\r\n")
+	sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary))
+	sb.WriteString("\r\n")
+
+	// Plain-text part (fallback)
+	sb.WriteString("--" + boundary + "\r\n")
 	sb.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
 	sb.WriteString("\r\n")
-	sb.WriteString(body)
+	sb.WriteString(plainText + "\r\n")
+
+	// HTML part
+	sb.WriteString("--" + boundary + "\r\n")
+	sb.WriteString("Content-Type: text/html; charset=utf-8\r\n")
+	sb.WriteString("\r\n")
+	sb.WriteString(htmlBody + "\r\n")
+
+	sb.WriteString("--" + boundary + "--\r\n")
+
 	return []byte(sb.String())
+}
+
+// randomBoundary generates a random MIME boundary string.
+func randomBoundary() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return "===============" + hex.EncodeToString(b) + "=="
+}
+
+// Compiled regexes for htmlToText.
+var (
+	reStyle  = regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
+	reScript = regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
+	reBlock  = regexp.MustCompile(`(?i)</?(?:br|p|tr|h[1-6]|div|li|hr|table|thead|tbody)[^>]*>`)
+	reTags   = regexp.MustCompile(`<[^>]+>`)
+	reSpaces = regexp.MustCompile(`[ \t]+`)
+	reLines  = regexp.MustCompile(`\n{3,}`)
+)
+
+// htmlToText produces a readable plain-text version of an HTML string.
+// Used as the text/plain fallback part in multipart/alternative emails.
+func htmlToText(htmlBody string) string {
+	s := reStyle.ReplaceAllString(htmlBody, "")
+	s = reScript.ReplaceAllString(s, "")
+	s = reBlock.ReplaceAllString(s, "\n")
+	s = reTags.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	s = reSpaces.ReplaceAllString(s, " ")
+	s = strings.ReplaceAll(s, " \n", "\n")
+	s = strings.ReplaceAll(s, "\n ", "\n")
+	s = reLines.ReplaceAllString(s, "\n\n")
+	return strings.TrimSpace(s)
 }
 
 // loginAuth implements smtp.Auth for the LOGIN SASL mechanism.
@@ -164,8 +224,6 @@ func (a loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if !more {
 		return nil, nil
 	}
-	// Servers send "Username:" or "Password:" (Go's smtp package base64-decodes
-	// the challenge before passing it to Next, so we receive plain text).
 	switch strings.ToLower(strings.TrimSpace(string(fromServer))) {
 	case "username:":
 		return []byte(a.username), nil

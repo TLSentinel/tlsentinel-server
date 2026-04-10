@@ -1,4 +1,4 @@
-import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, Tag } from 'lucide-react'
+import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, Tag, Bell } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 // ---------------------------------------------------------------------------
@@ -34,6 +34,12 @@ export default function SettingsPage() {
           icon={<Mail className="h-4 w-4" />}
           title="Email / SMTP"
           description="Send certificate expiry warnings and scan error alerts via email."
+        />
+        <HubCard
+          to="/settings/notification-templates"
+          icon={<Bell className="h-4 w-4" />}
+          title="Notification Templates"
+          description="Customise the subject and body of expiry alerts and scan notifications."
         />
         <HubCard
           to="/logs/audit"
