@@ -446,135 +446,133 @@ export default function ScannersPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Interval</TableHead>
+            <TableHead>Concurrency</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Last Used</TableHead>
+            <TableHead className="w-28" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading && (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Interval</TableHead>
-              <TableHead>Concurrency</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last Used</TableHead>
-              <TableHead className="w-28" />
+              <TableCell
+                colSpan={6}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Loading…
+          )}
+
+          {!loading && scanners.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center">
+                <StrixEmpty message={<>No scanners yet. Click <strong>Add Scanner</strong> to get started.</>} />
+              </TableCell>
+            </TableRow>
+          )}
+
+          {!loading &&
+            scanners.map((scanner) => (
+              <TableRow key={scanner.id}>
+                {/* Name + default badge */}
+                <TableCell className="font-medium">
+                  <span className="flex items-center gap-2">
+                    {scanner.name}
+                    {scanner.isDefault && (
+                      <Badge variant="secondary" className="text-xs">
+                        Default
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+
+                {/* Scan interval */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtInterval(scanner.scanIntervalSeconds)}
+                </TableCell>
+
+                {/* Concurrency */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {scanner.scanConcurrency}
+                </TableCell>
+
+                {/* Created */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtDate(scanner.createdAt)}
+                </TableCell>
+
+                {/* Last used */}
+                <TableCell className="text-sm">
+                  {scanner.lastUsedAt ? (
+                    fmtRelative(scanner.lastUsedAt, now)
+                  ) : (
+                    <span className="text-muted-foreground">Never</span>
+                  )}
+                </TableCell>
+
+                {/* Actions — admin only */}
+                <TableCell>
+                  {admin && (
+                    <div className="flex items-center justify-end gap-0.5">
+                      {/* Set as default */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className={
+                          scanner.isDefault
+                            ? 'text-amber-500'
+                            : 'text-muted-foreground hover:text-amber-500'
+                        }
+                        onClick={() => handleSetDefault(scanner)}
+                        title={scanner.isDefault ? 'Default scanner' : 'Set as default'}
+                      >
+                        <Star
+                          className="h-4 w-4"
+                          fill={scanner.isDefault ? 'currentColor' : 'none'}
+                        />
+                        <span className="sr-only">
+                          {scanner.isDefault
+                            ? 'Default scanner'
+                            : `Set ${scanner.name} as default`}
+                        </span>
+                      </Button>
+
+                      {/* Edit */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={() => setEditTarget(scanner)}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit {scanner.name}</span>
+                      </Button>
+
+                      {/* Revoke */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteTarget(scanner)}
+                        title="Revoke"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Revoke {scanner.name}</span>
+                      </Button>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
-            )}
-
-            {!loading && scanners.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  <StrixEmpty message={<>No scanners yet. Click <strong>Add Scanner</strong> to get started.</>} />
-                </TableCell>
-              </TableRow>
-            )}
-
-            {!loading &&
-              scanners.map((scanner) => (
-                <TableRow key={scanner.id}>
-                  {/* Name + default badge */}
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-2">
-                      {scanner.name}
-                      {scanner.isDefault && (
-                        <Badge variant="secondary" className="text-xs">
-                          Default
-                        </Badge>
-                      )}
-                    </span>
-                  </TableCell>
-
-                  {/* Scan interval */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtInterval(scanner.scanIntervalSeconds)}
-                  </TableCell>
-
-                  {/* Concurrency */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {scanner.scanConcurrency}
-                  </TableCell>
-
-                  {/* Created */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtDate(scanner.createdAt)}
-                  </TableCell>
-
-                  {/* Last used */}
-                  <TableCell className="text-sm">
-                    {scanner.lastUsedAt ? (
-                      fmtRelative(scanner.lastUsedAt, now)
-                    ) : (
-                      <span className="text-muted-foreground">Never</span>
-                    )}
-                  </TableCell>
-
-                  {/* Actions — admin only */}
-                  <TableCell>
-                    {admin && (
-                      <div className="flex items-center justify-end gap-0.5">
-                        {/* Set as default */}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className={
-                            scanner.isDefault
-                              ? 'text-amber-500'
-                              : 'text-muted-foreground hover:text-amber-500'
-                          }
-                          onClick={() => handleSetDefault(scanner)}
-                          title={scanner.isDefault ? 'Default scanner' : 'Set as default'}
-                        >
-                          <Star
-                            className="h-4 w-4"
-                            fill={scanner.isDefault ? 'currentColor' : 'none'}
-                          />
-                          <span className="sr-only">
-                            {scanner.isDefault
-                              ? 'Default scanner'
-                              : `Set ${scanner.name} as default`}
-                          </span>
-                        </Button>
-
-                        {/* Edit */}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          onClick={() => setEditTarget(scanner)}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {scanner.name}</span>
-                        </Button>
-
-                        {/* Revoke */}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(scanner)}
-                          title="Revoke"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Revoke {scanner.name}</span>
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Dialogs */}
       <CreateDialog

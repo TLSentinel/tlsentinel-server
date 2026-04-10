@@ -153,54 +153,52 @@ export default function AuditLogPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-44">Time</TableHead>
+            <TableHead className="w-36">User</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Resource</TableHead>
+            <TableHead className="w-36 hidden md:table-cell">IP Address</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading ? (
             <TableRow>
-              <TableHead className="w-44">Time</TableHead>
-              <TableHead className="w-36">User</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Resource</TableHead>
-              <TableHead className="w-36 hidden md:table-cell">IP Address</TableHead>
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            ) : logs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                  No audit log entries found.
-                </TableCell>
-              </TableRow>
-            ) : logs.map(log => (
-              <TableRow key={log.id}>
-                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatDate(log.createdAt)}
-                </TableCell>
-                <TableCell className="text-sm font-medium">
-                  {log.username || <span className="text-muted-foreground italic">system</span>}
-                </TableCell>
-                <TableCell>
-                  <ActionBadge action={log.action} />
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {log.resourceType ? (
-                    <span>{log.resourceType}{log.resourceId ? ` / ${log.resourceId}` : ''}</span>
-                  ) : '—'}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
-                  {log.ipAddress ?? '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ) : logs.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                No audit log entries found.
+              </TableCell>
+            </TableRow>
+          ) : logs.map(log => (
+            <TableRow key={log.id}>
+              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatDate(log.createdAt)}
+              </TableCell>
+              <TableCell className="text-sm font-medium">
+                {log.username || <span className="text-muted-foreground italic">system</span>}
+              </TableCell>
+              <TableCell>
+                <ActionBadge action={log.action} />
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {log.resourceType ? (
+                  <span>{log.resourceType}{log.resourceId ? ` / ${log.resourceId}` : ''}</span>
+                ) : '—'}
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
+                {log.ipAddress ?? '—'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">

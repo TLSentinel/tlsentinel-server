@@ -372,161 +372,159 @@ export default function HostsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Address</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Scanner</TableHead>
+            <TableHead>Last Scanned</TableHead>
+            <TableHead className="w-20" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading && (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Scanner</TableHead>
-              <TableHead>Last Scanned</TableHead>
-              <TableHead className="w-20" />
+              <TableCell
+                colSpan={7}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Loading…
+          )}
+
+          {!loading && endpoints.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="py-10 text-center">
+                {debouncedSearch || statusFilter
+                  ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
+                  : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
+              </TableCell>
+            </TableRow>
+          )}
+
+          {!loading &&
+            endpoints.map((endpoint) => (
+              <TableRow key={endpoint.id}>
+                {/* Name — links to detail page */}
+                <TableCell className="font-medium">
+                  <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
+                    {endpoint.name}
+                  </Link>
+                  {endpoint.tags && endpoint.tags.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {endpoint.tags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); handleTagChange(tagFilter === tag.id ? '' : tag.id) }}
+                          title={`Filter by ${tag.categoryName}: ${tag.name}`}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                        >
+                          <span className="opacity-60">{tag.categoryName}:</span>
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </TableCell>
-              </TableRow>
-            )}
 
-            {!loading && endpoints.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center">
-                  {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
-                    : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
+                {/* Type */}
+                <TableCell>
+                  <TypeLabel type={endpoint.type} />
                 </TableCell>
-              </TableRow>
-            )}
 
-            {!loading &&
-              endpoints.map((endpoint) => (
-                <TableRow key={endpoint.id}>
-                  {/* Name — links to detail page */}
-                  <TableCell className="font-medium">
-                    <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
-                      {endpoint.name}
-                    </Link>
-                    {endpoint.tags && endpoint.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {endpoint.tags.map(tag => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); handleTagChange(tagFilter === tag.id ? '' : tag.id) }}
-                            title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
-                          >
-                            <span className="opacity-60">{tag.categoryName}:</span>
-                            {tag.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-
-                  {/* Type */}
-                  <TableCell>
-                    <TypeLabel type={endpoint.type} />
-                  </TableCell>
-
-                  {/* Address — rendered differently per type */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {endpoint.type === 'host' ? (
-                      <span className="font-mono">{endpoint.dnsName}:{endpoint.port}</span>
-                    ) : endpoint.type === 'saml' ? (
-                      <span className="truncate max-w-xs block" title={endpoint.url ?? ''}>
-                        {endpoint.url ?? '—'}
-                      </span>
-                    ) : (
-                      <span className="italic">Manual</span>
-                    )}
-                  </TableCell>
-
-                  {/* Enabled / Disabled */}
-                  <TableCell>
-                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                      {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                {/* Address — rendered differently per type */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {endpoint.type === 'host' ? (
+                    <span className="font-mono">{endpoint.dnsName}:{endpoint.port}</span>
+                  ) : endpoint.type === 'saml' ? (
+                    <span className="truncate max-w-xs block" title={endpoint.url ?? ''}>
+                      {endpoint.url ?? '—'}
                     </span>
-                  </TableCell>
+                  ) : (
+                    <span className="italic">Manual</span>
+                  )}
+                </TableCell>
 
-                  {/* Scanner assignment */}
-                  <TableCell className="text-sm">
-                    {endpoint.scannerName ? (
-                      endpoint.scannerName
-                    ) : (
-                      <span className="text-muted-foreground">Default</span>
-                    )}
-                  </TableCell>
+                {/* Enabled / Disabled */}
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                    {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </TableCell>
 
-                  {/* Last scanned + error indicator */}
-                  <TableCell className="text-sm">
-                    {endpoint.lastScannedAt ? (
-                      <span className="flex items-center gap-1.5">
-                        {fmtRelative(endpoint.lastScannedAt, now)}
-                        {endpoint.lastScanError && (
-                          <span title={endpoint.lastScanError}>
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Never</span>
-                    )}
-                  </TableCell>
+                {/* Scanner assignment */}
+                <TableCell className="text-sm">
+                  {endpoint.scannerName ? (
+                    endpoint.scannerName
+                  ) : (
+                    <span className="text-muted-foreground">Default</span>
+                  )}
+                </TableCell>
 
-                  {/* Row actions — admin only */}
-                  <TableCell>
-                    <div className="flex items-center justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions for {endpoint.name}</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {admin && (
-                            <DropdownMenuItem asChild>
-                              <Link to={`/endpoints/${endpoint.id}/edit`} className="flex items-center gap-2">
-                                <Pencil className="h-4 w-4" />
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                          )}
+                {/* Last scanned + error indicator */}
+                <TableCell className="text-sm">
+                  {endpoint.lastScannedAt ? (
+                    <span className="flex items-center gap-1.5">
+                      {fmtRelative(endpoint.lastScannedAt, now)}
+                      {endpoint.lastScanError && (
+                        <span title={endpoint.lastScanError}>
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Never</span>
+                  )}
+                </TableCell>
+
+                {/* Row actions — admin only */}
+                <TableCell>
+                  <div className="flex items-center justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions for {endpoint.name}</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {admin && (
                           <DropdownMenuItem asChild>
-                            <Link to={`/endpoints/new?clone=${endpoint.id}`} className="flex items-center gap-2">
-                              <Copy className="h-4 w-4" />
-                              Clone
+                            <Link to={`/endpoints/${endpoint.id}/edit`} className="flex items-center gap-2">
+                              <Pencil className="h-4 w-4" />
+                              Edit
                             </Link>
                           </DropdownMenuItem>
-                          {admin && (
-                            <DropdownMenuItem
-                              className="flex items-center gap-2 text-destructive focus:text-destructive"
-                              onSelect={() => setDeleteTarget(endpoint)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+                        )}
+                        <DropdownMenuItem asChild>
+                          <Link to={`/endpoints/new?clone=${endpoint.id}`} className="flex items-center gap-2">
+                            <Copy className="h-4 w-4" />
+                            Clone
+                          </Link>
+                        </DropdownMenuItem>
+                        {admin && (
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 text-destructive focus:text-destructive"
+                            onSelect={() => setDeleteTarget(endpoint)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">

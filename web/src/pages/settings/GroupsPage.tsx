@@ -73,45 +73,43 @@ export default function GroupsPage() {
         </Button>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead className="w-[100px]" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {loading ? (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[100px]" />
+              <TableCell colSpan={3} className="text-center text-muted-foreground py-8">Loading…</TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">Loading…</TableCell>
-              </TableRow>
-            ) : groups.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">No groups yet.</TableCell>
-              </TableRow>
-            ) : groups.map((g) => (
-              <TableRow key={g.id}>
-                <TableCell className="font-medium">{g.name}</TableCell>
-                <TableCell className="text-muted-foreground">{g.description ?? '—'}</TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => navigate(`/settings/groups/${g.id}/edit`)}>
-                      <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Edit {g.name}</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(g)}>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete {g.name}</span>
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ) : groups.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={3} className="text-center text-muted-foreground py-8">No groups yet.</TableCell>
+            </TableRow>
+          ) : groups.map((g) => (
+            <TableRow key={g.id}>
+              <TableCell className="font-medium">{g.name}</TableCell>
+              <TableCell className="text-muted-foreground">{g.description ?? '—'}</TableCell>
+              <TableCell>
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => navigate(`/settings/groups/${g.id}/edit`)}>
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">Edit {g.name}</span>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(g)}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete {g.name}</span>
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
