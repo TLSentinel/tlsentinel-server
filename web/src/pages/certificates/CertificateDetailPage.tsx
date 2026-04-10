@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
-import { ApiError } from '@/types/api'
 import { CertCard, ExpiryStatus } from '@/components/CertCard'
 import { fmtDate } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Layout primitives
@@ -296,35 +296,32 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
 // ---------------------------------------------------------------------------
 
 function EndpointsSection({ fingerprint }: { fingerprint: string }) {
-  const [endpoints, setEndpoints] = useState<EndpointListItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: endpoints, isLoading } = useQuery({
+    queryKey: ['certificate', fingerprint, 'hosts'],
+    queryFn: () => getCertificateHosts(fingerprint),
+  })
 
-  useEffect(() => {
-    getCertificateHosts(fingerprint)
-      .then(setEndpoints)
-      .catch(() => setEndpoints([]))
-      .finally(() => setLoading(false))
-  }, [fingerprint])
+  const endpointList: EndpointListItem[] = endpoints ?? []
 
-  const title = loading
+  const title = isLoading
     ? 'Endpoints Using This Certificate'
-    : `Endpoints Using This Certificate (${endpoints.length})`
+    : `Endpoints Using This Certificate (${endpointList.length})`
 
   return (
     <div className="space-y-3">
       <SectionHeader title={title} />
 
-      {loading && <p className="text-xs italic text-muted-foreground">Loading…</p>}
+      {isLoading && <p className="text-xs italic text-muted-foreground">Loading…</p>}
 
-      {!loading && endpoints.length === 0 && (
+      {!isLoading && endpointList.length === 0 && (
         <p className="text-sm italic text-muted-foreground">
           No endpoints are currently using this certificate.
         </p>
       )}
 
-      {!loading && endpoints.length > 0 && (
+      {!isLoading && endpointList.length > 0 && (
         <div className="space-y-1.5">
-          {endpoints.map((h) => (
+          {endpointList.map((h) => (
             <div
               key={h.id}
               className="flex items-center rounded-md border px-3 py-2 text-sm"
@@ -388,36 +385,24 @@ function PEMActions({ pem, commonName }: { pem: string; commonName: string }) {
 // Page
 // ---------------------------------------------------------------------------
 
-type PageState =
-  | { status: 'loading' }
-  | { status: 'success'; cert: CertificateDetail }
-  | { status: 'error'; message: string }
-
 export default function CertificateDetailPage() {
   const { fingerprint } = useParams<{ fingerprint: string }>()
-  const [state, setState] = useState<PageState>({ status: 'loading' })
 
-  useEffect(() => {
-    if (!fingerprint) return
-    getCertificate(fingerprint)
-      .then((cert) => setState({ status: 'success', cert }))
-      .catch((err) =>
-        setState({
-          status: 'error',
-          message: err instanceof ApiError ? err.message : 'Failed to load certificate.',
-        }),
-      )
-  }, [fingerprint])
+  const { data: cert, isLoading, error: fetchError } = useQuery({
+    queryKey: ['certificate', fingerprint],
+    queryFn: () => getCertificate(fingerprint!),
+    enabled: !!fingerprint,
+  })
 
   const backLink = (
     <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
       <Link to="/certificates" className="hover:text-foreground">Certificates</Link>
       <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-foreground">{state.status === 'success' ? state.cert.commonName || fingerprint : '…'}</span>
+      <span className="text-foreground">{cert ? cert.commonName || fingerprint : '…'}</span>
     </nav>
   )
 
-  if (state.status === 'loading') {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         {backLink}
@@ -426,16 +411,16 @@ export default function CertificateDetailPage() {
     )
   }
 
-  if (state.status === 'error') {
+  if (fetchError) {
     return (
       <div className="space-y-4">
         {backLink}
-        <p className="text-sm text-destructive">{state.message}</p>
+        <p className="text-sm text-destructive">{fetchError.message}</p>
       </div>
     )
   }
 
-  const { cert } = state
+  if (!cert) return null
 
   return (
     <div className="space-y-5">

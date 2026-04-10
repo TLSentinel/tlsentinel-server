@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -284,9 +285,11 @@ interface TagsTableProps {
   onEdit: (tag: Tag) => void
   onDelete: (tag: Tag, categoryName: string) => void
   onNew: () => void
+  isFetching?: boolean
+  isLoading?: boolean
 }
 
-function TagsTable({ categories, admin, onEdit, onDelete, onNew }: TagsTableProps) {
+function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isLoading }: TagsTableProps) {
   // Flatten all tags with their category name for the table
   const rows = categories.flatMap(cat =>
     cat.tags.map(tag => ({ ...tag, categoryName: cat.name }))
@@ -311,7 +314,7 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew }: TagsTableProp
             {admin && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">
@@ -369,9 +372,11 @@ interface CategoriesTableProps {
   onEdit: (cat: TagCategory) => void
   onDelete: (cat: TagCategory) => void
   onNew: () => void
+  isFetching?: boolean
+  isLoading?: boolean
 }
 
-function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: CategoriesTableProps) {
+function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isLoading }: CategoriesTableProps) {
   return (
     <div className="space-y-4">
       {admin && (
@@ -390,7 +395,7 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: Categor
             {admin && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {categories.length === 0 ? (
             <TableRow>
               <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center text-sm text-muted-foreground">
@@ -444,9 +449,6 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew }: Categor
 type TabValue = 'tags' | 'categories'
 
 export default function TagsPage() {
-  const [categories, setCategories] = useState<CategoryWithTags[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
   const [tab, setTab] = useState<TabValue>('tags')
 
   // Tag dialog state
@@ -463,24 +465,19 @@ export default function TagsPage() {
 
   const admin = can('tags:edit')
 
-  const load = useCallback(async () => {
-    try {
-      setCategories(await listTagCategories())
-    } catch {
-      setLoadError('Failed to load tags')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
+  const { data: categoriesData, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+    placeholderData: keepPreviousData,
+  })
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   function openDeleteDialog(label: string, warning: string | undefined, onConfirm: () => Promise<void>) {
     setDeleteDialog({ open: true, label, warning, onConfirm })
   }
 
-  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
-  if (loadError) return <div className="py-8 text-center text-sm text-destructive">{loadError}</div>
+  if (isLoading) return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+  if (fetchError) return <div className="py-8 text-center text-sm text-destructive">{fetchError.message}</div>
 
   // Flatten categories to TagCategory[] for the tag dialog dropdown
   const categoryList: TagCategory[] = categories.map(c => ({
@@ -529,24 +526,28 @@ export default function TagsPage() {
         <TagsTable
           categories={categories}
           admin={admin}
+          isFetching={isFetching}
+          isLoading={isLoading}
           onNew={() => setTagDialog({ open: true, tag: null })}
           onEdit={tag => setTagDialog({ open: true, tag })}
           onDelete={(tag, _catName) => openDeleteDialog(
             tag.name,
             `This will remove the tag from all endpoints it is currently assigned to.`,
-            async () => { await deleteTag(tag.id); await load(); setDeleteDialog(d => ({ ...d, open: false })) },
+            async () => { await deleteTag(tag.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
           )}
         />
       ) : (
         <CategoriesTable
           categories={categories}
           admin={admin}
+          isFetching={isFetching}
+          isLoading={isLoading}
           onNew={() => setCatDialog({ open: true, cat: null })}
           onEdit={cat => setCatDialog({ open: true, cat })}
           onDelete={cat => openDeleteDialog(
             cat.name,
             `This will also delete all tags in this category and remove them from any endpoints.`,
-            async () => { await deleteTagCategory(cat.id); await load(); setDeleteDialog(d => ({ ...d, open: false })) },
+            async () => { await deleteTagCategory(cat.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
           )}
         />
       )}
@@ -557,14 +558,14 @@ export default function TagsPage() {
         initial={tagDialog.tag}
         categories={categoryList}
         onClose={() => setTagDialog({ open: false })}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       <CategoryDialog
         open={catDialog.open}
         initial={catDialog.cat}
         onClose={() => setCatDialog({ open: false })}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       <DeleteDialog

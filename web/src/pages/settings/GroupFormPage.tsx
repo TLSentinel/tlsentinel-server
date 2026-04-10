@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getGroup, getGroupHostIDs, createGroup, updateGroup } from '@/api/groups'
 import { listEndpoints } from '@/api/endpoints'
 import type { EndpointListItem } from '@/types/api'
@@ -110,25 +111,29 @@ export default function GroupFormPage() {
   const [pickerOpen, setPickerOpen]       = useState(false)
   const [saving, setSaving]               = useState(false)
   const [error, setError]                 = useState<string | null>(null)
-  const [loading, setLoading]             = useState(isEdit)
+  const [formReady, setFormReady]         = useState(!isEdit)
 
-  const load = useCallback(async () => {
-    try {
-      if (!isEdit) return
+  const { data: groupData } = useQuery({
+    queryKey: ['group', id],
+    queryFn: async () => {
       const [group, hostIDs, hostList] = await Promise.all([
         getGroup(id!),
         getGroupHostIDs(id!),
         listEndpoints(1, 200),
       ])
-      setName(group.name)
-      setDescription(group.description ?? '')
-      setSelectedHosts(hostList.items.filter(h => hostIDs.includes(h.id)))
-    } finally {
-      setLoading(false)
-    }
-  }, [id, isEdit])
+      return { group, hostIDs, hostList: hostList.items }
+    },
+    enabled: isEdit && !!id,
+  })
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (!groupData) return
+    const { group, hostIDs, hostList } = groupData
+    setName(group.name)
+    setDescription(group.description ?? '')
+    setSelectedHosts(hostList.filter(h => hostIDs.includes(h.id)))
+    setFormReady(true)
+  }, [groupData])
 
   function addHost(host: EndpointListItem) {
     setSelectedHosts(prev => prev.some(h => h.id === host.id) ? prev : [...prev, host])
@@ -162,7 +167,7 @@ export default function GroupFormPage() {
 
   const selectedIDs = new Set(selectedHosts.map(h => h.id))
 
-  if (loading) return <div className="text-sm text-muted-foreground">Loading…</div>
+  if (!formReady) return <div className="text-sm text-muted-foreground">Loading…</div>
 
   return (
     <div className="space-y-6 max-w-2xl">

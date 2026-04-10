@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Plus, Trash2, Copy, Check } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,7 +21,6 @@ function formatDate(iso: string) {
 
 export default function AccountAPIKeysPage() {
   const [keys, setKeys]           = useState<APIKey[]>([])
-  const [loading, setLoading]     = useState(true)
   const [newName, setNewName]     = useState('')
   const [creating, setCreating]   = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -33,12 +33,14 @@ export default function AccountAPIKeysPage() {
   const [deleteTarget, setDeleteTarget] = useState<APIKey | null>(null)
   const [deleting, setDeleting]         = useState(false)
 
+  const { data: keysData, isLoading } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: listAPIKeys,
+  })
+
   useEffect(() => {
-    listAPIKeys()
-      .then(setKeys)
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    if (keysData) setKeys(keysData)
+  }, [keysData])
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -123,7 +125,7 @@ export default function AccountAPIKeysPage() {
           <CardTitle className="text-base">Your Keys</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : keys.length === 0 ? (
             <p className="text-sm text-muted-foreground">No API keys yet.</p>

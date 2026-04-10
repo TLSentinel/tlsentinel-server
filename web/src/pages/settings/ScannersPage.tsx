@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ChevronRight } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -26,6 +26,7 @@ import { can } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -370,36 +371,23 @@ export default function ScannersPage() {
   const admin = can('scanners:edit')
   const [now] = useState(Date.now)
 
-  const [scanners, setScanners] = useState<ScannerToken[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   const [addSeq, setAddSeq] = useState(0)
   const [addOpen, setAddOpen] = useState(false)
   const [revealToken, setRevealToken] = useState<ScannerTokenCreated | null>(null)
   const [editTarget, setEditTarget] = useState<ScannerToken | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ScannerToken | null>(null)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const items = await listScanners()
-      setScanners(items)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load scanners.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data: scannersData, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['scanners'],
+    queryFn: listScanners,
+    placeholderData: keepPreviousData,
+  })
+  const scanners: ScannerToken[] = scannersData ?? []
 
   function handleCreated(created: ScannerTokenCreated) {
     // Refresh the list, then show the one-time token reveal.
-    load()
+    refetch()
     setRevealToken(created)
   }
 
@@ -407,9 +395,9 @@ export default function ScannersPage() {
     try {
       await setDefaultScanner(scanner.id)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to set default scanner.')
+      setMutationError(err instanceof ApiError ? err.message : 'Failed to set default scanner.')
     } finally {
-      load()
+      refetch()
     }
   }
 
@@ -443,7 +431,8 @@ export default function ScannersPage() {
       </div>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
+      {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
       {/* Table */}
       <Table>
@@ -457,8 +446,8 @@ export default function ScannersPage() {
             <TableHead className="w-28" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
-          {loading && (
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
               <TableCell
                 colSpan={6}
@@ -469,7 +458,7 @@ export default function ScannersPage() {
             </TableRow>
           )}
 
-          {!loading && scanners.length === 0 && (
+          {!isLoading && scanners.length === 0 && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center">
                 <StrixEmpty message={<>No scanners yet. Click <strong>Add Scanner</strong> to get started.</>} />
@@ -477,7 +466,7 @@ export default function ScannersPage() {
             </TableRow>
           )}
 
-          {!loading &&
+          {!isLoading &&
             scanners.map((scanner) => (
               <TableRow key={scanner.id}>
                 {/* Name + default badge */}
@@ -591,13 +580,13 @@ export default function ScannersPage() {
         key={editTarget?.id}
         scanner={editTarget}
         onClose={() => setEditTarget(null)}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       <DeleteDialog
         scanner={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
     </div>
   )

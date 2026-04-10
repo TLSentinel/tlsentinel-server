@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Upload, Pencil, Trash2, Copy, MoreHorizontal, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -34,6 +34,7 @@ import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import BulkImportDialog from '@/components/BulkImportDialog'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Type label
@@ -152,25 +153,15 @@ export default function HostsPage() {
   // Captured once at mount — avoids calling the impure Date.now() during render.
   const [now] = useState(Date.now)
 
-  const [endpoints, setEndpoints] = useState<EndpointListItem[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<HostStatus>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
   const [tagFilter, setTagFilter] = useState('')          // active tag_id
-  const [categories, setCategories] = useState<CategoryWithTags[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<EndpointListItem | null>(null)
   const [importOpen, setImportOpen] = useState(false)
-
-  // Load tag categories once for the filter dropdown.
-  useEffect(() => {
-    listTagCategories().then(setCategories).catch(() => {})
-  }, [])
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -181,23 +172,20 @@ export default function HostsPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter)
-      setEndpoints(result.items ?? [])
-      setTotalCount(result.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load endpoints.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, statusFilter, sortOption, tagFilter])
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['endpoints', page, debouncedSearch, statusFilter, sortOption, tagFilter],
+    queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+  })
+
+  const endpoints = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   function handleStatusChange(value: HostStatus) {
     setStatusFilter(value)
@@ -369,7 +357,7 @@ export default function HostsPage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
       <Table>
@@ -384,8 +372,8 @@ export default function HostsPage() {
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
-          {loading && (
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
               <TableCell
                 colSpan={7}
@@ -396,7 +384,7 @@ export default function HostsPage() {
             </TableRow>
           )}
 
-          {!loading && endpoints.length === 0 && (
+          {!isLoading && endpoints.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="py-10 text-center">
                 {debouncedSearch || statusFilter
@@ -406,7 +394,7 @@ export default function HostsPage() {
             </TableRow>
           )}
 
-          {!loading &&
+          {!isLoading &&
             endpoints.map((endpoint) => (
               <TableRow key={endpoint.id}>
                 {/* Name — links to detail page */}
@@ -558,13 +546,13 @@ export default function HostsPage() {
       <DeleteDialog
         endpoint={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
 
       <BulkImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onComplete={load}
+        onComplete={refetch}
       />
     </div>
   )

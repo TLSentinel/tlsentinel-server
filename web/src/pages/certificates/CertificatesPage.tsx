@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Trash2, ChevronLeft, ChevronRight, Search, FolderOpen, ChevronDown, Check } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -36,6 +36,7 @@ import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
 import { ExpiryStatus } from '@/components/CertCard'
+import { useQuery, keepPreviousData } from "@tanstack/react-query"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -249,15 +250,11 @@ const PAGE_SIZE = 20
 export default function CertificatesPage() {
   const admin = can('certs:edit')
   const navigate = useNavigate()
-  const [certs, setCerts] = useState<CertificateListItem[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<CertificateListItem | null>(null)
   const [ingestOpen, setIngestOpen] = useState(false)
@@ -271,23 +268,14 @@ export default function CertificatesPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
-      setCerts(result.items ?? [])
-      setTotalCount(result.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load certificates.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, statusFilter, sortOption])
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['certificates', page, debouncedSearch, statusFilter, sortOption],
+    queryFn: () => listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption),
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const certs = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
 
   function handleStatusChange(value: StatusFilter) {
     setStatusFilter(value)
@@ -388,7 +376,7 @@ export default function CertificatesPage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
       <Table>
@@ -402,8 +390,8 @@ export default function CertificatesPage() {
             <TableHead className="w-10" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
-          {loading && (
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                 Loading…
@@ -411,7 +399,7 @@ export default function CertificatesPage() {
             </TableRow>
           )}
 
-          {!loading && certs.length === 0 && (
+          {!isLoading && certs.length === 0 && (
             <TableRow>
               <TableCell colSpan={6} className="py-10 text-center">
                 {debouncedSearch || statusFilter
@@ -421,7 +409,7 @@ export default function CertificatesPage() {
             </TableRow>
           )}
 
-          {!loading &&
+          {!isLoading &&
             certs.map((cert) => (
               <TableRow
                 key={cert.fingerprint}
@@ -497,7 +485,7 @@ export default function CertificatesPage() {
       <DeleteDialog
         cert={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
     </div>
   )

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Archive, Bell, ScrollText, BellOff } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -275,21 +276,31 @@ export default function MaintenancePage() {
   const [auditRetentionError, setAuditRetentionError]     = useState<string | null>(null)
   const [auditRetentionSuccess, setAuditRetentionSuccess] = useState(false)
 
-  const [purgeJob, setPurgeJob]               = useState<ScheduledJob | null>(null)
-  const [alertsJob, setAlertsJob]             = useState<ScheduledJob | null>(null)
-  const [auditPurgeJob, setAuditPurgeJob]     = useState<ScheduledJob | null>(null)
-  const [expiryPurgeJob, setExpiryPurgeJob]   = useState<ScheduledJob | null>(null)
+  const { data: scanRetentionData } = useQuery({
+    queryKey: ['scan-history-retention'],
+    queryFn: getScanHistoryRetention,
+  })
+  const { data: auditRetentionData } = useQuery({
+    queryKey: ['audit-log-retention'],
+    queryFn: getAuditLogRetention,
+  })
+  const { data: scheduledJobsData } = useQuery({
+    queryKey: ['scheduled-jobs'],
+    queryFn: getScheduledJobs,
+  })
 
   useEffect(() => {
-    getScanHistoryRetention().then(r => setRetentionDays(r.days)).catch(() => {})
-    getAuditLogRetention().then(r => setAuditRetentionDays(r.days)).catch(() => {})
-    getScheduledJobs().then(jobs => {
-      setPurgeJob(jobs.find(j => j.name === 'purge_scan_history') ?? null)
-      setAlertsJob(jobs.find(j => j.name === 'expiry_alerts') ?? null)
-      setAuditPurgeJob(jobs.find(j => j.name === 'purge_audit_logs') ?? null)
-      setExpiryPurgeJob(jobs.find(j => j.name === 'purge_expiry_alerts') ?? null)
-    }).catch(() => {})
-  }, [])
+    if (scanRetentionData) setRetentionDays(scanRetentionData.days)
+  }, [scanRetentionData])
+
+  useEffect(() => {
+    if (auditRetentionData) setAuditRetentionDays(auditRetentionData.days)
+  }, [auditRetentionData])
+
+  const purgeJob      = scheduledJobsData?.find(j => j.name === 'purge_scan_history') ?? null
+  const alertsJob     = scheduledJobsData?.find(j => j.name === 'expiry_alerts') ?? null
+  const auditPurgeJob = scheduledJobsData?.find(j => j.name === 'purge_audit_logs') ?? null
+  const expiryPurgeJob = scheduledJobsData?.find(j => j.name === 'purge_expiry_alerts') ?? null
 
   async function handleSaveRetention() {
     setSavingRetention(true)

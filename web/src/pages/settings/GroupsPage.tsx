@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { listGroups, deleteGroup } from '@/api/groups'
 import type { Group } from '@/types/api'
 import { Button } from '@/components/ui/button'
@@ -15,27 +16,18 @@ const PAGE_SIZE = 20
 
 export default function GroupsPage() {
   const navigate = useNavigate()
-  const [groups, setGroups]             = useState<Group[]>([])
-  const [total, setTotal]               = useState(0)
   const [page, setPage]                 = useState(1)
-  const [loading, setLoading]           = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
   const [deleting, setDeleting]         = useState(false)
 
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['groups', page],
+    queryFn: () => listGroups(page, PAGE_SIZE),
+    placeholderData: keepPreviousData,
+  })
+  const groups: Group[] = data?.items ?? []
+  const total = data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  const load = useCallback(async (p: number) => {
-    setLoading(true)
-    try {
-      const res = await listGroups(p, PAGE_SIZE)
-      setGroups(res.items)
-      setTotal(res.totalCount)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load(page) }, [load, page])
 
   async function handleDelete() {
     if (!deleteTarget) return
@@ -44,9 +36,11 @@ export default function GroupsPage() {
       await deleteGroup(deleteTarget.id)
       setDeleteTarget(null)
       // If we deleted the last item on a page > 1, step back
-      const newPage = groups.length === 1 && page > 1 ? page - 1 : page
-      setPage(newPage)
-      load(newPage)
+      if (groups.length === 1 && page > 1) {
+        setPage(p => p - 1)
+      } else {
+        refetch()
+      }
     } finally {
       setDeleting(false)
     }
@@ -81,8 +75,8 @@ export default function GroupsPage() {
             <TableHead className="w-[100px]" />
           </TableRow>
         </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
-          {loading ? (
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading ? (
             <TableRow>
               <TableCell colSpan={3} className="text-center text-muted-foreground py-8">Loading…</TableCell>
             </TableRow>
