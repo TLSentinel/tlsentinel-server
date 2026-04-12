@@ -14,7 +14,7 @@ export function HubCard({ icon, title, description, to, soon }: HubCardProps) {
   const inner = (
     <div
       className={[
-        'group rounded-lg border p-5 space-y-3 transition-colors',
+        'group rounded-lg border p-5 flex flex-col gap-3 h-full transition-colors',
         to
           ? 'cursor-pointer hover:border-foreground/30 hover:bg-accent/30'
           : 'opacity-60',
@@ -34,5 +34,5 @@ export function HubCard({ icon, title, description, to, soon }: HubCardProps) {
     </div>
   )
 
-  return to ? <Link to={to}>{inner}</Link> : inner
+  return to ? <Link to={to} className="h-full">{inner}</Link> : inner
 }

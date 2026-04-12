@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -60,7 +61,6 @@ export default function MailConfigPage() {
   const [fromName, setFromName] = useState('')
   const [tlsMode, setTlsMode] = useState<TLSMode>('starttls')
 
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testRecipient, setTestRecipient] = useState('')
@@ -70,23 +70,25 @@ export default function MailConfigPage() {
   // -------------------------------------------------------------------------
   // Load config on mount
   // -------------------------------------------------------------------------
+  const { data: mailConfig, isLoading } = useQuery({
+    queryKey: ['mail-config'],
+    queryFn: getMailConfig,
+  })
+
   useEffect(() => {
-    getMailConfig()
-      .then((cfg) => {
-        setEnabled(cfg.enabled)
-        setSmtpHost(cfg.smtpHost)
-        setSmtpPort(cfg.smtpPort || 587)
-        setAuthType((cfg.authType as AuthType) || 'plain')
-        setSmtpUsername(cfg.smtpUsername)
-        setFromAddress(cfg.fromAddress)
-        setFromName(cfg.fromName)
-        setTlsMode((cfg.tlsMode as TLSMode) || 'starttls')
-        if (cfg.passwordSet) {
-          setPasswordMode('keep')
-        }
-      })
-      .finally(() => setLoading(false))
-  }, [])
+    if (!mailConfig) return
+    setEnabled(mailConfig.enabled)
+    setSmtpHost(mailConfig.smtpHost)
+    setSmtpPort(mailConfig.smtpPort || 587)
+    setAuthType((mailConfig.authType as AuthType) || 'plain')
+    setSmtpUsername(mailConfig.smtpUsername)
+    setFromAddress(mailConfig.fromAddress)
+    setFromName(mailConfig.fromName)
+    setTlsMode((mailConfig.tlsMode as TLSMode) || 'starttls')
+    if (mailConfig.passwordSet) {
+      setPasswordMode('keep')
+    }
+  }, [mailConfig])
 
   // -------------------------------------------------------------------------
   // Save
@@ -143,7 +145,7 @@ export default function MailConfigPage() {
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
     )

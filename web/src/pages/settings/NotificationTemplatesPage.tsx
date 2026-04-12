@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, RotateCcw, Save, Copy, Eye, Code2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -235,18 +236,18 @@ function TemplateEditor({
 
 export default function NotificationTemplatesPage() {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([])
-  const [loading, setLoading]     = useState(true)
   const [selected, setSelected]   = useState<NotificationTemplate | null>(null)
 
+  const { data: templatesData, isLoading } = useQuery({
+    queryKey: ['notification-templates'],
+    queryFn: listNotificationTemplates,
+  })
+
   useEffect(() => {
-    listNotificationTemplates()
-      .then(data => {
-        setTemplates(data)
-        if (data.length > 0) setSelected(data[0])
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    if (!templatesData) return
+    setTemplates(templatesData)
+    if (templatesData.length > 0 && !selected) setSelected(templatesData[0])
+  }, [templatesData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSaved(updated: NotificationTemplate) {
     setTemplates(prev => prev.map(t =>
@@ -279,7 +280,7 @@ export default function NotificationTemplatesPage() {
         </p>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">

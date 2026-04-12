@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { getMe, updateMe, getMyTagSubscriptions, setMyTagSubscriptions, rotateCalendarToken } from '@/api/users'
@@ -128,22 +129,27 @@ export default function AccountNotificationsPage() {
   const [notifySuccess, setNotifySuccess] = useState(false)
   const [tagsSuccess, setTagsSuccess]     = useState(false)
 
+  const { data: meData } = useQuery({ queryKey: ['me'], queryFn: getMe })
+  const { data: tagCategoriesData } = useQuery({ queryKey: ['tag-categories'], queryFn: listTagCategories })
+  const { data: tagSubsData } = useQuery({ queryKey: ['my-tag-subscriptions'], queryFn: getMyTagSubscriptions })
+
   useEffect(() => {
-    getMe().then(u => {
-      setUser(u)
-      setNotify(u.notify)
-      setCalendarToken(u.calendarToken ?? null)
-    }).catch(() => {})
+    if (!meData) return
+    setUser(meData)
+    setNotify(meData.notify)
+    setCalendarToken(meData.calendarToken ?? null)
+  }, [meData])
 
-    listTagCategories().then(cats => {
-      setCategories(cats.filter(c => c.tags.length > 0))
-    }).catch(() => {})
+  useEffect(() => {
+    if (!tagCategoriesData) return
+    setCategories(tagCategoriesData.filter(c => c.tags.length > 0))
+  }, [tagCategoriesData])
 
-    getMyTagSubscriptions().then(subs => {
-      setSelectedTagIds(new Set(subs.map(s => s.id)))
-      setFilterMode(subs.length > 0 ? 'tags' : 'all')
-    }).catch(() => {})
-  }, [])
+  useEffect(() => {
+    if (!tagSubsData) return
+    setSelectedTagIds(new Set(tagSubsData.map(s => s.id)))
+    setFilterMode(tagSubsData.length > 0 ? 'tags' : 'all')
+  }, [tagSubsData])
 
   const feedUrl = calendarToken
     ? `${window.location.origin}/api/v1/calendar/u/${calendarToken}/feed.ics`

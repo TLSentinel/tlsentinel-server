@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ChevronLeft, ChevronRight, Search, FolderOpen, ChevronDown, Check } from 'lucide-react'
+import { Plus, Trash2, FolderOpen } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
+import SearchInput from '@/components/SearchInput'
+import FilterDropdown from '@/components/FilterDropdown'
+import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Table,
@@ -21,12 +23,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   listCertificates,
   createCertificate,
   deleteCertificate,
@@ -36,6 +32,7 @@ import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
 import { ExpiryStatus } from '@/components/CertCard'
+import { useQuery, keepPreviousData } from "@tanstack/react-query"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -249,15 +246,11 @@ const PAGE_SIZE = 20
 export default function CertificatesPage() {
   const admin = can('certs:edit')
   const navigate = useNavigate()
-  const [certs, setCerts] = useState<CertificateListItem[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<CertificateListItem | null>(null)
   const [ingestOpen, setIngestOpen] = useState(false)
@@ -271,23 +264,14 @@ export default function CertificatesPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption)
-      setCerts(result.items ?? [])
-      setTotalCount(result.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load certificates.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, statusFilter, sortOption])
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['certificates', page, debouncedSearch, statusFilter, sortOption],
+    queryFn: () => listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption),
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const certs = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
 
   function handleStatusChange(value: StatusFilter) {
     setStatusFilter(value)
@@ -323,57 +307,26 @@ export default function CertificatesPage() {
 
       {/* Search + filters */}
       <div className="flex items-center gap-2">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Search common name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search common name…"
+          className="max-w-sm flex-1"
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              Status
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {STATUS_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => handleStatusChange(value)}
-                className="gap-2"
-              >
-                <Check className={`h-4 w-4 ${statusFilter === value ? 'opacity-100' : 'opacity-0'}`} />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Status"
+          options={STATUS_OPTIONS}
+          value={statusFilter}
+          onSelect={(value) => handleStatusChange(value as StatusFilter)}
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              Sort
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {SORT_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => handleSortChange(value)}
-                className="gap-2"
-              >
-                <Check className={`h-4 w-4 ${sortOption === value ? 'opacity-100' : 'opacity-0'}`} />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Sort"
+          options={SORT_OPTIONS}
+          value={sortOption}
+          onSelect={(value) => handleSortChange(value as SortOption)}
+        />
       </div>
 
       {/* Active filter context line */}
@@ -388,107 +341,88 @@ export default function CertificatesPage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Common Name</TableHead>
+            <TableHead>SANs</TableHead>
+            <TableHead className="w-28">Status</TableHead>
+            <TableHead>Issued</TableHead>
+            <TableHead>Expires</TableHead>
+            <TableHead className="w-10" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
-              <TableHead>Common Name</TableHead>
-              <TableHead>SANs</TableHead>
-              <TableHead className="w-28">Status</TableHead>
-              <TableHead>Issued</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead className="w-10" />
+              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  Loading…
+          )}
+
+          {!isLoading && certs.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center">
+                {debouncedSearch || statusFilter
+                  ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+                  : <StrixEmpty message="No certificates yet." />}
+              </TableCell>
+            </TableRow>
+          )}
+
+          {!isLoading &&
+            certs.map((cert) => (
+              <TableRow
+                key={cert.fingerprint}
+                className="cursor-pointer"
+                onClick={() => navigate(`/certificates/${cert.fingerprint}`)}
+              >
+                <TableCell className="font-medium">{cert.commonName || '—'}</TableCell>
+                <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                  {cert.sans.length === 0
+                    ? '—'
+                    : cert.sans.slice(0, 3).join(', ') +
+                      (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
+                </TableCell>
+                <TableCell>
+                  <ExpiryStatus notAfter={cert.notAfter} />
+                </TableCell>
+                <TableCell>{fmtDate(cert.notBefore)}</TableCell>
+                <TableCell>{fmtDate(cert.notAfter)}</TableCell>
+                <TableCell>
+                  {admin && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget(cert)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
-            )}
-
-            {!loading && certs.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                    : <StrixEmpty message="No certificates yet." />}
-                </TableCell>
-              </TableRow>
-            )}
-
-            {!loading &&
-              certs.map((cert) => (
-                <TableRow
-                  key={cert.fingerprint}
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/certificates/${cert.fingerprint}`)}
-                >
-                  <TableCell className="font-medium">{cert.commonName || '—'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                    {cert.sans.length === 0
-                      ? '—'
-                      : cert.sans.slice(0, 3).join(', ') +
-                        (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
-                  </TableCell>
-                  <TableCell>
-                    <ExpiryStatus notAfter={cert.notAfter} />
-                  </TableCell>
-                  <TableCell>{fmtDate(cert.notBefore)}</TableCell>
-                  <TableCell>{fmtDate(cert.notAfter)}</TableCell>
-                  <TableCell>
-                    {admin && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteTarget(cert)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {totalCount === 0 ? 'No results' : `Page ${page} of ${totalPages} · ${totalCount} total`}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPrev={() => setPage(p => p - 1)}
+        onNext={() => setPage(p => p + 1)}
+        noun="certificate"
+      />
 
       {/* Dialogs */}
       <IngestDialog
@@ -499,7 +433,7 @@ export default function CertificatesPage() {
       <DeleteDialog
         cert={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
     </div>
   )

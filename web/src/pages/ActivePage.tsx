@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronLeft, ChevronRight, Check, Search, Tag, X } from 'lucide-react'
+import { ChevronDown, Check, Tag, X } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
+import SearchInput from '@/components/SearchInput'
+import FilterDropdown from '@/components/FilterDropdown'
+import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { listActive, type ExpiringCertItem } from '@/api/certificates'
+import { listActive } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
-import { ApiError } from '@/types/api'
 import type { CategoryWithTags } from '@/types/api'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 const TYPE_LABEL: Record<string, string> = {
   host:   'Host',
@@ -60,21 +62,12 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const PAGE_SIZE = 20
 
 export default function ActivePage() {
-  const [items, setItems] = useState<ExpiringCertItem[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
   const [tagFilter, setTagFilter] = useState('')
-  const [categories, setCategories] = useState<CategoryWithTags[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    listTagCategories().then(setCategories).catch(() => {})
-  }, [])
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -85,23 +78,20 @@ export default function ActivePage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter)
-      setItems(data.items ?? [])
-      setTotalCount(data.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load active certificates.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, statusFilter, sortOption, tagFilter])
+  const { data, isLoading, isFetching, error: fetchError } = useQuery({
+    queryKey: ['active', page, debouncedSearch, statusFilter, sortOption, tagFilter],
+    queryFn: () => listActive(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+  })
+
+  const items = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   function handleStatusChange(value: StatusFilter) {
     setStatusFilter(value)
@@ -138,57 +128,26 @@ export default function ActivePage() {
 
       {/* Search + filter */}
       <div className="flex items-center gap-2">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Search endpoint or cert name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search endpoint or cert name…"
+          className="max-w-sm flex-1"
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              Status
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {STATUS_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => handleStatusChange(value)}
-                className="gap-2"
-              >
-                <Check className={`h-4 w-4 ${statusFilter === value ? 'opacity-100' : 'opacity-0'}`} />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Status"
+          options={STATUS_OPTIONS}
+          value={statusFilter}
+          onSelect={(value) => handleStatusChange(value as StatusFilter)}
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              Sort
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {SORT_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => handleSortChange(value)}
-                className="gap-2"
-              >
-                <Check className={`h-4 w-4 ${sortOption === value ? 'opacity-100' : 'opacity-0'}`} />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Sort"
+          options={SORT_OPTIONS}
+          value={sortOption}
+          onSelect={(value) => handleSortChange(value as SortOption)}
+        />
 
         {allTags.length > 0 && (
           <DropdownMenu>
@@ -259,129 +218,109 @@ export default function ActivePage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Endpoint</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead className="w-28">Status</TableHead>
+            <TableHead>Common Name</TableHead>
+            <TableHead>Expires</TableHead>
+            <TableHead className="w-20 text-right">Days</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
-              <TableHead>Endpoint</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="w-28">Status</TableHead>
-              <TableHead>Common Name</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead className="w-20 text-right">Days</TableHead>
+              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            )}
+          )}
 
-            {!loading && items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                    : <StrixEmpty message="No endpoints with active certificates yet." />}
-                </TableCell>
-              </TableRow>
-            )}
+          {!isLoading && items.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center">
+                {debouncedSearch || statusFilter
+                  ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+                  : <StrixEmpty message="No endpoints with active certificates yet." />}
+              </TableCell>
+            </TableRow>
+          )}
 
-            {!loading &&
-              items.map((item) => (
-                <TableRow key={`${item.endpointId}-${item.fingerprint}`}>
-                  <TableCell className="font-medium">
-                    <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
-                      {item.endpointName}
-                    </Link>
-                    {item.tags && item.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {item.tags.map(tag => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => handleTagChange(tagFilter === tag.id ? '' : tag.id)}
-                            title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
-                          >
-                            <span className="opacity-60">{tag.categoryName}:</span>
-                            {tag.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
+          {!isLoading && items.map((item) => (
+            <TableRow key={`${item.endpointId}-${item.fingerprint}`}>
+              <TableCell className="font-medium">
+                <Link to={`/endpoints/${item.endpointId}`} className="hover:underline">
+                  {item.endpointName}
+                </Link>
+                {item.tags && item.tags.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {item.tags.map(tag => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => handleTagChange(tagFilter === tag.id ? '' : tag.id)}
+                        title={`Filter by ${tag.categoryName}: ${tag.name}`}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                      >
+                        <span className="opacity-60">{tag.categoryName}:</span>
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </TableCell>
 
-                  <TableCell>
-                    <EndpointTypeLabel type={item.endpointType} />
-                  </TableCell>
+              <TableCell>
+                <EndpointTypeLabel type={item.endpointType} />
+              </TableCell>
 
-                  <TableCell>
-                    <ExpiryStatus notAfter={item.notAfter} />
-                  </TableCell>
+              <TableCell>
+                <ExpiryStatus notAfter={item.notAfter} />
+              </TableCell>
 
-                  <TableCell className="text-sm text-muted-foreground">
-                    {item.commonName}
-                  </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {item.commonName}
+              </TableCell>
 
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtDate(item.notAfter)}
-                  </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {fmtDate(item.notAfter)}
+              </TableCell>
 
-                  <TableCell className="text-right">
-                    <span
-                      className={[
-                        'font-mono text-sm font-medium',
-                        item.daysRemaining < 0
-                          ? 'text-red-600'
-                          : item.daysRemaining <= 7
-                          ? 'text-orange-600'
-                          : item.daysRemaining <= 30
-                          ? 'text-amber-600'
-                          : 'text-muted-foreground',
-                      ].join(' ')}
-                    >
-                      {fmtDays(item.daysRemaining)}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+              <TableCell className="text-right">
+                <span
+                  className={[
+                    'font-mono text-sm font-medium',
+                    item.daysRemaining < 0
+                      ? 'text-red-600'
+                      : item.daysRemaining <= 7
+                      ? 'text-orange-600'
+                      : item.daysRemaining <= 30
+                      ? 'text-amber-600'
+                      : 'text-muted-foreground',
+                  ].join(' ')}
+                >
+                  {fmtDays(item.daysRemaining)}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {totalCount === 0 ? 'No results' : `Page ${page} of ${totalPages} · ${totalCount} total`}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPrev={() => setPage(p => p - 1)}
+        onNext={() => setPage(p => p + 1)}
+        noun="certificate"
+      />
     </div>
   )
 }

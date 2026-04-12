@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { listGroups, deleteGroup } from '@/api/groups'
 import type { Group } from '@/types/api'
+import StrixEmpty from '@/components/StrixEmpty'
+import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 const PAGE_SIZE = 20
 
@@ -15,27 +18,18 @@ const PAGE_SIZE = 20
 
 export default function GroupsPage() {
   const navigate = useNavigate()
-  const [groups, setGroups]             = useState<Group[]>([])
-  const [total, setTotal]               = useState(0)
   const [page, setPage]                 = useState(1)
-  const [loading, setLoading]           = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
   const [deleting, setDeleting]         = useState(false)
 
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['groups', page],
+    queryFn: () => listGroups(page, PAGE_SIZE),
+    placeholderData: keepPreviousData,
+  })
+  const groups: Group[] = data?.items ?? []
+  const total = data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  const load = useCallback(async (p: number) => {
-    setLoading(true)
-    try {
-      const res = await listGroups(p, PAGE_SIZE)
-      setGroups(res.items)
-      setTotal(res.totalCount)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load(page) }, [load, page])
 
   async function handleDelete() {
     if (!deleteTarget) return
@@ -44,9 +38,11 @@ export default function GroupsPage() {
       await deleteGroup(deleteTarget.id)
       setDeleteTarget(null)
       // If we deleted the last item on a page > 1, step back
-      const newPage = groups.length === 1 && page > 1 ? page - 1 : page
-      setPage(newPage)
-      load(newPage)
+      if (groups.length === 1 && page > 1) {
+        setPage(p => p - 1)
+      } else {
+        refetch()
+      }
     } finally {
       setDeleting(false)
     }
@@ -73,64 +69,55 @@ export default function GroupsPage() {
         </Button>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead className="w-[100px]" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading ? (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[100px]" />
+              <TableCell colSpan={3} className="text-center text-muted-foreground py-8">Loading…</TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">Loading…</TableCell>
-              </TableRow>
-            ) : groups.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">No groups yet.</TableCell>
-              </TableRow>
-            ) : groups.map((g) => (
-              <TableRow key={g.id}>
-                <TableCell className="font-medium">{g.name}</TableCell>
-                <TableCell className="text-muted-foreground">{g.description ?? '—'}</TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => navigate(`/settings/groups/${g.id}/edit`)}>
-                      <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Edit {g.name}</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(g)}>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete {g.name}</span>
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ) : groups.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={3} className="py-10 text-center">
+                <StrixEmpty message="No groups yet." />
+              </TableCell>
+            </TableRow>
+          ) : groups.map((g) => (
+            <TableRow key={g.id}>
+              <TableCell className="font-medium">{g.name}</TableCell>
+              <TableCell className="text-muted-foreground">{g.description ?? '—'}</TableCell>
+              <TableCell>
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => navigate(`/settings/groups/${g.id}/edit`)}>
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">Edit {g.name}</span>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(g)}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete {g.name}</span>
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {total === 0
-            ? 'No groups'
-            : `Page ${page} of ${totalPages} · ${total} total`}
-        </span>
-        <div className="flex gap-1">
-          <Button variant="outline" size="icon-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <Button variant="outline" size="icon-sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={total}
+        onPrev={() => setPage(p => p - 1)}
+        onNext={() => setPage(p => p + 1)}
+        noun="group"
+      />
 
       {/* Delete confirmation */}
       <Dialog open={deleteTarget !== null} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>

@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, KeyRound, ChevronLeft, ChevronRight, Search, ChevronDown, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronRight } from 'lucide-react'
+import SearchInput from '@/components/SearchInput'
+import FilterDropdown from '@/components/FilterDropdown'
+import TablePagination from '@/components/TablePagination'
+import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,17 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser } from '@/api/users'
 import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Add / Edit dialog
@@ -475,16 +474,13 @@ export default function UsersPage() {
   const admin = can('users:edit')
   const currentUserID = getIdentity()?.uid ?? ''
 
-  const [users, setUsers] = useState<User[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('')
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
   // Incremented each time "Add User" is clicked so the dialog remounts fresh.
   const [addSeq, setAddSeq] = useState(0)
@@ -504,30 +500,21 @@ export default function UsersPage() {
     setPage(1)
   }, [debouncedSearch, roleFilter, providerFilter, sortOption])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listUsers(page, PAGE_SIZE, debouncedSearch, roleFilter, providerFilter, sortOption)
-      setUsers(result.items ?? [])
-      setTotalCount(result.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load users.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, roleFilter, providerFilter, sortOption])
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['users', page, debouncedSearch, roleFilter, providerFilter, sortOption],
+    queryFn: () => listUsers(page, PAGE_SIZE, debouncedSearch, roleFilter, providerFilter, sortOption),
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const users = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
 
   async function handleToggleEnabled(user: User) {
     try {
-      const updated = await setUserEnabled(user.id, !user.enabled)
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+      await setUserEnabled(user.id, !user.enabled)
+      refetch()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update user.')
+      setMutationError(err instanceof ApiError ? err.message : 'Failed to update user.')
     }
   }
 
@@ -568,78 +555,33 @@ export default function UsersPage() {
 
       {/* Search + filters */}
       <div className="flex items-center gap-2">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Search username or name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search username or name…"
+          className="max-w-sm flex-1"
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              {ROLE_OPTIONS.find((o) => o.value === roleFilter)?.label ?? 'Role'}
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {ROLE_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                className="gap-2"
-                onSelect={() => setRoleFilter(opt.value)}
-              >
-                <Check className={`h-4 w-4 ${roleFilter === opt.value ? 'opacity-100' : 'opacity-0'}`} />
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Role"
+          options={ROLE_OPTIONS}
+          value={roleFilter}
+          onSelect={(value) => setRoleFilter(value as RoleFilter)}
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              {PROVIDER_OPTIONS.find((o) => o.value === providerFilter)?.label ?? 'Provider'}
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {PROVIDER_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                className="gap-2"
-                onSelect={() => setProviderFilter(opt.value)}
-              >
-                <Check className={`h-4 w-4 ${providerFilter === opt.value ? 'opacity-100' : 'opacity-0'}`} />
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Provider"
+          options={PROVIDER_OPTIONS}
+          value={providerFilter}
+          onSelect={(value) => setProviderFilter(value as ProviderFilter)}
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              {SORT_OPTIONS.find((o) => o.value === sortOption)?.label ?? 'Sort'}
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {SORT_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                className="gap-2"
-                onSelect={() => setSortOption(opt.value)}
-              >
-                <Check className={`h-4 w-4 ${sortOption === opt.value ? 'opacity-100' : 'opacity-0'}`} />
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Sort"
+          options={SORT_OPTIONS}
+          value={sortOption}
+          onSelect={(value) => setSortOption(value as SortOption)}
+        />
       </div>
 
       {/* Active filter context line */}
@@ -661,171 +603,151 @@ export default function UsersPage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
+      {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>User</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Provider</TableHead>
+            <TableHead>Created</TableHead>
+            {admin && <TableHead className="w-8">Enabled</TableHead>}
+            {admin && <TableHead className="w-28" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Provider</TableHead>
-              <TableHead>Created</TableHead>
-              {admin && <TableHead className="w-8">Enabled</TableHead>}
-              {admin && <TableHead className="w-28" />}
+              <TableCell
+                colSpan={admin ? 7 : 5}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell
-                  colSpan={admin ? 7 : 5}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Loading…
-                </TableCell>
-              </TableRow>
-            )}
+          )}
 
-            {!loading && users.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={admin ? 7 : 5}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  {debouncedSearch || roleFilter || providerFilter
-                    ? 'No users match your filters.'
-                    : <>No users yet. Click <strong>Add User</strong> to get started.</>}
-                </TableCell>
-              </TableRow>
-            )}
+          {!isLoading && users.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={admin ? 7 : 5}
+                className="py-10 text-center"
+              >
+                {debouncedSearch || roleFilter || providerFilter
+                  ? <span className="text-sm text-muted-foreground">No users match your filters.</span>
+                  : <StrixEmpty message={<>No users yet. Click <strong>Add User</strong> to get started.</>} />}
+              </TableCell>
+            </TableRow>
+          )}
 
-            {!loading &&
-              users.map((user) => (
-                <TableRow
-                  key={user.id}
-                  className={!user.enabled ? 'opacity-50' : undefined}
-                >
-                  {/* User: full name (if set) + username */}
-                  <TableCell>
-                    {(user.firstName || user.lastName) && (
-                      <p className="font-medium">
-                        {[user.firstName, user.lastName].filter(Boolean).join(' ')}
-                      </p>
-                    )}
-                    <p className={user.firstName || user.lastName ? 'text-sm text-muted-foreground' : 'font-medium'}>
-                      {user.username}
+          {!isLoading &&
+            users.map((user) => (
+              <TableRow
+                key={user.id}
+                className={!user.enabled ? 'opacity-50' : undefined}
+              >
+                {/* User: full name (if set) + username */}
+                <TableCell>
+                  {(user.firstName || user.lastName) && (
+                    <p className="font-medium">
+                      {[user.firstName, user.lastName].filter(Boolean).join(' ')}
                     </p>
-                  </TableCell>
-
-                  {/* Email */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {user.email ?? <span className="text-muted-foreground/50">—</span>}
-                  </TableCell>
-
-                  {/* Role */}
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {user.role === 'admin' ? 'Admin' : user.role === 'operator' ? 'Operator' : 'Viewer'}
-                    </span>
-                  </TableCell>
-
-                  {/* Provider */}
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {user.provider === 'oidc' ? 'OIDC' : 'Local'}
-                    </span>
-                  </TableCell>
-
-                  {/* Created */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtDate(user.createdAt)}
-                  </TableCell>
-
-                  {/* Enabled toggle — admin only */}
-                  {admin && (
-                    <TableCell>
-                      <Switch
-                        checked={user.enabled}
-                        disabled={user.id === currentUserID}
-                        onCheckedChange={() => handleToggleEnabled(user)}
-                        aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
-                      />
-                    </TableCell>
                   )}
+                  <p className={user.firstName || user.lastName ? 'text-sm text-muted-foreground' : 'font-medium'}>
+                    {user.username}
+                  </p>
+                </TableCell>
 
-                  {/* Row actions — admin only */}
-                  {admin && (
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
+                {/* Email */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {user.email ?? <span className="text-muted-foreground/50">—</span>}
+                </TableCell>
+
+                {/* Role */}
+                <TableCell>
+                  <span className="text-sm text-muted-foreground">
+                    {user.role === 'admin' ? 'Admin' : user.role === 'operator' ? 'Operator' : 'Viewer'}
+                  </span>
+                </TableCell>
+
+                {/* Provider */}
+                <TableCell>
+                  <span className="text-sm text-muted-foreground">
+                    {user.provider === 'oidc' ? 'OIDC' : 'Local'}
+                  </span>
+                </TableCell>
+
+                {/* Created */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtDate(user.createdAt)}
+                </TableCell>
+
+                {/* Enabled toggle — admin only */}
+                {admin && (
+                  <TableCell>
+                    <Switch
+                      checked={user.enabled}
+                      disabled={user.id === currentUserID}
+                      onCheckedChange={() => handleToggleEnabled(user)}
+                      aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
+                    />
+                  </TableCell>
+                )}
+
+                {/* Row actions — admin only */}
+                {admin && (
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={() => setEditTarget(user)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit {user.username}</span>
+                      </Button>
+                      {user.provider === 'local' && (
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground"
-                          onClick={() => setEditTarget(user)}
+                          onClick={() => setPasswordTarget(user)}
                         >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {user.username}</span>
+                          <KeyRound className="h-4 w-4" />
+                          <span className="sr-only">Change password for {user.username}</span>
                         </Button>
-                        {user.provider === 'local' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground"
-                            onClick={() => setPasswordTarget(user)}
-                          >
-                            <KeyRound className="h-4 w-4" />
-                            <span className="sr-only">Change password for {user.username}</span>
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(user)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete {user.username}</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteTarget(user)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete {user.username}</span>
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {totalCount === 0
-            ? 'No users'
-            : `Page ${page} of ${totalPages} · ${totalCount} total`}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPrev={() => setPage(p => p - 1)}
+        onNext={() => setPage(p => p + 1)}
+        noun="user"
+      />
 
       {/*
         UserDialog is keyed so it remounts with fresh form state on every open:
@@ -837,7 +759,7 @@ export default function UsersPage() {
         user={editTarget}
         open={addOpen || editTarget !== null}
         onClose={handleCloseDialog}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       {/* Keyed by user ID so it remounts (fresh password fields) for each user. */}
@@ -850,7 +772,7 @@ export default function UsersPage() {
       <DeleteDialog
         user={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
     </div>
   )

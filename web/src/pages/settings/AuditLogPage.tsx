@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { listAuditLogs } from '@/api/audit'
 import type { AuditLog } from '@/types/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import SearchInput from '@/components/SearchInput'
+import TablePagination from '@/components/TablePagination'
 import {
   Table,
   TableBody,
@@ -87,10 +87,7 @@ function formatDate(iso: string): string {
 // ---------------------------------------------------------------------------
 
 export default function AuditLogPage() {
-  const [logs, setLogs] = useState<AuditLog[]>([])
   const [page, setPage] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -107,21 +104,13 @@ export default function AuditLogPage() {
     }
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await listAuditLogs(page, PAGE_SIZE, debouncedSearch)
-      setLogs(result.items)
-      setTotalCount(result.totalCount)
-    } catch {
-      // silently fail — empty state shown
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch])
-
-  useEffect(() => { load() }, [load])
-
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['audit-logs', page, debouncedSearch],
+    queryFn: () => listAuditLogs(page, PAGE_SIZE, debouncedSearch),
+    placeholderData: keepPreviousData,
+  })
+  const logs: AuditLog[] = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
@@ -143,91 +132,72 @@ export default function AuditLogPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 max-w-sm">
-        <Input
-          placeholder="Filter by username…"
+      <div className="flex items-center gap-3">
+        <SearchInput
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="h-8 text-sm"
+          onChange={setSearch}
+          placeholder="Filter by username…"
+          className="max-w-sm flex-1"
         />
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-44">Time</TableHead>
+            <TableHead className="w-36">User</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Resource</TableHead>
+            <TableHead className="w-36 hidden md:table-cell">IP Address</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading ? (
             <TableRow>
-              <TableHead className="w-44">Time</TableHead>
-              <TableHead className="w-36">User</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Resource</TableHead>
-              <TableHead className="w-36 hidden md:table-cell">IP Address</TableHead>
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            ) : logs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                  No audit log entries found.
-                </TableCell>
-              </TableRow>
-            ) : logs.map(log => (
-              <TableRow key={log.id}>
-                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatDate(log.createdAt)}
-                </TableCell>
-                <TableCell className="text-sm font-medium">
-                  {log.username || <span className="text-muted-foreground italic">system</span>}
-                </TableCell>
-                <TableCell>
-                  <ActionBadge action={log.action} />
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {log.resourceType ? (
-                    <span>{log.resourceType}{log.resourceId ? ` / ${log.resourceId}` : ''}</span>
-                  ) : '—'}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
-                  {log.ipAddress ?? '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ) : logs.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                No audit log entries found.
+              </TableCell>
+            </TableRow>
+          ) : logs.map(log => (
+            <TableRow key={log.id}>
+              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatDate(log.createdAt)}
+              </TableCell>
+              <TableCell className="text-sm font-medium">
+                {log.username || <span className="text-muted-foreground italic">system</span>}
+              </TableCell>
+              <TableCell>
+                <ActionBadge action={log.action} />
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {log.resourceType ? (
+                  <span>{log.resourceType}{log.resourceId ? ` / ${log.resourceId}` : ''}</span>
+                ) : '—'}
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
+                {log.ipAddress ?? '—'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          Page {page} of {totalPages} &middot; {totalCount} total
-        </span>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPrev={() => setPage(p => Math.max(1, p - 1))}
+        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+        noun="entry"
+      />
     </div>
   )
 }

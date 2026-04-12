@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Upload, Pencil, Trash2, Copy, MoreHorizontal, ChevronLeft, ChevronRight, AlertCircle, Search, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Upload, Pencil, Trash2, Copy, MoreHorizontal, AlertCircle, ChevronDown, Check, Tag, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
+import SearchInput from '@/components/SearchInput'
+import FilterDropdown from '@/components/FilterDropdown'
+import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -20,7 +22,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -34,6 +35,7 @@ import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import BulkImportDialog from '@/components/BulkImportDialog'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Type label
@@ -152,25 +154,15 @@ export default function HostsPage() {
   // Captured once at mount — avoids calling the impure Date.now() during render.
   const [now] = useState(Date.now)
 
-  const [endpoints, setEndpoints] = useState<EndpointListItem[]>([])
-  const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<HostStatus>('')
   const [sortOption, setSortOption] = useState<SortOption>('')
   const [tagFilter, setTagFilter] = useState('')          // active tag_id
-  const [categories, setCategories] = useState<CategoryWithTags[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<EndpointListItem | null>(null)
   const [importOpen, setImportOpen] = useState(false)
-
-  // Load tag categories once for the filter dropdown.
-  useEffect(() => {
-    listTagCategories().then(setCategories).catch(() => {})
-  }, [])
 
   // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
@@ -181,23 +173,20 @@ export default function HostsPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter)
-      setEndpoints(result.items ?? [])
-      setTotalCount(result.totalCount)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load endpoints.')
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, statusFilter, sortOption, tagFilter])
+  const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['endpoints', page, debouncedSearch, statusFilter, sortOption, tagFilter],
+    queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tag-categories'],
+    queryFn: listTagCategories,
+  })
+
+  const endpoints = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
+  const categories: CategoryWithTags[] = categoriesData ?? []
 
   function handleStatusChange(value: HostStatus) {
     setStatusFilter(value)
@@ -248,57 +237,26 @@ export default function HostsPage() {
 
       {/* Search + filters */}
       <div className="flex items-center gap-2">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Search name or DNS…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search name or DNS…"
+          className="max-w-sm flex-1"
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              Status
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {STATUS_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => handleStatusChange(value)}
-                className="gap-2"
-              >
-                <Check className={`h-4 w-4 ${statusFilter === value ? 'opacity-100' : 'opacity-0'}`} />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Status"
+          options={STATUS_OPTIONS}
+          value={statusFilter}
+          onSelect={(value) => handleStatusChange(value as HostStatus)}
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-1.5">
-              Sort
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {SORT_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => handleSortChange(value)}
-                className="gap-2"
-              >
-                <Check className={`h-4 w-4 ${sortOption === value ? 'opacity-100' : 'opacity-0'}`} />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <FilterDropdown
+          label="Sort"
+          options={SORT_OPTIONS}
+          value={sortOption}
+          onSelect={(value) => handleSortChange(value as SortOption)}
+        />
 
         {allTags.length > 0 && (
           <DropdownMenu>
@@ -369,204 +327,183 @@ export default function HostsPage() {
       </p>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Address</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Scanner</TableHead>
+            <TableHead>Last Scanned</TableHead>
+            <TableHead className="w-20" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Scanner</TableHead>
-              <TableHead>Last Scanned</TableHead>
-              <TableHead className="w-20" />
+              <TableCell
+                colSpan={7}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Loading…
+          )}
+
+          {!isLoading && endpoints.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="py-10 text-center">
+                {debouncedSearch || statusFilter
+                  ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
+                  : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
+              </TableCell>
+            </TableRow>
+          )}
+
+          {!isLoading &&
+            endpoints.map((endpoint) => (
+              <TableRow key={endpoint.id}>
+                {/* Name — links to detail page */}
+                <TableCell className="font-medium">
+                  <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
+                    {endpoint.name}
+                  </Link>
+                  {endpoint.tags && endpoint.tags.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {endpoint.tags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); handleTagChange(tagFilter === tag.id ? '' : tag.id) }}
+                          title={`Filter by ${tag.categoryName}: ${tag.name}`}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                        >
+                          <span className="opacity-60">{tag.categoryName}:</span>
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </TableCell>
-              </TableRow>
-            )}
 
-            {!loading && endpoints.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center">
-                  {debouncedSearch || statusFilter
-                    ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
-                    : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
+                {/* Type */}
+                <TableCell>
+                  <TypeLabel type={endpoint.type} />
                 </TableCell>
-              </TableRow>
-            )}
 
-            {!loading &&
-              endpoints.map((endpoint) => (
-                <TableRow key={endpoint.id}>
-                  {/* Name — links to detail page */}
-                  <TableCell className="font-medium">
-                    <Link to={`/endpoints/${endpoint.id}`} className="hover:underline">
-                      {endpoint.name}
-                    </Link>
-                    {endpoint.tags && endpoint.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {endpoint.tags.map(tag => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); handleTagChange(tagFilter === tag.id ? '' : tag.id) }}
-                            title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
-                          >
-                            <span className="opacity-60">{tag.categoryName}:</span>
-                            {tag.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-
-                  {/* Type */}
-                  <TableCell>
-                    <TypeLabel type={endpoint.type} />
-                  </TableCell>
-
-                  {/* Address — rendered differently per type */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {endpoint.type === 'host' ? (
-                      <span className="font-mono">{endpoint.dnsName}:{endpoint.port}</span>
-                    ) : endpoint.type === 'saml' ? (
-                      <span className="truncate max-w-xs block" title={endpoint.url ?? ''}>
-                        {endpoint.url ?? '—'}
-                      </span>
-                    ) : (
-                      <span className="italic">Manual</span>
-                    )}
-                  </TableCell>
-
-                  {/* Enabled / Disabled */}
-                  <TableCell>
-                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                      {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                {/* Address — rendered differently per type */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {endpoint.type === 'host' ? (
+                    <span className="font-mono">{endpoint.dnsName}:{endpoint.port}</span>
+                  ) : endpoint.type === 'saml' ? (
+                    <span className="truncate max-w-xs block" title={endpoint.url ?? ''}>
+                      {endpoint.url ?? '—'}
                     </span>
-                  </TableCell>
+                  ) : (
+                    <span className="italic">Manual</span>
+                  )}
+                </TableCell>
 
-                  {/* Scanner assignment */}
-                  <TableCell className="text-sm">
-                    {endpoint.scannerName ? (
-                      endpoint.scannerName
-                    ) : (
-                      <span className="text-muted-foreground">Default</span>
-                    )}
-                  </TableCell>
+                {/* Enabled / Disabled */}
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                    {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </TableCell>
 
-                  {/* Last scanned + error indicator */}
-                  <TableCell className="text-sm">
-                    {endpoint.lastScannedAt ? (
-                      <span className="flex items-center gap-1.5">
-                        {fmtRelative(endpoint.lastScannedAt, now)}
-                        {endpoint.lastScanError && (
-                          <span title={endpoint.lastScanError}>
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Never</span>
-                    )}
-                  </TableCell>
+                {/* Scanner assignment */}
+                <TableCell className="text-sm">
+                  {endpoint.scannerName ? (
+                    endpoint.scannerName
+                  ) : (
+                    <span className="text-muted-foreground">Default</span>
+                  )}
+                </TableCell>
 
-                  {/* Row actions — admin only */}
-                  <TableCell>
-                    <div className="flex items-center justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions for {endpoint.name}</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {admin && (
-                            <DropdownMenuItem asChild>
-                              <Link to={`/endpoints/${endpoint.id}/edit`} className="flex items-center gap-2">
-                                <Pencil className="h-4 w-4" />
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                          )}
+                {/* Last scanned + error indicator */}
+                <TableCell className="text-sm">
+                  {endpoint.lastScannedAt ? (
+                    <span className="flex items-center gap-1.5">
+                      {fmtRelative(endpoint.lastScannedAt, now)}
+                      {endpoint.lastScanError && (
+                        <span title={endpoint.lastScanError}>
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Never</span>
+                  )}
+                </TableCell>
+
+                {/* Row actions — admin only */}
+                <TableCell>
+                  <div className="flex items-center justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions for {endpoint.name}</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {admin && (
                           <DropdownMenuItem asChild>
-                            <Link to={`/endpoints/new?clone=${endpoint.id}`} className="flex items-center gap-2">
-                              <Copy className="h-4 w-4" />
-                              Clone
+                            <Link to={`/endpoints/${endpoint.id}/edit`} className="flex items-center gap-2">
+                              <Pencil className="h-4 w-4" />
+                              Edit
                             </Link>
                           </DropdownMenuItem>
-                          {admin && (
-                            <DropdownMenuItem
-                              className="flex items-center gap-2 text-destructive focus:text-destructive"
-                              onSelect={() => setDeleteTarget(endpoint)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+                        )}
+                        <DropdownMenuItem asChild>
+                          <Link to={`/endpoints/new?clone=${endpoint.id}`} className="flex items-center gap-2">
+                            <Copy className="h-4 w-4" />
+                            Clone
+                          </Link>
+                        </DropdownMenuItem>
+                        {admin && (
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 text-destructive focus:text-destructive"
+                            onSelect={() => setDeleteTarget(endpoint)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {totalCount === 0
-            ? 'No endpoints'
-            : `Page ${page} of ${totalPages} · ${totalCount} total`}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Previous page</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-            <span className="sr-only">Next page</span>
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        onPrev={() => setPage(p => p - 1)}
+        onNext={() => setPage(p => p + 1)}
+        noun="endpoint"
+      />
 
       <DeleteDialog
         endpoint={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
 
       <BulkImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onComplete={load}
+        onComplete={refetch}
       />
     </div>
   )

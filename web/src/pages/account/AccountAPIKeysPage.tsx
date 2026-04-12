@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Plus, Trash2, Copy, Check } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,33 +12,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { listAPIKeys, createAPIKey, deleteAPIKey, type APIKey } from '@/api/apiKeys'
 
-function formatDate(iso: string) {
+function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 export default function AccountAPIKeysPage() {
-  const [keys, setKeys]           = useState<APIKey[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [newName, setNewName]     = useState('')
-  const [creating, setCreating]   = useState(false)
+  const [keys, setKeys] = useState<APIKey[]>([])
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
   // One-time reveal dialog
   const [revealToken, setRevealToken] = useState<string | null>(null)
-  const [copied, setCopied]           = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<APIKey | null>(null)
-  const [deleting, setDeleting]         = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const { data: keysData, isLoading } = useQuery({
+    queryKey: ['account', 'api-keys'],
+    queryFn: listAPIKeys,
+  })
 
   useEffect(() => {
-    listAPIKeys()
-      .then(setKeys)
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    if (keysData) setKeys(keysData)
+  }, [keysData])
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -79,80 +88,87 @@ export default function AccountAPIKeysPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-4">
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link to="/account" className="hover:text-foreground">Account</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground">API Keys</span>
       </nav>
 
-      <div>
-        <h1 className="text-2xl font-semibold">API Keys</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Long-lived keys for CLI and automation access. Each key carries your permissions — revoke individually if compromised.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">API Keys</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Long-lived keys for CLI and automation access. Each key carries your permissions — revoke individually if compromised.
+          </p>
+        </div>
       </div>
 
-      {/* Create */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">New API Key</CardTitle>
-          <CardDescription>Give it a name that describes where it will be used.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="e.g. Home lab, GitLab CI"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              className="max-w-sm"
-            />
-            <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
-              <Plus className="h-4 w-4 mr-1" />
-              {creating ? 'Creating…' : 'Create'}
-            </Button>
-          </div>
-          {createError && <p className="mt-2 text-sm text-destructive">{createError}</p>}
-        </CardContent>
-      </Card>
+      {/* Create bar */}
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Key name — e.g. Home lab, GitLab CI"
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleCreate()}
+          className="max-w-sm"
+        />
+        <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          {creating ? 'Creating…' : 'Create Key'}
+        </Button>
+      </div>
+      {createError && <p className="text-sm text-destructive">{createError}</p>}
 
-      {/* Key list */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Your Keys</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : keys.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No API keys yet.</p>
-          ) : (
-            <ul className="divide-y">
-              {keys.map(k => (
-                <li key={k.id} className="flex items-center justify-between py-3 gap-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{k.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{k.prefix}…</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Created {formatDate(k.createdAt)}
-                      {k.lastUsedAt ? ` · Last used ${formatDate(k.lastUsedAt)}` : ' · Never used'}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteTarget(k)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
+      {/* Table */}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Prefix</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Last Used</TableHead>
+            <TableHead className="w-10" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-b-0">
+          {isLoading && (
+            <TableRow>
+              <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                Loading…
+              </TableCell>
+            </TableRow>
           )}
-        </CardContent>
-      </Card>
+          {!isLoading && keys.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                No API keys yet. Create one above.
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && keys.map(k => (
+            <TableRow key={k.id}>
+              <TableCell className="font-medium">{k.name}</TableCell>
+              <TableCell className="font-mono text-sm text-muted-foreground">{k.prefix}…</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{fmtDate(k.createdAt)}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {k.lastUsedAt ? fmtDate(k.lastUsedAt) : <span className="text-muted-foreground/50">Never</span>}
+              </TableCell>
+              <TableCell>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => setDeleteTarget(k)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Revoke {k.name}</span>
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* One-time reveal dialog */}
       <Dialog open={!!revealToken} onOpenChange={() => { setRevealToken(null); setCopied(false) }}>
@@ -185,7 +201,7 @@ export default function AccountAPIKeysPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm delete dialog */}
+      {/* Confirm revoke dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>

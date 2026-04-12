@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ChevronRight } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -26,6 +26,7 @@ import { can } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -370,36 +371,23 @@ export default function ScannersPage() {
   const admin = can('scanners:edit')
   const [now] = useState(Date.now)
 
-  const [scanners, setScanners] = useState<ScannerToken[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   const [addSeq, setAddSeq] = useState(0)
   const [addOpen, setAddOpen] = useState(false)
   const [revealToken, setRevealToken] = useState<ScannerTokenCreated | null>(null)
   const [editTarget, setEditTarget] = useState<ScannerToken | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ScannerToken | null>(null)
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const items = await listScanners()
-      setScanners(items)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load scanners.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  const { data: scannersData, isLoading, isFetching, error: fetchError, refetch } = useQuery({
+    queryKey: ['scanners'],
+    queryFn: listScanners,
+    placeholderData: keepPreviousData,
+  })
+  const scanners: ScannerToken[] = scannersData ?? []
 
   function handleCreated(created: ScannerTokenCreated) {
     // Refresh the list, then show the one-time token reveal.
-    load()
+    refetch()
     setRevealToken(created)
   }
 
@@ -407,9 +395,9 @@ export default function ScannersPage() {
     try {
       await setDefaultScanner(scanner.id)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to set default scanner.')
+      setMutationError(err instanceof ApiError ? err.message : 'Failed to set default scanner.')
     } finally {
-      load()
+      refetch()
     }
   }
 
@@ -443,138 +431,137 @@ export default function ScannersPage() {
       </div>
 
       {/* Error */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
+      {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Interval</TableHead>
+            <TableHead>Concurrency</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Last Used</TableHead>
+            <TableHead className="w-28" />
+          </TableRow>
+        </TableHeader>
+        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          {isLoading && (
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Interval</TableHead>
-              <TableHead>Concurrency</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last Used</TableHead>
-              <TableHead className="w-28" />
+              <TableCell
+                colSpan={6}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
+                Loading…
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Loading…
+          )}
+
+          {!isLoading && scanners.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center">
+                <StrixEmpty message={<>No scanners yet. Click <strong>Add Scanner</strong> to get started.</>} />
+              </TableCell>
+            </TableRow>
+          )}
+
+          {!isLoading &&
+            scanners.map((scanner) => (
+              <TableRow key={scanner.id}>
+                {/* Name + default badge */}
+                <TableCell className="font-medium">
+                  <span className="flex items-center gap-2">
+                    {scanner.name}
+                    {scanner.isDefault && (
+                      <Badge variant="secondary" className="text-xs">
+                        Default
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+
+                {/* Scan interval */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtInterval(scanner.scanIntervalSeconds)}
+                </TableCell>
+
+                {/* Concurrency */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {scanner.scanConcurrency}
+                </TableCell>
+
+                {/* Created */}
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtDate(scanner.createdAt)}
+                </TableCell>
+
+                {/* Last used */}
+                <TableCell className="text-sm">
+                  {scanner.lastUsedAt ? (
+                    fmtRelative(scanner.lastUsedAt, now)
+                  ) : (
+                    <span className="text-muted-foreground">Never</span>
+                  )}
+                </TableCell>
+
+                {/* Actions — admin only */}
+                <TableCell>
+                  {admin && (
+                    <div className="flex items-center justify-end gap-0.5">
+                      {/* Set as default */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className={
+                          scanner.isDefault
+                            ? 'text-amber-500'
+                            : 'text-muted-foreground hover:text-amber-500'
+                        }
+                        onClick={() => handleSetDefault(scanner)}
+                        title={scanner.isDefault ? 'Default scanner' : 'Set as default'}
+                      >
+                        <Star
+                          className="h-4 w-4"
+                          fill={scanner.isDefault ? 'currentColor' : 'none'}
+                        />
+                        <span className="sr-only">
+                          {scanner.isDefault
+                            ? 'Default scanner'
+                            : `Set ${scanner.name} as default`}
+                        </span>
+                      </Button>
+
+                      {/* Edit */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground"
+                        onClick={() => setEditTarget(scanner)}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit {scanner.name}</span>
+                      </Button>
+
+                      {/* Revoke */}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteTarget(scanner)}
+                        title="Revoke"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Revoke {scanner.name}</span>
+                      </Button>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
-            )}
-
-            {!loading && scanners.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
-                  <StrixEmpty message={<>No scanners yet. Click <strong>Add Scanner</strong> to get started.</>} />
-                </TableCell>
-              </TableRow>
-            )}
-
-            {!loading &&
-              scanners.map((scanner) => (
-                <TableRow key={scanner.id}>
-                  {/* Name + default badge */}
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-2">
-                      {scanner.name}
-                      {scanner.isDefault && (
-                        <Badge variant="secondary" className="text-xs">
-                          Default
-                        </Badge>
-                      )}
-                    </span>
-                  </TableCell>
-
-                  {/* Scan interval */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtInterval(scanner.scanIntervalSeconds)}
-                  </TableCell>
-
-                  {/* Concurrency */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {scanner.scanConcurrency}
-                  </TableCell>
-
-                  {/* Created */}
-                  <TableCell className="text-sm text-muted-foreground">
-                    {fmtDate(scanner.createdAt)}
-                  </TableCell>
-
-                  {/* Last used */}
-                  <TableCell className="text-sm">
-                    {scanner.lastUsedAt ? (
-                      fmtRelative(scanner.lastUsedAt, now)
-                    ) : (
-                      <span className="text-muted-foreground">Never</span>
-                    )}
-                  </TableCell>
-
-                  {/* Actions — admin only */}
-                  <TableCell>
-                    {admin && (
-                      <div className="flex items-center justify-end gap-0.5">
-                        {/* Set as default */}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className={
-                            scanner.isDefault
-                              ? 'text-amber-500'
-                              : 'text-muted-foreground hover:text-amber-500'
-                          }
-                          onClick={() => handleSetDefault(scanner)}
-                          title={scanner.isDefault ? 'Default scanner' : 'Set as default'}
-                        >
-                          <Star
-                            className="h-4 w-4"
-                            fill={scanner.isDefault ? 'currentColor' : 'none'}
-                          />
-                          <span className="sr-only">
-                            {scanner.isDefault
-                              ? 'Default scanner'
-                              : `Set ${scanner.name} as default`}
-                          </span>
-                        </Button>
-
-                        {/* Edit */}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          onClick={() => setEditTarget(scanner)}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit {scanner.name}</span>
-                        </Button>
-
-                        {/* Revoke */}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTarget(scanner)}
-                          title="Revoke"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Revoke {scanner.name}</span>
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
+            ))}
+        </TableBody>
+      </Table>
 
       {/* Dialogs */}
       <CreateDialog
@@ -593,13 +580,13 @@ export default function ScannersPage() {
         key={editTarget?.id}
         scanner={editTarget}
         onClose={() => setEditTarget(null)}
-        onSaved={load}
+        onSaved={refetch}
       />
 
       <DeleteDialog
         scanner={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={load}
+        onDeleted={refetch}
       />
     </div>
   )
