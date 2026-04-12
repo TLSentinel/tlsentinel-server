@@ -82,15 +82,10 @@ jobs:
 
       - name: Generate Windows PE resource
         run: |
-          VER_MAJOR=$(echo "${{ env.VERSION_BARE }}" | cut -d. -f1 | grep -oE '^[0-9]+' || echo 0)
-          VER_MINOR=$(echo "${{ env.VERSION_BARE }}" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0)
-          VER_PATCH=$(echo "${{ env.VERSION_BARE }}" | cut -d. -f3 | grep -oE '^[0-9]+' || echo 0)
           goversioninfo \
             -file-version="${{ env.VERSION_BARE }}" \
             -product-version="${{ env.VERSION_BARE }}" \
-            -ver-major="${VER_MAJOR}" \
-            -ver-minor="${VER_MINOR}" \
-            -ver-patch="${VER_PATCH}" \
+            -propagate-ver-strings \
             -o cmd/server/resource_windows_amd64.syso \
             cmd/server/versioninfo.json
 
