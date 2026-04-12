@@ -10,18 +10,77 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  release:
-    name: Build & Push
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build
+        working-directory: web
+        run: npm ci && npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+
+  build-swagger:
+    name: Generate Swagger Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+
+      - name: Generate
+        run: swag init -g cmd/server/main.go
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: swagger-docs
+          path: docs/
+
+  release-docker:
+    name: Build & Push Docker + Linux
+    needs: [build-frontend, build-swagger]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
-
     steps:
       - uses: actions/checkout@v5
 
-      - name: Compute bare version
-        run: echo "VERSION_BARE=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Compute versions and image name
+        run: |
+          echo "VERSION_BARE=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME_LOWER=${GITHUB_REPOSITORY@L}" >> "$GITHUB_ENV"
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+
+      - name: Download swagger docs
+        uses: actions/download-artifact@v4
+        with:
+          name: swagger-docs
+          path: docs/
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -34,7 +93,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -57,53 +116,131 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-go@v5
         with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
+          go-version-file: go.mod
+          cache: true
 
-      - name: Build frontend
-        working-directory: web
-        run: npm ci && npm run build
+      - name: Build (linux/amd64)
+        run: |
+          mkdir -p dist
+          LDFLAGS="-s -w \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${{ env.VERSION_BARE }} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${{ github.sha }} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${{ github.event.head_commit.timestamp }}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-linux-amd64 ./cmd/server
+
+      - name: Build (linux/arm64)
+        run: |
+          LDFLAGS="-s -w \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${{ env.VERSION_BARE }} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${{ github.sha }} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${{ github.event.head_commit.timestamp }}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-linux-arm64 ./cmd/server
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
+
+  release-windows:
+    name: Build Windows
+    needs: [build-frontend, build-swagger]
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+
+      - name: Download swagger docs
+        uses: actions/download-artifact@v4
+        with:
+          name: swagger-docs
+          path: docs/
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
-      - name: Install tools
-        run: |
-          go install github.com/swaggo/swag/cmd/swag@latest
-          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
-
-      - name: Generate Swagger docs
-        run: swag init -g cmd/server/main.go
+      - name: Install goversioninfo
+        run: go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
 
       - name: Generate Windows PE resource
         run: |
-          goversioninfo \
-            -file-version="${{ env.VERSION_BARE }}" \
-            -product-version="${{ env.VERSION_BARE }}" \
-            -propagate-ver-strings \
-            -o cmd/server/resource_windows_amd64.syso \
+          $VERSION_BARE = "${{ github.ref_name }}".TrimStart('v')
+          $GOPATH = go env GOPATH
+          & "$GOPATH\bin\goversioninfo.exe" `
+            -file-version="$VERSION_BARE" `
+            -product-version="$VERSION_BARE" `
+            -propagate-ver-strings `
+            -o cmd/server/resource_windows_amd64.syso `
             cmd/server/versioninfo.json
 
-      - name: Build binaries
+      - name: Build (windows/amd64)
         run: |
-          LDFLAGS="-s -w \
-            -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${{ env.VERSION_BARE }} \
-            -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${{ github.sha }} \
-            -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${{ github.event.head_commit.timestamp }}"
+          $VERSION_BARE = "${{ github.ref_name }}".TrimStart('v')
+          $LDFLAGS="-s -w -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=$VERSION_BARE -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${{ github.sha }} -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${{ github.event.head_commit.timestamp }}"
+          New-Item -ItemType Directory -Force -Path dist
+          $env:CGO_ENABLED="0"; $env:GOOS="windows"; $env:GOARCH="amd64"
+          go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-windows-amd64.exe ./cmd/server
 
-          mkdir -p dist
-          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-linux-amd64       ./cmd/server
-          CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-linux-arm64       ./cmd/server
-          CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-darwin-arm64      ./cmd/server
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-windows-amd64.exe ./cmd/server
-
-      - name: Create GitHub Release
+      - name: Add to Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          files: dist/tlsentinel-server-windows-amd64.exe
+
+  release-macos:
+    name: Build macOS
+    needs: [build-frontend, build-swagger]
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+
+      - name: Download swagger docs
+        uses: actions/download-artifact@v4
+        with:
+          name: swagger-docs
+          path: docs/
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build (darwin/amd64)
+        run: |
+          mkdir -p dist
+          LDFLAGS="-s -w \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${GITHUB_REF_NAME#v} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${{ github.sha }} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${{ github.event.head_commit.timestamp }}"
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-darwin-amd64 ./cmd/server
+
+      - name: Build (darwin/arm64)
+        run: |
+          LDFLAGS="-s -w \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Version=${GITHUB_REF_NAME#v} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.Commit=${{ github.sha }} \
+            -X github.com/tlsentinel/tlsentinel-server/internal/version.BuildTime=${{ github.event.head_commit.timestamp }}"
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/tlsentinel-server-darwin-arm64 ./cmd/server
+
+      - name: Add to Release
+        uses: softprops/action-gh-release@v2
+        with:
           files: dist/*
