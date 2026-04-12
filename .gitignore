@@ -42,6 +42,9 @@ web/.build_stamp
 web/node_modules/
 web/dist/
 
+# Generated Windows PE resource
+cmd/server/*.syso
+
 # TLSentinel Test PKI ---
 testdata/certs/*.crt
 testdata/certs/*.key

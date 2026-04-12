@@ -1,14 +1,18 @@
-.PHONY: run build clean docker swagger frontend
+.PHONY: run build clean docker swagger frontend syso
 # =============================================================================
 # Variables
 # =============================================================================
 
 # Version stamping
-VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-PKG        := github.com/tlsentinel/tlsentinel-server/internal/version
-LDFLAGS    := -ldflags "-X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildTime=$(BUILD_TIME)"
+VERSION       := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION_BARE  := $(VERSION:v%=%)
+VERSION_MAJOR := $(shell echo "$(VERSION_BARE)" | cut -d. -f1 | grep -oE '^[0-9]+' || echo 0)
+VERSION_MINOR := $(shell echo "$(VERSION_BARE)" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0)
+VERSION_PATCH := $(shell echo "$(VERSION_BARE)" | cut -d. -f3 | grep -oE '^[0-9]+' || echo 0)
+COMMIT       := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME   := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+PKG          := github.com/tlsentinel/tlsentinel-server/internal/version
+LDFLAGS      := -ldflags "-X $(PKG).Version=$(VERSION_BARE) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildTime=$(BUILD_TIME)"
 
 # Directories / commands
 BIN_DIR     := bin
@@ -62,7 +66,15 @@ endef
 run: swagger frontend
 	go run $(LDFLAGS) $(CMD)
 
-build: swagger frontend
+syso:
+	goversioninfo \
+		-file-version=$(VERSION_BARE) \
+		-product-version=$(VERSION_BARE) \
+		-ver-major=$(VERSION_MAJOR) -ver-minor=$(VERSION_MINOR) -ver-patch=$(VERSION_PATCH) \
+		-o cmd/server/resource_windows_amd64.syso \
+		cmd/server/versioninfo.json
+
+build: swagger frontend syso
 	$(call cross_compile,server,$(CMD))
 
 # =============================================================================
