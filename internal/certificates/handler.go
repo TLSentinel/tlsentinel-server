@@ -307,3 +307,79 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	h.logAudit(r, audit.CertDelete, "certificate", fingerprint)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// LookupResponse is the response body for GET /certificates/lookup.
+type LookupResponse struct {
+	Domain        string    `json:"domain"`
+	Port          int       `json:"port"`
+	CommonName    string    `json:"commonName"`
+	Fingerprint   string    `json:"fingerprint"`
+	Issuer        string    `json:"issuer"`
+	SANs          []string  `json:"sans"`
+	NotBefore     time.Time `json:"notBefore"`
+	NotAfter      time.Time `json:"notAfter"`
+	DaysRemaining int       `json:"daysRemaining"`
+	Valid         bool      `json:"valid"`
+	Monitored     bool      `json:"monitored"`
+	EndpointID    *string   `json:"endpointId"`
+}
+
+// @Summary      Live certificate lookup
+// @Description  Dials the given domain over TLS in real-time and returns the leaf certificate. Also reports whether the domain is currently monitored in TLSentinel.
+// @Tags         certificates
+// @Produce      json
+// @Param        domain  query  string  true   "Hostname to probe"
+// @Param        port    query  int     false  "TCP port (default 443)"
+// @Success      200  {object}  LookupResponse
+// @Failure      400  {string}  string  "missing or invalid parameters"
+// @Failure      502  {string}  string  "could not connect to host"
+// @Router       /certificates/lookup [get]
+func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	if domain == "" {
+		http.Error(w, "domain is required", http.StatusBadRequest)
+		return
+	}
+
+	port := 443
+	if p := r.URL.Query().Get("port"); p != "" {
+		var err error
+		port, err = strconv.Atoi(p)
+		if err != nil || port < 1 || port > 65535 {
+			http.Error(w, "invalid port", http.StatusBadRequest)
+			return
+		}
+	}
+
+	cert, err := dialAndFetchCert(r.Context(), domain, port)
+	if err != nil {
+		slog.Warn("certificate lookup failed", "domain", domain, "port", port, "error", err)
+		http.Error(w, "could not connect to host: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	rec := ExtractCertificateRecord(cert)
+	daysRemaining := int(time.Until(cert.NotAfter).Hours() / 24)
+
+	resp := LookupResponse{
+		Domain:        domain,
+		Port:          port,
+		CommonName:    rec.CommonName,
+		Fingerprint:   rec.Fingerprint,
+		Issuer:        cert.Issuer.CommonName,
+		SANs:          rec.SANs,
+		NotBefore:     cert.NotBefore,
+		NotAfter:      cert.NotAfter,
+		DaysRemaining: daysRemaining,
+		Valid:          time.Now().Before(cert.NotAfter) && time.Now().After(cert.NotBefore),
+	}
+
+	// Check if this domain is monitored — best-effort, non-fatal.
+	ep, err := h.store.GetEndpointByDNSName(r.Context(), domain)
+	if err == nil {
+		resp.Monitored = true
+		resp.EndpointID = &ep.ID
+	}
+
+	response.JSON(w, http.StatusOK, resp)
+}

@@ -246,6 +246,22 @@ func (s *Store) GetEndpoint(ctx context.Context, id string) (models.Endpoint, er
 	return ep, nil
 }
 
+// GetEndpointByDNSName returns the endpoint whose dns_name matches exactly (case-insensitive).
+// Returns ErrNotFound if no match exists.
+func (s *Store) GetEndpointByDNSName(ctx context.Context, dnsName string) (models.Endpoint, error) {
+	var row endpointWithScanner
+	err := s.selectEndpointWithScanner().
+		Where("LOWER(eh.dns_name) = LOWER(?)", dnsName).
+		Scan(ctx, &row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Endpoint{}, ErrNotFound
+		}
+		return models.Endpoint{}, fmt.Errorf("failed to get endpoint by dns name: %w", err)
+	}
+	return endpointRowToEndpoint(row), nil
+}
+
 func (s *Store) InsertEndpoint(ctx context.Context, rec models.EndpointRecord) (models.Endpoint, error) {
 	h := &Endpoint{
 		Name:      rec.Name,
