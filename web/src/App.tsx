@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { hasToken } from '@/api/client'
 import AppShell from '@/components/layout/AppShell'
 import LoginPage from '@/pages/LoginPage'
@@ -29,6 +30,7 @@ import APIKeysPage from '@/pages/settings/APIKeysPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
 import AuditLogPage from '@/pages/settings/AuditLogPage'
 import TagsPage from '@/pages/settings/TagsPage'
+import CalendarPage from '@/pages/CalendarPage'
 import ToolboxPage from '@/pages/toolbox/ToolboxPage'
 import CertDecoderPage from '@/pages/toolbox/CertDecoderPage'
 import CsrDecoderPage from '@/pages/toolbox/CsrDecoderPage'
@@ -50,6 +52,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <TooltipProvider delayDuration={300}>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -71,6 +74,7 @@ export default function App() {
           <Route path="endpoints/new" element={<EndpointFormPage />} />
           <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
           <Route path="endpoints/:id" element={<EndpointDetailPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
           <Route path="toolbox" element={<ToolboxPage />} />
           <Route path="toolbox/cert-decoder" element={<CertDecoderPage />} />
           <Route path="toolbox/csr-decoder" element={<CsrDecoderPage />} />
@@ -123,5 +127,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
+    </TooltipProvider>
   )
 }
