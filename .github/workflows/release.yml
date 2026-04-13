@@ -148,8 +148,10 @@ jobs:
     name: Build Windows
     needs: [build-frontend, build-swagger]
     runs-on: windows-latest
+    environment: release 
     permissions:
-      contents: write
+      contents: write   # Needed to upload the asset to the release
+      id-token: write   # CRITICAL: Needed to request the OIDC token from GitHub
     steps:
       - uses: actions/checkout@v5
 
