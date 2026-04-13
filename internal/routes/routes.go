@@ -111,6 +111,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 					r.Get("/", certHandler.List)
 					r.Get("/active", certHandler.Active)
 					r.Get("/expiring", certHandler.Expiring)
+					r.Get("/lookup", certHandler.Lookup)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.CertsEdit))
