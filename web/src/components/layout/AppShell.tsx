@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, Shield, User, Wrench, CalendarDays } from 'lucide-react'
+import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
+import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,50 @@ function NavItem({ to, icon, label }: NavItemProps) {
       {icon}
       {label}
     </NavLink>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// NavGroup — collapsible sidebar section with nested NavItems.
+// Auto-expands when any child route is active.
+// ---------------------------------------------------------------------------
+interface NavGroupProps {
+  icon: React.ReactNode
+  label: string
+  childPaths: string[]
+  children: React.ReactNode
+}
+
+function NavGroup({ icon, label, childPaths, children }: NavGroupProps) {
+  const location = useLocation()
+  const isChildActive = childPaths.some(p => location.pathname.startsWith(p))
+  const [open, setOpen] = useState(isChildActive)
+
+  useEffect(() => {
+    if (isChildActive) setOpen(true)
+  }, [isChildActive])
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+          isChildActive
+            ? 'text-sidebar-foreground'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        )}
+      >
+        {icon}
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronRight className={cn('h-3.5 w-3.5 transition-transform text-sidebar-foreground/40', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
+          {children}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -88,10 +132,19 @@ export default function AppShell() {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-3">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
-          <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
-          <NavItem to="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
-          <NavItem to="/certificates" icon={<Shield className="h-4 w-4" />} label="Certificates" />
-          <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
+          <NavGroup icon={<SquareActivity className="h-4 w-4" />} label="Monitor" childPaths={['/active', '/calendar']}>
+            <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
+            <NavItem to="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
+          </NavGroup>
+          <NavItem to="/reports" icon={<BarChart2 className="h-4 w-4" />} label="Reports" />
+          <NavGroup icon={<Package className="h-4 w-4" />} label="Inventory" childPaths={['/certificates', '/endpoints']}>
+            <NavItem to="/certificates" icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
+            <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
+          </NavGroup>
+          <NavGroup icon={<Radar className="h-4 w-4" />} label="Discovery" childPaths={['/discovery']}>
+            <NavItem to="/discovery/inbox" icon={<Inbox className="h-4 w-4" />} label="Inbox" />
+            <NavItem to="/discovery/networks" icon={<Network className="h-4 w-4" />} label="Networks" />
+          </NavGroup>
           <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
         </nav>
 
