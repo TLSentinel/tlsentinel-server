@@ -426,6 +426,29 @@ export interface CreateDiscoveryNetworkRequest {
 
 export interface UpdateDiscoveryNetworkRequest extends CreateDiscoveryNetworkRequest {}
 
+export interface DiscoveryInboxItem {
+  id: string
+  networkId: string | null
+  networkName: string | null
+  scannerId: string | null
+  scannerName: string | null
+  ip: string
+  rdns: string | null
+  port: number
+  fingerprint: string | null
+  commonName: string | null
+  status: string
+  endpointId: string | null
+  endpointName: string | null
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+export interface DiscoveryInboxList {
+  items: DiscoveryInboxItem[]
+  totalCount: number
+}
+
 // ---------------------------------------------------------------------------
 // Utils
 // ---------------------------------------------------------------------------

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uptrace/bun"
+
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
@@ -143,6 +145,95 @@ func (s *Store) UpdateDiscoveryNetwork(ctx context.Context, id string, req model
 		return models.DiscoveryNetwork{}, ErrNotFound
 	}
 	return s.GetDiscoveryNetwork(ctx, id)
+}
+
+// ---------------------------------------------------------------------------
+// Inbox
+// ---------------------------------------------------------------------------
+
+type discoveryInboxWithJoins struct {
+	DiscoveryInboxItem
+	NetworkName  *string `bun:"network_name"`
+	ScannerName  *string `bun:"scanner_name"`
+	EndpointName *string `bun:"endpoint_name"`
+	CommonName   *string `bun:"common_name"`
+}
+
+func discoveryInboxToModel(r discoveryInboxWithJoins) models.DiscoveryInboxItem {
+	return models.DiscoveryInboxItem{
+		ID:           r.ID,
+		NetworkID:    r.NetworkID,
+		NetworkName:  r.NetworkName,
+		ScannerID:    r.ScannerID,
+		ScannerName:  r.ScannerName,
+		IP:           r.IP,
+		RDNS:         r.RDNS,
+		Port:         r.Port,
+		Fingerprint:  r.Fingerprint,
+		CommonName:   r.CommonName,
+		Status:       r.Status,
+		EndpointID:   r.EndpointID,
+		EndpointName: r.EndpointName,
+		FirstSeenAt:  r.FirstSeenAt,
+		LastSeenAt:   r.LastSeenAt,
+	}
+}
+
+func (s *Store) inboxBaseQuery() *bun.SelectQuery {
+	return s.db.NewSelect().
+		TableExpr("tlsentinel.discovery_inbox di").
+		ColumnExpr("di.*").
+		ColumnExpr("dn.name AS network_name").
+		ColumnExpr("sc.name AS scanner_name").
+		ColumnExpr("ep.name AS endpoint_name").
+		ColumnExpr("c.common_name AS common_name").
+		Join("LEFT JOIN tlsentinel.discovery_networks dn ON dn.id = di.network_id").
+		Join("LEFT JOIN tlsentinel.scanners sc ON sc.id = di.scanner_id").
+		Join("LEFT JOIN tlsentinel.endpoints ep ON ep.id = di.endpoint_id").
+		Join("LEFT JOIN tlsentinel.certificates c ON c.fingerprint = di.fingerprint").
+		OrderExpr("di.last_seen_at DESC")
+}
+
+// ListDiscoveryInbox returns a paginated list of inbox items with optional filters.
+func (s *Store) ListDiscoveryInbox(ctx context.Context, page, pageSize int, networkID, status string) (models.DiscoveryInboxList, error) {
+	q := s.inboxBaseQuery()
+
+	if networkID != "" {
+		q = q.Where("di.network_id = ?", networkID)
+	}
+	if status != "" {
+		q = q.Where("di.status = ?", status)
+	}
+
+	total, err := q.Count(ctx)
+	if err != nil {
+		return models.DiscoveryInboxList{}, fmt.Errorf("failed to count discovery inbox: %w", err)
+	}
+
+	var rows []discoveryInboxWithJoins
+	if err := q.Limit(pageSize).Offset((page - 1) * pageSize).Scan(ctx, &rows); err != nil {
+		return models.DiscoveryInboxList{}, fmt.Errorf("failed to list discovery inbox: %w", err)
+	}
+
+	items := make([]models.DiscoveryInboxItem, len(rows))
+	for i, r := range rows {
+		items[i] = discoveryInboxToModel(r)
+	}
+
+	return models.DiscoveryInboxList{Items: items, TotalCount: total}, nil
+}
+
+// GetDiscoveryInboxItem returns a single inbox item by ID.
+func (s *Store) GetDiscoveryInboxItem(ctx context.Context, id string) (models.DiscoveryInboxItem, error) {
+	var row discoveryInboxWithJoins
+	err := s.inboxBaseQuery().Where("di.id = ?", id).Scan(ctx, &row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.DiscoveryInboxItem{}, ErrNotFound
+		}
+		return models.DiscoveryInboxItem{}, fmt.Errorf("failed to get discovery inbox item: %w", err)
+	}
+	return discoveryInboxToModel(row), nil
 }
 
 // DeleteDiscoveryNetwork removes a discovery network by ID (cascades to inbox).

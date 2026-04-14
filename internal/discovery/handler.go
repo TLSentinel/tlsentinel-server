@@ -271,3 +271,65 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 	h.logAudit(r, audit.DiscoveryNetworkDelete, "discovery_network", id)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// ---------------------------------------------------------------------------
+// Inbox
+// ---------------------------------------------------------------------------
+
+// @Summary      List discovery inbox items
+// @Tags         discovery
+// @Produce      json
+// @Param        page        query  int     false  "Page number (default 1)"
+// @Param        page_size   query  int     false  "Page size (default 20)"
+// @Param        network_id  query  string  false  "Filter by network ID"
+// @Param        status      query  string  false  "Filter by status (new, promoted, dismissed)"
+// @Success      200  {object}  models.DiscoveryInboxList
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /discovery/inbox [get]
+func (h *Handler) ListInbox(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	if pageSize < 1 || pageSize > 200 {
+		pageSize = 20
+	}
+
+	networkID := r.URL.Query().Get("network_id")
+	status := r.URL.Query().Get("status")
+
+	list, err := h.store.ListDiscoveryInbox(r.Context(), page, pageSize, networkID, status)
+	if err != nil {
+		slog.Error("list discovery inbox", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, list)
+}
+
+// @Summary      Get a discovery inbox item
+// @Tags         discovery
+// @Produce      json
+// @Param        itemID  path  string  true  "Inbox item ID"
+// @Success      200  {object}  models.DiscoveryInboxItem
+// @Failure      404  {string}  string  "not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /discovery/inbox/{itemID} [get]
+func (h *Handler) GetInboxItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "itemID")
+
+	item, err := h.store.GetDiscoveryInboxItem(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "inbox item not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("get discovery inbox item", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, item)
+}

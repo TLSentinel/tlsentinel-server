@@ -41,3 +41,28 @@ type UpdateDiscoveryNetworkRequest struct {
 	CronExpression string  `json:"cronExpression"`
 	Enabled        bool    `json:"enabled"`
 }
+
+// DiscoveryInboxItem is the API representation of a discovery_inbox row.
+type DiscoveryInboxItem struct {
+	ID           string    `json:"id"`
+	NetworkID    *string   `json:"networkId"`
+	NetworkName  *string   `json:"networkName"`
+	ScannerID    *string   `json:"scannerId"`
+	ScannerName  *string   `json:"scannerName"`
+	IP           string    `json:"ip"`
+	RDNS         *string   `json:"rdns"`
+	Port         int       `json:"port"`
+	Fingerprint  *string   `json:"fingerprint"`
+	CommonName   *string   `json:"commonName"`
+	Status       string    `json:"status"`
+	EndpointID   *string   `json:"endpointId"`
+	EndpointName *string   `json:"endpointName"`
+	FirstSeenAt  time.Time `json:"firstSeenAt"`
+	LastSeenAt   time.Time `json:"lastSeenAt"`
+}
+
+// DiscoveryInboxList is the paginated list response.
+type DiscoveryInboxList struct {
+	Items      []DiscoveryInboxItem `json:"items"`
+	TotalCount int                  `json:"totalCount"`
+}

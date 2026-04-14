@@ -322,6 +322,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Delete("/{networkID}", discoveryHandler.DeleteNetwork)
 					})
 				})
+				r.Route("/inbox", func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.DiscoveryView))
+					r.Get("/", discoveryHandler.ListInbox)
+					r.Get("/{itemID}", discoveryHandler.GetInboxItem)
+				})
 			})
 
 		r.Route("/utils", func(r chi.Router) {
