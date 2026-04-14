@@ -1,10 +1,20 @@
 import { useState } from 'react'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { Link, useNavigate } from 'react-router-dom'
+import { ExternalLink, EyeOff, Trash2, Plus } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import FilterDropdown from '@/components/FilterDropdown'
 import TablePagination from '@/components/TablePagination'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -13,8 +23,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { listDiscoveryInbox, listDiscoveryNetworks } from '@/api/discovery'
+import {
+  listDiscoveryInbox,
+  listDiscoveryNetworks,
+  dismissDiscoveryInboxItem,
+  deleteDiscoveryInboxItem,
+} from '@/api/discovery'
+import { can } from '@/api/client'
 import { plural } from '@/lib/utils'
+import { ApiError } from '@/types/api'
 import type { DiscoveryInboxItem } from '@/types/api'
 
 // ---------------------------------------------------------------------------
@@ -23,13 +40,11 @@ import type { DiscoveryInboxItem } from '@/types/api'
 
 const STATUS_DOT: Record<string, string> = {
   new:       'bg-blue-500',
-  promoted:  'bg-green-500',
   dismissed: 'bg-muted-foreground/40',
 }
 
 const STATUS_LABEL: Record<string, string> = {
   new:       'New',
-  promoted:  'Promoted',
   dismissed: 'Dismissed',
 }
 
@@ -59,33 +74,84 @@ function shortFingerprint(fp: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Delete confirmation dialog
+// ---------------------------------------------------------------------------
+
+interface DeleteDialogProps {
+  item: DiscoveryInboxItem | null
+  onClose: () => void
+  onDeleted: () => void
+}
+
+function DeleteDialog({ item, onClose, onDeleted }: DeleteDialogProps) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    if (!item) return
+    setLoading(true)
+    setError(null)
+    try {
+      await deleteDiscoveryInboxItem(item.id)
+      onDeleted()
+      onClose()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to delete.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={item !== null} onOpenChange={open => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Inbox Entry</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Delete <span className="font-medium text-foreground font-mono">{item?.ip}:{item?.port}</span>?
+          It will reappear as new if the scanner discovers it again.
+        </p>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+            {loading ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Filter options
 // ---------------------------------------------------------------------------
 
-type StatusFilter = '' | 'new' | 'promoted' | 'dismissed'
+type NetworkFilter = string
 
-const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: '',          label: 'All' },
-  { value: 'new',       label: 'New' },
-  { value: 'promoted',  label: 'Promoted' },
-  { value: 'dismissed', label: 'Dismissed' },
-]
+const PAGE_SIZE = 20
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
-const PAGE_SIZE = 20
-
 export default function DiscoveryInboxPage() {
+  const canEdit = can('discovery:edit')
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [now] = useState(Date.now)
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
-  const [networkFilter, setNetworkFilter] = useState('')
+  const [networkFilter, setNetworkFilter] = useState<NetworkFilter>('')
+  const [showDismissed, setShowDismissed] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DiscoveryInboxItem | null>(null)
+  const [dismissing, setDismissing] = useState<string | null>(null)
+
+  const queryKey = ['discovery-inbox', page, networkFilter, showDismissed]
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['discovery-inbox', page, statusFilter, networkFilter],
-    queryFn: () => listDiscoveryInbox(page, PAGE_SIZE, networkFilter, statusFilter),
+    queryKey,
+    queryFn: () => listDiscoveryInbox(page, PAGE_SIZE, networkFilter, '', showDismissed),
     placeholderData: keepPreviousData,
   })
 
@@ -103,15 +169,21 @@ export default function DiscoveryInboxPage() {
     ...(networksData?.items ?? []).map(n => ({ value: n.id, label: n.name })),
   ]
 
-  function handleStatusChange(value: StatusFilter) {
-    setStatusFilter(value)
-    setPage(1)
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['discovery-inbox'] })
   }
 
-  function handleNetworkChange(value: string) {
-    setNetworkFilter(value)
-    setPage(1)
+  async function handleDismiss(item: DiscoveryInboxItem) {
+    setDismissing(item.id)
+    try {
+      await dismissDiscoveryInboxItem(item.id)
+      invalidate()
+    } finally {
+      setDismissing(null)
+    }
   }
+
+  const colSpan = canEdit ? 8 : 7
 
   return (
     <div className="space-y-4">
@@ -126,21 +198,25 @@ export default function DiscoveryInboxPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2">
-        <FilterDropdown
-          label="Status"
-          options={STATUS_OPTIONS}
-          value={statusFilter}
-          onSelect={(v) => handleStatusChange(v as StatusFilter)}
-        />
+      <div className="flex items-center gap-3">
         {networkOptions.length > 1 && (
           <FilterDropdown
             label="Network"
             options={networkOptions}
             value={networkFilter}
-            onSelect={handleNetworkChange}
+            onSelect={v => { setNetworkFilter(v); setPage(1) }}
           />
         )}
+        <div className="flex items-center gap-2 ml-auto">
+          <Switch
+            id="show-dismissed"
+            checked={showDismissed}
+            onCheckedChange={v => { setShowDismissed(v); setPage(1) }}
+          />
+          <Label htmlFor="show-dismissed" className="text-sm text-muted-foreground cursor-pointer">
+            Show dismissed
+          </Label>
+        </div>
       </div>
 
       {/* Table */}
@@ -154,12 +230,13 @@ export default function DiscoveryInboxPage() {
             <TableHead>Certificate</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Last Seen</TableHead>
+            {canEdit && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
         <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
           {isLoading && (
             <TableRow>
-              <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+              <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
                 Loading…
               </TableCell>
             </TableRow>
@@ -167,14 +244,14 @@ export default function DiscoveryInboxPage() {
 
           {!isLoading && items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="py-10 text-center">
+              <TableCell colSpan={colSpan} className="py-10 text-center">
                 <StrixEmpty message="No discovered hosts yet." />
               </TableCell>
             </TableRow>
           )}
 
           {!isLoading && items.map(item => (
-            <TableRow key={item.id}>
+            <TableRow key={item.id} className={item.status === 'dismissed' ? 'opacity-50' : ''}>
               <TableCell className="font-mono text-sm">{item.ip}</TableCell>
               <TableCell className="font-mono text-sm">{item.port}</TableCell>
               <TableCell className="text-sm text-muted-foreground">
@@ -207,6 +284,41 @@ export default function DiscoveryInboxPage() {
               <TableCell className="text-sm text-muted-foreground">
                 {fmtRelative(item.lastSeenAt, now)}
               </TableCell>
+              {canEdit && (
+                <TableCell>
+                  <div className="flex items-center justify-end gap-1">
+                    {item.status !== 'dismissed' && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Add as endpoint"
+                          onClick={() => navigate(`/endpoints/new?from_inbox=${item.id}`)}
+                        >
+                          <Plus className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Dismiss"
+                          disabled={dismissing === item.id}
+                          onClick={() => handleDismiss(item)}
+                        >
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Delete"
+                      onClick={() => setDeleteTarget(item)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -222,6 +334,12 @@ export default function DiscoveryInboxPage() {
           noun="host"
         />
       )}
+
+      <DeleteDialog
+        item={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={invalidate}
+      />
     </div>
   )
 }

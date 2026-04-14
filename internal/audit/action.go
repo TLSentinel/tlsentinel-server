@@ -38,6 +38,7 @@ const (
 	DiscoveryNetworkCreate = "discovery.network.create"
 	DiscoveryNetworkUpdate = "discovery.network.update"
 	DiscoveryNetworkDelete = "discovery.network.delete"
+	DiscoveryInboxPromote  = "discovery.inbox.promote"
 
 	// Settings
 	MailConfigUpdate      = "settings.mail_config_update"

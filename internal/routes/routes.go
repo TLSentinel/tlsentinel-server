@@ -323,9 +323,17 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 					})
 				})
 				r.Route("/inbox", func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.DiscoveryView))
-					r.Get("/", discoveryHandler.ListInbox)
-					r.Get("/{itemID}", discoveryHandler.GetInboxItem)
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryView))
+						r.Get("/", discoveryHandler.ListInbox)
+						r.Get("/{itemID}", discoveryHandler.GetInboxItem)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryEdit))
+						r.Post("/{itemID}/promote", discoveryHandler.PromoteInboxItem)
+						r.Post("/{itemID}/dismiss", discoveryHandler.DismissInboxItem)
+						r.Delete("/{itemID}", discoveryHandler.DeleteInboxItem)
+					})
 				})
 			})
 

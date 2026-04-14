@@ -4,6 +4,7 @@ import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
 import { listTagCategories, getEndpointTags, setEndpointTags } from '@/api/tags'
+import { getDiscoveryInboxItem, deleteDiscoveryInboxItem } from '@/api/discovery'
 import { ApiError } from '@/types/api'
 import type { ScannerToken, CategoryWithTags } from '@/types/api'
 import { Button } from '@/components/ui/button'
@@ -62,11 +63,14 @@ export default function EndpointFormPage() {
   const { id }            = useParams<{ id: string }>()
   const [searchParams]    = useSearchParams()
   const cloneId           = !id ? (searchParams.get('clone') ?? undefined) : undefined
+  const fromInboxId       = !id ? (searchParams.get('from_inbox') ?? undefined) : undefined
   const isEdit            = Boolean(id)
   const isClone           = Boolean(cloneId)
+  const isFromInbox       = Boolean(fromInboxId)
 
   const [loadError, setLoadError]   = useState<string | null>(null)
-  const [formReady, setFormReady]   = useState(!isEdit && !isClone)
+  const [formReady, setFormReady]   = useState(!isEdit && !isClone && !isFromInbox)
+  const [inboxIP, setInboxIP]       = useState<string | null>(null)
 
   const [type, setType]             = useState<EndpointType>('host')
   const [name, setName]             = useState('')
@@ -126,6 +130,25 @@ export default function EndpointFormPage() {
       setSelectedTagIds(new Set(tags.map(t => t.id)))
     }).catch(() => {})
   }, [id])
+
+  // Pre-fill from a discovery inbox item
+  useEffect(() => {
+    if (!fromInboxId) return
+    getDiscoveryInboxItem(fromInboxId)
+      .then((item) => {
+        const suggested = item.rdns ?? item.ip
+        setType('host')
+        setName(suggested)
+        setDnsName(item.rdns ?? item.ip)
+        setIpAddress(item.ip)
+        setPort(String(item.port))
+        setScannerID(item.scannerId ?? '')
+        setEnabled(true)
+        setInboxIP(`${item.ip}:${item.port}`)
+        setFormReady(true)
+      })
+      .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load inbox item.'))
+  }, [fromInboxId])
 
   // Pre-fill from a source endpoint in clone mode
   useEffect(() => {
@@ -263,6 +286,10 @@ export default function EndpointFormPage() {
         if (selectedTagIds.size > 0) {
           await setEndpointTags(endpoint.id, Array.from(selectedTagIds))
         }
+        // If promoted from discovery inbox, remove the inbox row
+        if (fromInboxId) {
+          await deleteDiscoveryInboxItem(fromInboxId).catch(() => {})
+        }
         navigate(`/endpoints/${endpoint.id}`)
       }
     } catch (err) {
@@ -272,10 +299,11 @@ export default function EndpointFormPage() {
   }
 
   function handleCancel() {
+    if (isFromInbox) { navigate('/discovery/inbox'); return }
     navigate(isEdit && id ? `/endpoints/${id}` : '/endpoints')
   }
 
-  const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : 'New Endpoint'
+  const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
 
   // Loading state
   if ((isEdit || isClone) && !formReady && !loadError) {
@@ -315,6 +343,13 @@ export default function EndpointFormPage() {
         </Button>
         <h1 className="text-2xl font-semibold">{pageTitle}</h1>
       </div>
+
+      {/* Inbox source context */}
+      {isFromInbox && inboxIP && (
+        <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+          Discovered host: <span className="font-mono text-foreground">{inboxIP}</span>
+        </div>
+      )}
 
       {/* Common fields */}
       <div className="space-y-5">
@@ -440,35 +475,37 @@ export default function EndpointFormPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Type selector — clickable on create, read-only on edit */}
-      <div>
-        <p className="text-sm font-medium mb-3">Endpoint Type</p>
-        <div className="grid grid-cols-3 gap-3">
-          {TYPE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleTypeChange(opt.value)}
-              disabled={isEdit}
-              className={cn(
-                'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
-                type === opt.value
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                  : 'border-border',
-                isEdit
-                  ? 'cursor-default opacity-60'
-                  : 'hover:border-muted-foreground/40 hover:bg-muted/30',
-              )}
-            >
-              <p className="text-sm font-medium">{opt.label}</p>
-              <p className="mt-1 text-xs text-muted-foreground leading-snug">{opt.description}</p>
-            </button>
-          ))}
+      {/* Type selector — clickable on create, read-only on edit or from_inbox */}
+      {!isFromInbox && (
+        <div>
+          <p className="text-sm font-medium mb-3">Endpoint Type</p>
+          <div className="grid grid-cols-3 gap-3">
+            {TYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleTypeChange(opt.value)}
+                disabled={isEdit}
+                className={cn(
+                  'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
+                  type === opt.value
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                    : 'border-border',
+                  isEdit
+                    ? 'cursor-default opacity-60'
+                    : 'hover:border-muted-foreground/40 hover:bg-muted/30',
+                )}
+              >
+                <p className="text-sm font-medium">{opt.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground leading-snug">{opt.description}</p>
+              </button>
+            ))}
+          </div>
+          {isEdit && (
+            <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
+          )}
         </div>
-        {isEdit && (
-          <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
-        )}
-      </div>
+      )}
 
       {/* Type-specific fields */}
       {type !== 'manual' && (
@@ -641,8 +678,8 @@ export default function EndpointFormPage() {
         </Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving
-            ? (isEdit ? 'Saving…' : 'Creating…')
-            : (isEdit ? 'Save Changes' : 'Create Endpoint')
+            ? (isEdit ? 'Saving…' : 'Adding…')
+            : (isEdit ? 'Save Changes' : isFromInbox ? 'Add Endpoint' : 'Create Endpoint')
           }
         </Button>
       </div>

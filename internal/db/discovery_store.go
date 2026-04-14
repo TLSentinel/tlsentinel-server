@@ -195,7 +195,8 @@ func (s *Store) inboxBaseQuery() *bun.SelectQuery {
 }
 
 // ListDiscoveryInbox returns a paginated list of inbox items with optional filters.
-func (s *Store) ListDiscoveryInbox(ctx context.Context, page, pageSize int, networkID, status string) (models.DiscoveryInboxList, error) {
+// Dismissed items are excluded by default unless showDismissed is true.
+func (s *Store) ListDiscoveryInbox(ctx context.Context, page, pageSize int, networkID, status string, showDismissed bool) (models.DiscoveryInboxList, error) {
 	q := s.inboxBaseQuery()
 
 	if networkID != "" {
@@ -203,6 +204,8 @@ func (s *Store) ListDiscoveryInbox(ctx context.Context, page, pageSize int, netw
 	}
 	if status != "" {
 		q = q.Where("di.status = ?", status)
+	} else if !showDismissed {
+		q = q.Where("di.status != 'dismissed'")
 	}
 
 	total, err := q.Count(ctx)
@@ -221,6 +224,68 @@ func (s *Store) ListDiscoveryInbox(ctx context.Context, page, pageSize int, netw
 	}
 
 	return models.DiscoveryInboxList{Items: items, TotalCount: total}, nil
+}
+
+// PromoteDiscoveryInboxItem creates a host endpoint from an inbox item and removes the inbox row.
+func (s *Store) PromoteDiscoveryInboxItem(ctx context.Context, id string, req models.PromoteDiscoveryInboxRequest) (models.Endpoint, error) {
+	item, err := s.GetDiscoveryInboxItem(ctx, id)
+	if err != nil {
+		return models.Endpoint{}, err
+	}
+
+	rec := models.EndpointRecord{
+		Name:      req.Name,
+		Type:      "host",
+		DNSName:   req.DNSName,
+		Port:      item.Port,
+		Enabled:   req.Enabled,
+		ScannerID: req.ScannerID,
+	}
+
+	endpoint, err := s.InsertEndpoint(ctx, rec)
+	if err != nil {
+		return models.Endpoint{}, fmt.Errorf("failed to create endpoint during promote: %w", err)
+	}
+
+	// Best-effort delete — endpoint already exists, inbox row is cosmetic at this point.
+	if err := s.DeleteDiscoveryInboxItem(ctx, id); err != nil {
+		return endpoint, nil
+	}
+
+	return endpoint, nil
+}
+
+// DismissDiscoveryInboxItem sets an inbox item's status to dismissed.
+func (s *Store) DismissDiscoveryInboxItem(ctx context.Context, id string) error {
+	res, err := s.db.NewUpdate().
+		TableExpr("tlsentinel.discovery_inbox").
+		Set("status = 'dismissed'").
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to dismiss inbox item: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteDiscoveryInboxItem hard-deletes an inbox item, allowing rediscovery.
+func (s *Store) DeleteDiscoveryInboxItem(ctx context.Context, id string) error {
+	res, err := s.db.NewDelete().
+		TableExpr("tlsentinel.discovery_inbox").
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete inbox item: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // GetDiscoveryInboxItem returns a single inbox item by ID.

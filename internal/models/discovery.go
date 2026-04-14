@@ -66,3 +66,11 @@ type DiscoveryInboxList struct {
 	Items      []DiscoveryInboxItem `json:"items"`
 	TotalCount int                  `json:"totalCount"`
 }
+
+// PromoteDiscoveryInboxRequest is the payload for promoting an inbox item to a monitored endpoint.
+type PromoteDiscoveryInboxRequest struct {
+	Name      string  `json:"name"`
+	DNSName   string  `json:"dnsName"`
+	Enabled   bool    `json:"enabled"`
+	ScannerID *string `json:"scannerId"`
+}

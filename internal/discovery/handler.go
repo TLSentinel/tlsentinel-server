@@ -298,8 +298,9 @@ func (h *Handler) ListInbox(w http.ResponseWriter, r *http.Request) {
 
 	networkID := r.URL.Query().Get("network_id")
 	status := r.URL.Query().Get("status")
+	showDismissed := r.URL.Query().Get("show_dismissed") == "true"
 
-	list, err := h.store.ListDiscoveryInbox(r.Context(), page, pageSize, networkID, status)
+	list, err := h.store.ListDiscoveryInbox(r.Context(), page, pageSize, networkID, status, showDismissed)
 	if err != nil {
 		slog.Error("list discovery inbox", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -332,4 +333,96 @@ func (h *Handler) GetInboxItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, item)
+}
+
+// @Summary      Promote a discovery inbox item to a monitored endpoint
+// @Tags         discovery
+// @Accept       json
+// @Produce      json
+// @Param        itemID  path  string                              true  "Inbox item ID"
+// @Param        body    body  models.PromoteDiscoveryInboxRequest true  "Promote request"
+// @Success      201  {object}  models.Endpoint
+// @Failure      400  {string}  string  "bad request"
+// @Failure      404  {string}  string  "not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /discovery/inbox/{itemID}/promote [post]
+func (h *Handler) PromoteInboxItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "itemID")
+
+	var req models.PromoteDiscoveryInboxRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.DNSName) == "" {
+		http.Error(w, "dnsName is required", http.StatusBadRequest)
+		return
+	}
+
+	endpoint, err := h.store.PromoteDiscoveryInboxItem(r.Context(), id, req)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "inbox item not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("promote discovery inbox item", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	h.logAudit(r, audit.DiscoveryInboxPromote, "endpoint", endpoint.ID)
+	response.JSON(w, http.StatusCreated, endpoint)
+}
+
+// @Summary      Dismiss a discovery inbox item
+// @Description  Marks an inbox item as dismissed. The scanner may still update last_seen_at but it will not resurface as new.
+// @Tags         discovery
+// @Param        itemID  path  string  true  "Inbox item ID"
+// @Success      204
+// @Failure      404  {string}  string  "not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /discovery/inbox/{itemID}/dismiss [post]
+func (h *Handler) DismissInboxItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "itemID")
+
+	if err := h.store.DismissDiscoveryInboxItem(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "inbox item not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("dismiss discovery inbox item", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary      Delete a discovery inbox item
+// @Description  Hard-deletes an inbox item, allowing the host to be rediscovered fresh.
+// @Tags         discovery
+// @Param        itemID  path  string  true  "Inbox item ID"
+// @Success      204
+// @Failure      404  {string}  string  "not found"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /discovery/inbox/{itemID} [delete]
+func (h *Handler) DeleteInboxItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "itemID")
+
+	if err := h.store.DeleteDiscoveryInboxItem(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "inbox item not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("delete discovery inbox item", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
