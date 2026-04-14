@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import StrixEmpty from '@/components/StrixEmpty'
+import SchedulePicker from '@/components/SchedulePicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -160,15 +161,8 @@ function NetworkDialog({ open, initial, onClose, onSaved }: NetworkDialogProps) 
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="dn-cron">Schedule (cron)</Label>
-            <Input
-              id="dn-cron"
-              value={cron}
-              onChange={e => setCron(e.target.value)}
-              placeholder="0 2 * * *"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">Standard 5-field cron expression.</p>
+            <Label>Schedule</Label>
+            <SchedulePicker value={cron} onChange={setCron} />
           </div>
 
           <div className="flex items-center gap-3">
