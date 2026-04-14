@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS tlsentinel.discovery_inbox (
     port         INTEGER     NOT NULL,
     fingerprint  TEXT        REFERENCES tlsentinel.certificates(fingerprint) ON DELETE SET NULL,
     status       TEXT        NOT NULL DEFAULT 'new',
-    endpoint_id  UUID        REFERENCES tlsentinel.hosts(id) ON DELETE SET NULL,
+    endpoint_id  UUID        REFERENCES tlsentinel.endpoints(id) ON DELETE SET NULL,
     first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (ip, port)
