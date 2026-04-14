@@ -18,6 +18,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/discovery"
 	"github.com/tlsentinel/tlsentinel-server/internal/endpoints"
 	"github.com/tlsentinel/tlsentinel-server/internal/groups"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
@@ -54,6 +55,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	groupHandler := groups.NewHandler(store)
 	auditHandler := audit.NewHandler(store)
 	tagHandler := tags.NewHandler(store)
+	discoveryHandler := discovery.NewHandler(store)
 	apiKeyHandler := apikeys.NewHandler(store)
 	notifTemplateHandler := notificationtemplates.NewHandler(store)
 
@@ -306,7 +308,23 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				})
 			})
 
-			r.Route("/utils", func(r chi.Router) {
+			r.Route("/discovery", func(r chi.Router) {
+				r.Route("/networks", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryView))
+						r.Get("/", discoveryHandler.ListNetworks)
+						r.Get("/{networkID}", discoveryHandler.GetNetwork)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryEdit))
+						r.Post("/", discoveryHandler.CreateNetwork)
+						r.Put("/{networkID}", discoveryHandler.UpdateNetwork)
+						r.Delete("/{networkID}", discoveryHandler.DeleteNetwork)
+					})
+				})
+			})
+
+		r.Route("/utils", func(r chi.Router) {
 				r.Use(auth.RequirePermission(permission.EndpointsView))
 				r.Get("/resolve", utilsHandler.Resolve)
 			})

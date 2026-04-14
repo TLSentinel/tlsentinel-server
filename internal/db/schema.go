@@ -298,6 +298,21 @@ type VActiveCertificate struct {
 	DaysRemaining int       `bun:"days_remaining"`
 }
 
+// DiscoveryNetwork maps to tlsentinel.discovery_networks.
+type DiscoveryNetwork struct {
+	bun.BaseModel `bun:"table:tlsentinel.discovery_networks"`
+
+	ID             string    `bun:"id,pk,type:uuid"`
+	Name           string    `bun:"name"`
+	Range          string    `bun:"range"`
+	Ports          []int32   `bun:"ports,array"`
+	ScannerID      *string   `bun:"scanner_id,type:uuid"`
+	CronExpression string    `bun:"cron_expression"`
+	Enabled        bool      `bun:"enabled"`
+	CreatedAt      time.Time `bun:"created_at"`
+	UpdatedAt      time.Time `bun:"updated_at"`
+}
+
 // ScheduledJob maps to tlsentinel.scheduled_jobs.
 type ScheduledJob struct {
 	bun.BaseModel `bun:"table:tlsentinel.scheduled_jobs"`

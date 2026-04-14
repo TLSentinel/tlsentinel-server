@@ -34,6 +34,11 @@ const (
 	GroupUpdate = "group.update"
 	GroupDelete = "group.delete"
 
+	// Discovery
+	DiscoveryNetworkCreate = "discovery.network.create"
+	DiscoveryNetworkUpdate = "discovery.network.update"
+	DiscoveryNetworkDelete = "discovery.network.delete"
+
 	// Settings
 	MailConfigUpdate      = "settings.mail_config_update"
 	AlertThresholdsUpdate = "settings.alert_thresholds_update"
