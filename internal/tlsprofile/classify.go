@@ -121,6 +121,11 @@ var cipherClassifications = map[string]Finding{
 		Reason:   "Static RSA key exchange provides no forward secrecy.",
 		Severity: SeverityWarning,
 	},
+	"TLS_RSA_WITH_AES_256_CBC_SHA256": {
+		Name:     "TLS_RSA_WITH_AES_256_CBC_SHA256",
+		Reason:   "Static RSA key exchange provides no forward secrecy.",
+		Severity: SeverityWarning,
+	},
 	"TLS_RSA_WITH_AES_128_GCM_SHA256": {
 		Name:     "TLS_RSA_WITH_AES_128_GCM_SHA256",
 		Reason:   "Static RSA key exchange provides no forward secrecy.",
@@ -200,6 +205,25 @@ var cipherClassifications = map[string]Finding{
 		Reason:   "Forward secrecy with ChaCha20-Poly1305 (AEAD). Recommended; preferred on hardware without AES acceleration.",
 		Severity: SeverityOK,
 	},
+
+	// ── TLS 1.3 suites ───────────────────────────────────────────────────────
+	// TLS 1.3 mandates AEAD-only cipher suites with forward secrecy built
+	// into the handshake. These are the strongest suites available.
+	"TLS_AES_128_GCM_SHA256": {
+		Name:     "TLS_AES_128_GCM_SHA256",
+		Reason:   "TLS 1.3 mandatory suite. AEAD with built-in forward secrecy.",
+		Severity: SeverityOK,
+	},
+	"TLS_AES_256_GCM_SHA384": {
+		Name:     "TLS_AES_256_GCM_SHA384",
+		Reason:   "TLS 1.3 suite. AEAD with built-in forward secrecy.",
+		Severity: SeverityOK,
+	},
+	"TLS_CHACHA20_POLY1305_SHA256": {
+		Name:     "TLS_CHACHA20_POLY1305_SHA256",
+		Reason:   "TLS 1.3 suite. AEAD with built-in forward secrecy; preferred on hardware without AES acceleration.",
+		Severity: SeverityOK,
+	},
 }
 
 // CipherSeverity returns the severity of a single cipher suite name.
@@ -212,12 +236,11 @@ func CipherSeverity(name string) Severity {
 }
 
 // CipherReason returns the human-readable reason for a cipher suite's classification.
-// Returns an empty string for unknown or OK suites.
 func CipherReason(name string) string {
-	if f, ok := cipherClassifications[name]; ok && f.Severity != SeverityOK {
+	if f, ok := cipherClassifications[name]; ok {
 		return f.Reason
 	}
-	return ""
+	return "Not a known-weak cipher suite; verify against your organisation's policy."
 }
 
 // Classify evaluates raw TLS scan data and returns a fully-classified Result.
