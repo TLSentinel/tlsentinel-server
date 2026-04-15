@@ -223,7 +223,7 @@ export interface ScannerToken {
   id: string
   name: string
   isDefault: boolean
-  scanIntervalSeconds: number
+  scanCronExpression: string
   scanConcurrency: number
   createdAt: string
   lastUsedAt: string | null
@@ -232,7 +232,7 @@ export interface ScannerToken {
 /** PATCH /scanners/{id} — only include the fields you want to change. */
 export interface PatchScannerRequest {
   name?: string
-  scanIntervalSeconds?: number
+  scanCronExpression?: string
   scanConcurrency?: number
 }
 
@@ -391,6 +391,62 @@ export interface BulkImportResponse {
   created: number
   failed: number
   results: BulkImportRowResult[]
+}
+
+// ---------------------------------------------------------------------------
+// Discovery
+// ---------------------------------------------------------------------------
+
+export interface DiscoveryNetwork {
+  id: string
+  name: string
+  range: string
+  ports: number[]
+  scannerId: string | null
+  scannerName: string | null
+  cronExpression: string
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DiscoveryNetworkList {
+  items: DiscoveryNetwork[]
+  totalCount: number
+}
+
+export interface CreateDiscoveryNetworkRequest {
+  name: string
+  range: string
+  ports: number[]
+  scannerId: string | null
+  cronExpression: string
+  enabled: boolean
+}
+
+export interface UpdateDiscoveryNetworkRequest extends CreateDiscoveryNetworkRequest {}
+
+export interface DiscoveryInboxItem {
+  id: string
+  networkId: string | null
+  networkName: string | null
+  scannerId: string | null
+  scannerName: string | null
+  ip: string
+  rdns: string | null
+  port: number
+  fingerprint: string | null
+  commonName: string | null
+  status: string
+  endpointId: string | null
+  endpointName: string | null
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+export interface DiscoveryInboxList {
+  items: DiscoveryInboxItem[]
+  totalCount: number
 }
 
 // ---------------------------------------------------------------------------

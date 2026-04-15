@@ -38,6 +38,10 @@ const (
 	TagsView = "tags:view"
 	TagsEdit = "tags:edit"
 
+	// Discovery
+	DiscoveryView = "discovery:view"
+	DiscoveryEdit = "discovery:edit"
+
 	// Wildcard — grants everything (admin only)
 	Wildcard = "*"
 
@@ -59,6 +63,7 @@ var RolePermissions = map[string][]string{
 		CertsView,
 		GroupsView,
 		TagsView,
+		DiscoveryView,
 		SelfRead,
 	},
 	RoleOperator: {
@@ -73,6 +78,8 @@ var RolePermissions = map[string][]string{
 		TagsEdit,
 		LogsView,
 		Maintenance,
+		DiscoveryView,
+		DiscoveryEdit,
 		SelfRead,
 	},
 }

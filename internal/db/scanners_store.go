@@ -5,21 +5,59 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/uptrace/bun"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
+// approxIntervalSeconds derives a rough scan interval in seconds from a 5-field
+// cron expression. Used only to populate the deprecated scanIntervalSeconds field
+// for backward compatibility with scanner binaries that haven't been updated yet.
+func approxIntervalSeconds(expr string) int {
+	parts := strings.Fields(expr)
+	if len(parts) != 5 {
+		return 3600
+	}
+	min, hr, dom, _, dow := parts[0], parts[1], parts[2], parts[3], parts[4]
+
+	// Every N minutes: */N * * * *
+	if strings.HasPrefix(min, "*/") {
+		if n, err := strconv.Atoi(min[2:]); err == nil && n > 0 {
+			return n * 60
+		}
+	}
+	// Hourly: X * * * *
+	if hr == "*" && dom == "*" && dow == "*" {
+		return 3600
+	}
+	// Daily: X H * * *
+	if dom == "*" && dow == "*" {
+		return 86400
+	}
+	// Weekly: X H * * D
+	if dom == "*" && dow != "*" {
+		return 604800
+	}
+	// Monthly: X H D * *
+	if dom != "*" && dow == "*" {
+		return 2592000
+	}
+	return 3600
+}
+
 func scannerToResponse(s Scanner) models.ScannerTokenResponse {
 	return models.ScannerTokenResponse{
 		ID:                  s.ID,
 		Name:                s.Name,
 		IsDefault:           s.IsDefault,
-		ScanIntervalSeconds: s.ScanIntervalSeconds,
+		ScanCronExpression:  s.ScanCronExpression,
 		ScanConcurrency:     s.ScanConcurrency,
 		CreatedAt:           s.CreatedAt,
 		LastUsedAt:          s.LastUsedAt,
+		ScanIntervalSeconds: approxIntervalSeconds(s.ScanCronExpression),
 	}
 }
 
@@ -95,14 +133,14 @@ func (s *Store) GetScannerToken(ctx context.Context, id string) (models.ScannerT
 }
 
 // InsertScannerToken creates a new scanner token with the given name, token hash,
-// and scan configuration. Interval and concurrency must be positive; callers are
-// responsible for applying defaults before calling this function.
-func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash string, scanIntervalSeconds, scanConcurrency int) (models.ScannerTokenResponse, error) {
+// and scan configuration. Callers are responsible for applying defaults before
+// calling this function.
+func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash, scanCronExpression string, scanConcurrency int) (models.ScannerTokenResponse, error) {
 	row := &Scanner{
-		Name:                name,
-		TokenHash:           tokenHash,
-		ScanIntervalSeconds: scanIntervalSeconds,
-		ScanConcurrency:     scanConcurrency,
+		Name:               name,
+		TokenHash:          tokenHash,
+		ScanCronExpression: scanCronExpression,
+		ScanConcurrency:    scanConcurrency,
 	}
 	// Exclude id, is_default, and created_at so DB-managed defaults are used.
 	if _, err := s.db.NewInsert().Model(row).
@@ -115,11 +153,11 @@ func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash string, 
 }
 
 // UpdateScannerToken updates the name and scan settings for a scanner token.
-func (s *Store) UpdateScannerToken(ctx context.Context, id, name string, scanIntervalSeconds, scanConcurrency int) (models.ScannerTokenResponse, error) {
+func (s *Store) UpdateScannerToken(ctx context.Context, id, name, scanCronExpression string, scanConcurrency int) (models.ScannerTokenResponse, error) {
 	res, err := s.db.NewUpdate().
 		TableExpr("tlsentinel.scanners").
 		Set("name = ?", name).
-		Set("scan_interval_seconds = ?", scanIntervalSeconds).
+		Set("scan_cron_expression = ?", scanCronExpression).
 		Set("scan_concurrency = ?", scanConcurrency).
 		Where("id = ?", id).
 		Exec(ctx)

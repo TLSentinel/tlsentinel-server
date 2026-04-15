@@ -12,11 +12,15 @@ type ScannerToken struct {
 
 // ScannerTokenResponse is the safe public representation of a scanner token (no hash).
 type ScannerTokenResponse struct {
-	ID                  string     `json:"id"`
-	Name                string     `json:"name"`
-	IsDefault           bool       `json:"isDefault"`
-	ScanIntervalSeconds int        `json:"scanIntervalSeconds"`
-	ScanConcurrency     int        `json:"scanConcurrency"`
-	CreatedAt           time.Time  `json:"createdAt"`
-	LastUsedAt          *time.Time `json:"lastUsedAt"`
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	IsDefault          bool       `json:"isDefault"`
+	ScanCronExpression string     `json:"scanCronExpression"`
+	ScanConcurrency    int        `json:"scanConcurrency"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	LastUsedAt         *time.Time `json:"lastUsedAt"`
+
+	// Deprecated: use ScanCronExpression. Kept for scanner binary backward
+	// compatibility until scanners are updated to read the cron field.
+	ScanIntervalSeconds int `json:"scanIntervalSeconds"`
 }
