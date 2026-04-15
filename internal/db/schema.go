@@ -79,14 +79,14 @@ type EndpointSAML struct {
 type Scanner struct {
 	bun.BaseModel `bun:"table:tlsentinel.scanners"`
 
-	ID                  string     `bun:"id,pk,type:uuid"`
-	Name                string     `bun:"name"`
-	TokenHash           string     `bun:"token_hash"`
-	IsDefault           bool       `bun:"is_default"`
-	ScanIntervalSeconds int        `bun:"scan_interval_seconds"`
-	ScanConcurrency     int        `bun:"scan_concurrency"`
-	CreatedAt           time.Time  `bun:"created_at"`
-	LastUsedAt          *time.Time `bun:"last_used_at"`
+	ID                 string     `bun:"id,pk,type:uuid"`
+	Name               string     `bun:"name"`
+	TokenHash          string     `bun:"token_hash"`
+	IsDefault          bool       `bun:"is_default"`
+	ScanCronExpression string     `bun:"scan_cron_expression"`
+	ScanConcurrency    int        `bun:"scan_concurrency"`
+	CreatedAt          time.Time  `bun:"created_at"`
+	LastUsedAt         *time.Time `bun:"last_used_at"`
 }
 
 // User maps to tlsentinel.users.

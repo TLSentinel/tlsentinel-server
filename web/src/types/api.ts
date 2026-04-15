@@ -223,7 +223,7 @@ export interface ScannerToken {
   id: string
   name: string
   isDefault: boolean
-  scanIntervalSeconds: number
+  scanCronExpression: string
   scanConcurrency: number
   createdAt: string
   lastUsedAt: string | null
@@ -232,7 +232,7 @@ export interface ScannerToken {
 /** PATCH /scanners/{id} — only include the fields you want to change. */
 export interface PatchScannerRequest {
   name?: string
-  scanIntervalSeconds?: number
+  scanCronExpression?: string
   scanConcurrency?: number
 }
 

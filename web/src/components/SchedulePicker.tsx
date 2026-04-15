@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-type Frequency = 'hourly' | 'daily' | 'weekly' | 'monthly'
+type Frequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
 
 interface Schedule {
   frequency: Frequency
@@ -47,6 +47,7 @@ function scheduleToCron(s: Schedule): string {
     case 'daily':   return `${s.minute} ${s.hour} * * *`
     case 'weekly':  return `${s.minute} ${s.hour} * * ${s.weekday}`
     case 'monthly': return `${s.minute} ${s.hour} ${s.day} * *`
+    default:        return `0 * * * *`
   }
 }
 
@@ -54,35 +55,75 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const HOURS    = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES  = [0, 15, 30, 45]
 
-export default function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
-  const [sched, setSched] = useState<Schedule>(
-    cronToSchedule(value) ?? { frequency: 'daily', hour: 2, minute: 0, weekday: 0, day: 1 }
-  )
+const DEFAULT_SCHED: Schedule = { frequency: 'daily', hour: 2, minute: 0, weekday: 0, day: 1 }
 
+function initFromValue(value: string): { sched: Schedule; customExpr: string } {
+  const parsed = cronToSchedule(value)
+  if (parsed) return { sched: parsed, customExpr: value }
+  return { sched: { ...DEFAULT_SCHED, frequency: 'custom' }, customExpr: value }
+}
+
+export default function SchedulePicker({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
+  const init = initFromValue(value)
+  const [sched, setSched] = useState<Schedule>(init.sched)
+  const [customExpr, setCustomExpr] = useState(init.customExpr)
+
+  // Sync when the parent value changes (e.g. dialog opens with existing data)
   useEffect(() => {
-    const parsed = cronToSchedule(value)
-    if (parsed) setSched(parsed)
+    const { sched: s, customExpr: c } = initFromValue(value)
+    setSched(s)
+    setCustomExpr(c)
   }, [value])
 
   function update(patch: Partial<Schedule>) {
     const next = { ...sched, ...patch }
     setSched(next)
-    onChange(scheduleToCron(next))
+    if (next.frequency !== 'custom') {
+      onChange(scheduleToCron(next))
+    }
+  }
+
+  function handleFrequencyChange(freq: string) {
+    if (freq === 'custom') {
+      // Pre-populate the text box with the current cron so the user can tweak it
+      const current = sched.frequency !== 'custom' ? scheduleToCron(sched) : customExpr
+      setCustomExpr(current)
+      setSched(s => ({ ...s, frequency: 'custom' }))
+      onChange(current)
+    } else {
+      update({ frequency: freq as Frequency })
+    }
+  }
+
+  function handleCustomChange(expr: string) {
+    setCustomExpr(expr)
+    onChange(expr)
   }
 
   const pad = (n: number) => String(n).padStart(2, '0')
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Select value={sched.frequency} onValueChange={v => update({ frequency: v as Frequency })}>
+      <Select value={sched.frequency} onValueChange={handleFrequencyChange}>
         <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="hourly">Hourly</SelectItem>
           <SelectItem value="daily">Daily</SelectItem>
           <SelectItem value="weekly">Weekly</SelectItem>
           <SelectItem value="monthly">Monthly</SelectItem>
+          <SelectItem value="custom">Custom</SelectItem>
         </SelectContent>
       </Select>
+
+      {sched.frequency === 'custom' && (
+        <Input
+          value={customExpr}
+          onChange={e => handleCustomChange(e.target.value)}
+          placeholder="e.g. */30 9-17 * * 1-5"
+          className="w-48 font-mono text-sm"
+          spellCheck={false}
+        />
+      )}
 
       {sched.frequency === 'weekly' && (
         <Select value={String(sched.weekday)} onValueChange={v => update({ weekday: parseInt(v) })}>
@@ -105,7 +146,7 @@ export default function SchedulePicker({ value, onChange }: { value: string; onC
         </div>
       )}
 
-      {sched.frequency !== 'hourly' && (
+      {sched.frequency !== 'hourly' && sched.frequency !== 'custom' && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">at</span>
           <Select value={String(sched.hour)} onValueChange={v => update({ hour: parseInt(v) })}>

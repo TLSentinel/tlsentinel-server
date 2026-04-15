@@ -46,18 +46,21 @@ func ptrIfNonEmpty(s string) *string {
 	return &s
 }
 
+// defaultCron is the cron expression used when none is supplied.
+const defaultCron = "0 * * * *"
+
 // createScannerTokenRequest is the payload for creating a new scanner token.
 type createScannerTokenRequest struct {
-	Name                string `json:"name"`
-	ScanIntervalSeconds int    `json:"scanIntervalSeconds"` // optional; defaults to 3600
-	ScanConcurrency     int    `json:"scanConcurrency"`     // optional; defaults to 5
+	Name               string `json:"name"`
+	ScanCronExpression string `json:"scanCronExpression"` // optional; defaults to "0 * * * *"
+	ScanConcurrency    int    `json:"scanConcurrency"`    // optional; defaults to 5
 }
 
 // updateScannerTokenRequest is the payload for updating a scanner token.
 type updateScannerTokenRequest struct {
-	Name                string `json:"name"`
-	ScanIntervalSeconds int    `json:"scanIntervalSeconds"`
-	ScanConcurrency     int    `json:"scanConcurrency"`
+	Name               string `json:"name"`
+	ScanCronExpression string `json:"scanCronExpression"`
+	ScanConcurrency    int    `json:"scanConcurrency"`
 }
 
 // createScannerTokenResponse is returned once on creation and includes the raw token.
@@ -129,8 +132,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if req.ScanIntervalSeconds <= 0 {
-		req.ScanIntervalSeconds = 3600
+	if req.ScanCronExpression == "" {
+		req.ScanCronExpression = defaultCron
 	}
 	if req.ScanConcurrency <= 0 {
 		req.ScanConcurrency = 5
@@ -142,7 +145,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.store.InsertScannerToken(r.Context(), req.Name, hash, req.ScanIntervalSeconds, req.ScanConcurrency)
+	token, err := h.store.InsertScannerToken(r.Context(), req.Name, hash, req.ScanCronExpression, req.ScanConcurrency)
 	if err != nil {
 		http.Error(w, "failed to create scanner token", http.StatusInternalServerError)
 		return
@@ -182,14 +185,14 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if req.ScanIntervalSeconds <= 0 {
-		req.ScanIntervalSeconds = 3600
+	if req.ScanCronExpression == "" {
+		req.ScanCronExpression = defaultCron
 	}
 	if req.ScanConcurrency <= 0 {
 		req.ScanConcurrency = 5
 	}
 
-	token, err := h.store.UpdateScannerToken(r.Context(), scannerID, req.Name, req.ScanIntervalSeconds, req.ScanConcurrency)
+	token, err := h.store.UpdateScannerToken(r.Context(), scannerID, req.Name, req.ScanCronExpression, req.ScanConcurrency)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "scanner token not found", http.StatusNotFound)
@@ -206,9 +209,9 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 // patchScannerTokenRequest contains the scanner fields that may be partially updated.
 // Only fields present in the JSON body are applied; omitted fields retain their current values.
 type patchScannerTokenRequest struct {
-	Name                *string `json:"name"`
-	ScanIntervalSeconds *int    `json:"scanIntervalSeconds"`
-	ScanConcurrency     *int    `json:"scanConcurrency"`
+	Name               *string `json:"name"`
+	ScanCronExpression *string `json:"scanCronExpression"`
+	ScanConcurrency    *int    `json:"scanConcurrency"`
 }
 
 // @Summary      Partially update a scanner
@@ -243,7 +246,7 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := current.Name
-	interval := current.ScanIntervalSeconds
+	cronExpr := current.ScanCronExpression
 	concurrency := current.ScanConcurrency
 
 	if req.Name != nil {
@@ -253,12 +256,12 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		}
 		name = *req.Name
 	}
-	if req.ScanIntervalSeconds != nil {
-		if *req.ScanIntervalSeconds <= 0 {
-			http.Error(w, "scanIntervalSeconds must be positive", http.StatusBadRequest)
+	if req.ScanCronExpression != nil {
+		if *req.ScanCronExpression == "" {
+			http.Error(w, "scanCronExpression must not be empty", http.StatusBadRequest)
 			return
 		}
-		interval = *req.ScanIntervalSeconds
+		cronExpr = *req.ScanCronExpression
 	}
 	if req.ScanConcurrency != nil {
 		if *req.ScanConcurrency <= 0 {
@@ -268,7 +271,7 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		concurrency = *req.ScanConcurrency
 	}
 
-	token, err := h.store.UpdateScannerToken(r.Context(), scannerID, name, interval, concurrency)
+	token, err := h.store.UpdateScannerToken(r.Context(), scannerID, name, cronExpr, concurrency)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "scanner token not found", http.StatusNotFound)
