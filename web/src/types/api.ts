@@ -450,6 +450,46 @@ export interface DiscoveryInboxList {
 }
 
 // ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+export interface TLSProtocolCounts {
+  tls13: number
+  tls12: number
+  tls11: number
+  tls10: number
+}
+
+export interface TLSCipherCount {
+  cipher: string
+  count: number
+  severity: TLSSeverity
+  reason?: string
+}
+
+export interface TLSIssuerCount {
+  issuer: string
+  count: number
+}
+
+export interface TLSAttentionItem {
+  endpointId: string
+  endpointName: string
+  issues: string[]
+  severity: TLSSeverity
+}
+
+export interface TLSPostureReport {
+  totalEndpoints: number
+  scannedEndpoints: number
+  weakCipherEndpoints: number
+  protocols: TLSProtocolCounts
+  ciphers: TLSCipherCount[]
+  issuers: TLSIssuerCount[]
+  attention: TLSAttentionItem[]
+}
+
+// ---------------------------------------------------------------------------
 // Utils
 // ---------------------------------------------------------------------------
 export interface ResolveResponse {

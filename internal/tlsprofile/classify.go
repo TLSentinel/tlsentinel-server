@@ -202,6 +202,24 @@ var cipherClassifications = map[string]Finding{
 	},
 }
 
+// CipherSeverity returns the severity of a single cipher suite name.
+// Returns SeverityOK for unknown suites (not a known-weak cipher).
+func CipherSeverity(name string) Severity {
+	if f, ok := cipherClassifications[name]; ok {
+		return f.Severity
+	}
+	return SeverityOK
+}
+
+// CipherReason returns the human-readable reason for a cipher suite's classification.
+// Returns an empty string for unknown or OK suites.
+func CipherReason(name string) string {
+	if f, ok := cipherClassifications[name]; ok && f.Severity != SeverityOK {
+		return f.Reason
+	}
+	return ""
+}
+
 // Classify evaluates raw TLS scan data and returns a fully-classified Result.
 // Every version that was probed and every cipher suite the server accepted
 // appears in the output — not just the problematic ones.

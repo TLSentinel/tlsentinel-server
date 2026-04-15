@@ -21,6 +21,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/discovery"
 	"github.com/tlsentinel/tlsentinel-server/internal/endpoints"
 	"github.com/tlsentinel/tlsentinel-server/internal/groups"
+	"github.com/tlsentinel/tlsentinel-server/internal/reports"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
@@ -56,6 +57,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	auditHandler := audit.NewHandler(store)
 	tagHandler := tags.NewHandler(store)
 	discoveryHandler := discovery.NewHandler(store)
+	reportsHandler := reports.NewHandler(store)
 	apiKeyHandler := apikeys.NewHandler(store)
 	notifTemplateHandler := notificationtemplates.NewHandler(store)
 
@@ -280,6 +282,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/run/purge-scan-history", settingsHandler.RunPurgeScanHistory)
 				r.Post("/run/purge-audit-logs", settingsHandler.RunPurgeAuditLogs)
 				r.Post("/run/purge-expiry-alerts", settingsHandler.RunPurgeExpiryAlerts)
+			})
+
+			r.Route("/reports", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.EndpointsView))
+				r.Get("/tls-posture", reportsHandler.TLSPosture)
 			})
 
 			r.Route("/logs", func(r chi.Router) {
