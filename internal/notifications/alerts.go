@@ -132,7 +132,19 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 				continue
 			}
 
-			if err := mail.Send(sendCfg, *user.Email, expirySubject(cert, threshold), expiryBody(cert, threshold)); err != nil {
+			// Render subject + HTML body from the DB override or embedded default.
+			// Fall back to plain-text if rendering fails so alerts still go out.
+			subject, htmlBody, renderErr := renderExpiryEmail(ctx, store, cert, threshold)
+			if renderErr != nil {
+				log.Warn("expiry alert: template render failed, using plain-text fallback",
+					zap.String("endpoint", cert.EndpointName),
+					zap.Error(renderErr),
+				)
+				subject = expirySubject(cert, threshold)
+				htmlBody = expiryBody(cert, threshold)
+			}
+
+			if err := mail.Send(sendCfg, *user.Email, subject, htmlBody); err != nil {
 				log.Error("expiry alert: failed to send email",
 					zap.String("to", *user.Email),
 					zap.Error(err),
