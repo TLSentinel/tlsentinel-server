@@ -82,6 +82,45 @@ func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, token)
 }
 
+// ReportDiscovery ingests TLS-bearing IP:port pairs found during a discovery sweep.
+//
+// @Summary      Report discovery results
+// @Description  Upserts discovered IP:port pairs into the discovery inbox
+// @Tags         probe
+// @Accept       json
+// @Param        request  body  models.DiscoveryReportRequest  true  "Discovery results"
+// @Success      204
+// @Failure      400  {string}  string  "invalid request"
+// @Failure      403  {string}  string  "scanner token required"
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /probe/discovery [post]
+func (h *Handler) ReportDiscovery(w http.ResponseWriter, r *http.Request) {
+	id, _ := auth.GetIdentity(r.Context())
+
+	var req models.DiscoveryReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Items) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if err := h.store.UpsertDiscoveryInboxItems(r.Context(), id.ScannerID, req.NetworkID, req.Items); err != nil {
+		zap.L().Error("failed to upsert discovery inbox items",
+			zap.String("scanner_id", id.ScannerID),
+			zap.String("network_id", req.NetworkID),
+			zap.Error(err),
+		)
+		http.Error(w, "failed to record discovery results", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Hosts returns the list of enabled hosts assigned to the authenticated scanner.
 //
 // @Summary      Get scanner hosts

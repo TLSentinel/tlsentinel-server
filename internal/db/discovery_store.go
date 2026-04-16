@@ -330,6 +330,39 @@ func (s *Store) ListNetworksForScanner(ctx context.Context, scannerID string) ([
 	return result, nil
 }
 
+// UpsertDiscoveryInboxItems inserts newly discovered IP:port pairs into the inbox.
+// On conflict (same ip+port) only last_seen_at is updated — status and other fields
+// are left unchanged so dismissed items stay dismissed.
+func (s *Store) UpsertDiscoveryInboxItems(ctx context.Context, scannerID, networkID string, items []models.DiscoveryReportItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	rows := make([]DiscoveryInboxItem, len(items))
+	for i, item := range items {
+		rows[i] = DiscoveryInboxItem{
+			NetworkID: &networkID,
+			ScannerID: &scannerID,
+			IP:        item.IP,
+			Port:      item.Port,
+			Status:    "new",
+		}
+	}
+
+	_, err := s.db.NewInsert().
+		Model(&rows).
+		ExcludeColumn("id", "first_seen_at", "last_seen_at"). // let DB defaults handle these
+		On("CONFLICT (ip, port) DO UPDATE").
+		Set("last_seen_at = NOW()").
+		Set("scanner_id = EXCLUDED.scanner_id").
+		Set("network_id = EXCLUDED.network_id").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to upsert discovery inbox items: %w", err)
+	}
+	return nil
+}
+
 // DeleteDiscoveryNetwork removes a discovery network by ID (cascades to inbox).
 func (s *Store) DeleteDiscoveryNetwork(ctx context.Context, id string) error {
 	res, err := s.db.NewDelete().

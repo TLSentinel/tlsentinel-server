@@ -357,6 +357,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/hosts/{hostID}/tls-profile", scannerHandler.TLSProfile)
 				r.Get("/saml", scannerHandler.SAMLEndpoints)
 				r.Post("/saml/{endpointID}/result", scannerHandler.SAMLResult)
+				r.Post("/discovery", scannerHandler.ReportDiscovery)
 			})
 		})
 

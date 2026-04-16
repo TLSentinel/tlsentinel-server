@@ -76,6 +76,18 @@ type ScannerDiscoveryNetwork struct {
 	CronExpression string `json:"cronExpression"`
 }
 
+// DiscoveryReportItem is a single TLS-bearing IP:port found during a sweep.
+type DiscoveryReportItem struct {
+	IP   string `json:"ip"`
+	Port int    `json:"port"`
+}
+
+// DiscoveryReportRequest is the probe payload for reporting sweep results.
+type DiscoveryReportRequest struct {
+	NetworkID string                `json:"networkId"`
+	Items     []DiscoveryReportItem `json:"items"`
+}
+
 // PromoteDiscoveryInboxRequest is the payload for promoting an inbox item to a monitored endpoint.
 type PromoteDiscoveryInboxRequest struct {
 	Name      string  `json:"name"`
