@@ -78,8 +78,9 @@ type ScannerDiscoveryNetwork struct {
 
 // DiscoveryReportItem is a single TLS-bearing IP:port found during a sweep.
 type DiscoveryReportItem struct {
-	IP   string `json:"ip"`
-	Port int    `json:"port"`
+	IP   string  `json:"ip"`
+	Port int     `json:"port"`
+	RDNS *string `json:"rdns,omitempty"`
 }
 
 // DiscoveryReportRequest is the probe payload for reporting sweep results.

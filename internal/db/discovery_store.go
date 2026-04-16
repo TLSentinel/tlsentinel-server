@@ -330,13 +330,55 @@ func (s *Store) ListNetworksForScanner(ctx context.Context, scannerID string) ([
 	return result, nil
 }
 
+// endpointExistsForTarget returns true if an endpoint_hosts row already exists
+// for this port and either the given IP address or RDNS name.
+func (s *Store) endpointExistsForTarget(ctx context.Context, ip string, rdns *string, port int) (bool, error) {
+	q := s.db.NewSelect().
+		TableExpr("tlsentinel.endpoint_hosts").
+		ColumnExpr("1").
+		Where("port = ?", port).
+		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			q = q.Where("ip_address = ?", ip)
+			q = q.WhereOr("dns_name = ?", ip)
+			if rdns != nil {
+				q = q.WhereOr("dns_name = ?", *rdns)
+			}
+			return q
+		}).
+		Limit(1)
+
+	var exists int
+	err := q.Scan(ctx, &exists)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
 // UpsertDiscoveryInboxItems inserts newly discovered IP:port pairs into the inbox.
+// Items that match an existing monitored endpoint (by IP:port or rdns:port) are skipped.
 // On conflict (same ip+port) only last_seen_at is updated — status and other fields
 // are left unchanged so dismissed items stay dismissed.
 func (s *Store) UpsertDiscoveryInboxItems(ctx context.Context, scannerID, networkID string, items []models.DiscoveryReportItem) error {
 	if len(items) == 0 {
 		return nil
 	}
+
+	// Filter out items already covered by a monitored endpoint.
+	filtered := items[:0]
+	for _, item := range items {
+		exists, err := s.endpointExistsForTarget(ctx, item.IP, item.RDNS, item.Port)
+		if err != nil {
+			return fmt.Errorf("failed to check endpoint existence: %w", err)
+		}
+		if !exists {
+			filtered = append(filtered, item)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	items = filtered
 
 	rows := make([]DiscoveryInboxItem, len(items))
 	for i, item := range items {
@@ -345,6 +387,7 @@ func (s *Store) UpsertDiscoveryInboxItems(ctx context.Context, scannerID, networ
 			ScannerID: &scannerID,
 			IP:        item.IP,
 			Port:      item.Port,
+			RDNS:      item.RDNS,
 			Status:    "new",
 		}
 	}
@@ -356,6 +399,7 @@ func (s *Store) UpsertDiscoveryInboxItems(ctx context.Context, scannerID, networ
 		Set("last_seen_at = NOW()").
 		Set("scanner_id = EXCLUDED.scanner_id").
 		Set("network_id = EXCLUDED.network_id").
+		Set("rdns = EXCLUDED.rdns").
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to upsert discovery inbox items: %w", err)
