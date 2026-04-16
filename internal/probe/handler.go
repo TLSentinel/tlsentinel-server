@@ -63,33 +63,23 @@ func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, token)
-}
-
-// Networks returns the discovery networks assigned to the authenticated scanner.
-//
-// @Summary      Get scanner discovery networks
-// @Description  Returns all enabled discovery networks assigned to the authenticated scanner
-// @Tags         probe
-// @Produce      json
-// @Success      200  {array}   models.ScannerDiscoveryNetwork
-// @Failure      403  {string}  string  "scanner token required"
-// @Failure      500  {string}  string  "internal server error"
-// @Router       /probe/networks [get]
-func (h *Handler) Networks(w http.ResponseWriter, r *http.Request) {
-	id, _ := auth.GetIdentity(r.Context())
-
+	// Embed the scanner's discovery networks so the scanner only needs one API call.
 	networks, err := h.store.ListNetworksForScanner(r.Context(), id.ScannerID)
 	if err != nil {
-		zap.L().Error("failed to list networks for scanner",
+		zap.L().Error("failed to list networks for scanner config",
 			zap.String("scanner_id", id.ScannerID),
 			zap.Error(err),
 		)
-		http.Error(w, "failed to get networks", http.StatusInternalServerError)
-		return
+		// Non-fatal — return config without networks rather than failing.
+		networks = nil
+	}
+	if networks == nil {
+		token.Networks = []models.ScannerDiscoveryNetwork{}
+	} else {
+		token.Networks = networks
 	}
 
-	response.JSON(w, http.StatusOK, networks)
+	response.JSON(w, http.StatusOK, token)
 }
 
 // Hosts returns the list of enabled hosts assigned to the authenticated scanner.
