@@ -11,7 +11,11 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
 
-const agentTokenPrefix = "scanner_"
+// ScannerTokenPrefix is the prefix used for newly issued scanner tokens.
+const ScannerTokenPrefix = "stx_s_"
+
+// legacyScannerTokenPrefix is the old prefix, still accepted for existing tokens.
+const legacyScannerTokenPrefix = "scanner_"
 
 // APIKeyPrefix is the prefix for all user API keys.
 const APIKeyPrefix = "stx_p_"
@@ -23,7 +27,7 @@ func GenerateScannerToken() (raw string, hash string, err error) {
 	if _, err = rand.Read(b); err != nil {
 		return "", "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
-	raw = agentTokenPrefix + hex.EncodeToString(b)
+	raw = ScannerTokenPrefix + hex.EncodeToString(b)
 	hashed, err := bcrypt.GenerateFromPassword([]byte(raw), bcrypt.DefaultCost)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to hash token: %w", err)
@@ -31,9 +35,11 @@ func GenerateScannerToken() (raw string, hash string, err error) {
 	return raw, string(hashed), nil
 }
 
-// IsScannerToken returns true if the token has the scanner token prefix.
+// IsScannerToken returns true if the token looks like a scanner token.
+// Accepts both the current stx_s_ prefix and the legacy scanner_ prefix.
 func IsScannerToken(token string) bool {
-	return strings.HasPrefix(token, agentTokenPrefix)
+	return strings.HasPrefix(token, ScannerTokenPrefix) ||
+		strings.HasPrefix(token, legacyScannerTokenPrefix)
 }
 
 // CheckScannerToken compares a raw token against a bcrypt hash.
