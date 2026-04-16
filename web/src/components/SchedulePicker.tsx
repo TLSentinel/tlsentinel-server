@@ -68,8 +68,10 @@ export default function SchedulePicker({ value, onChange }: { value: string; onC
   const [sched, setSched] = useState<Schedule>(init.sched)
   const [customExpr, setCustomExpr] = useState(init.customExpr)
 
-  // Sync when the parent value changes (e.g. dialog opens with existing data)
+  // Sync when the parent value changes (e.g. dialog opens with existing data),
+  // but not while the user is actively editing a custom expression.
   useEffect(() => {
+    if (sched.frequency === 'custom') return
     const { sched: s, customExpr: c } = initFromValue(value)
     setSched(s)
     setCustomExpr(c)
