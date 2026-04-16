@@ -31,6 +31,10 @@ import GroupFormPage from '@/pages/settings/GroupFormPage'
 import AuditLogPage from '@/pages/settings/AuditLogPage'
 import TagsPage from '@/pages/settings/TagsPage'
 import CalendarPage from '@/pages/CalendarPage'
+import ReportsPage from '@/pages/ReportsPage'
+import TLSPosturePage from '@/pages/reports/TLSPosturePage'
+import DiscoveryInboxPage from '@/pages/discovery/DiscoveryInboxPage'
+import DiscoveryNetworksPage from '@/pages/discovery/DiscoveryNetworksPage'
 import ToolboxPage from '@/pages/toolbox/ToolboxPage'
 import CertDecoderPage from '@/pages/toolbox/CertDecoderPage'
 import CsrDecoderPage from '@/pages/toolbox/CsrDecoderPage'
@@ -75,6 +79,10 @@ export default function App() {
           <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
           <Route path="endpoints/:id" element={<EndpointDetailPage />} />
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="reports/tls-posture" element={<TLSPosturePage />} />
+          <Route path="discovery/inbox" element={<DiscoveryInboxPage />} />
+          <Route path="discovery/networks" element={<DiscoveryNetworksPage />} />
           <Route path="toolbox" element={<ToolboxPage />} />
           <Route path="toolbox/cert-decoder" element={<CertDecoderPage />} />
           <Route path="toolbox/csr-decoder" element={<CsrDecoderPage />} />

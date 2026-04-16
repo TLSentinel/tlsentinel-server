@@ -18,8 +18,10 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/discovery"
 	"github.com/tlsentinel/tlsentinel-server/internal/endpoints"
 	"github.com/tlsentinel/tlsentinel-server/internal/groups"
+	"github.com/tlsentinel/tlsentinel-server/internal/reports"
 	"github.com/tlsentinel/tlsentinel-server/internal/handlers"
 	"github.com/tlsentinel/tlsentinel-server/internal/logger"
 	"github.com/tlsentinel/tlsentinel-server/internal/mail"
@@ -54,6 +56,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	groupHandler := groups.NewHandler(store)
 	auditHandler := audit.NewHandler(store)
 	tagHandler := tags.NewHandler(store)
+	discoveryHandler := discovery.NewHandler(store)
+	reportsHandler := reports.NewHandler(store)
 	apiKeyHandler := apikeys.NewHandler(store)
 	notifTemplateHandler := notificationtemplates.NewHandler(store)
 
@@ -280,6 +284,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/run/purge-expiry-alerts", settingsHandler.RunPurgeExpiryAlerts)
 			})
 
+			r.Route("/reports", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.EndpointsView))
+				r.Get("/tls-posture", reportsHandler.TLSPosture)
+			})
+
 			r.Route("/logs", func(r chi.Router) {
 				r.Use(auth.RequirePermission(permission.LogsView))
 				r.Get("/audit", auditHandler.List)
@@ -306,7 +315,36 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				})
 			})
 
-			r.Route("/utils", func(r chi.Router) {
+			r.Route("/discovery", func(r chi.Router) {
+				r.Route("/networks", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryView))
+						r.Get("/", discoveryHandler.ListNetworks)
+						r.Get("/{networkID}", discoveryHandler.GetNetwork)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryEdit))
+						r.Post("/", discoveryHandler.CreateNetwork)
+						r.Put("/{networkID}", discoveryHandler.UpdateNetwork)
+						r.Delete("/{networkID}", discoveryHandler.DeleteNetwork)
+					})
+				})
+				r.Route("/inbox", func(r chi.Router) {
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryView))
+						r.Get("/", discoveryHandler.ListInbox)
+						r.Get("/{itemID}", discoveryHandler.GetInboxItem)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.DiscoveryEdit))
+						r.Post("/{itemID}/promote", discoveryHandler.PromoteInboxItem)
+						r.Post("/{itemID}/dismiss", discoveryHandler.DismissInboxItem)
+						r.Delete("/{itemID}", discoveryHandler.DeleteInboxItem)
+					})
+				})
+			})
+
+		r.Route("/utils", func(r chi.Router) {
 				r.Use(auth.RequirePermission(permission.EndpointsView))
 				r.Get("/resolve", utilsHandler.Resolve)
 			})
@@ -319,6 +357,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/hosts/{hostID}/tls-profile", scannerHandler.TLSProfile)
 				r.Get("/saml", scannerHandler.SAMLEndpoints)
 				r.Post("/saml/{endpointID}/result", scannerHandler.SAMLResult)
+				r.Post("/discovery", scannerHandler.ReportDiscovery)
 			})
 		})
 

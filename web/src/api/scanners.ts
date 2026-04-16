@@ -12,10 +12,10 @@ export function createScanner(name: string): Promise<ScannerTokenCreated> {
 export function updateScanner(
   id: string,
   name: string,
-  scanIntervalSeconds: number,
+  scanCronExpression: string,
   scanConcurrency: number,
 ): Promise<ScannerToken> {
-  return api.put<ScannerToken>(`/scanners/${id}`, { name, scanIntervalSeconds, scanConcurrency })
+  return api.put<ScannerToken>(`/scanners/${id}`, { name, scanCronExpression, scanConcurrency })
 }
 
 export function patchScanner(id: string, req: PatchScannerRequest): Promise<ScannerToken> {

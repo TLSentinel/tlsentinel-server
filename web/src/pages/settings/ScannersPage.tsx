@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ChevronRight } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
+import SchedulePicker from '@/components/SchedulePicker'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -38,12 +39,6 @@ function fmtRelative(iso: string, now: number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
   return `${Math.floor(diff / 86_400_000)}d ago`
-}
-
-function fmtInterval(secs: number): string {
-  if (secs >= 3600 && secs % 3600 === 0) return `${secs / 3600}h`
-  if (secs >= 60 && secs % 60 === 0) return `${secs / 60}m`
-  return `${secs}s`
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +126,7 @@ interface EditScannerDialogProps {
 
 function EditScannerDialog({ scanner, onClose, onSaved }: EditScannerDialogProps) {
   const [name, setName] = useState(scanner?.name ?? '')
-  const [intervalSecs, setIntervalSecs] = useState(scanner?.scanIntervalSeconds ?? 3600)
+  const [cronExpr, setCronExpr] = useState(scanner?.scanCronExpression ?? '0 * * * *')
   const [concurrency, setConcurrency] = useState(scanner?.scanConcurrency ?? 5)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -143,10 +138,6 @@ function EditScannerDialog({ scanner, onClose, onSaved }: EditScannerDialogProps
       setError('Name is required.')
       return
     }
-    if (intervalSecs < 10) {
-      setError('Scan interval must be at least 10 seconds.')
-      return
-    }
     if (concurrency < 1) {
       setError('Concurrency must be at least 1.')
       return
@@ -154,7 +145,7 @@ function EditScannerDialog({ scanner, onClose, onSaved }: EditScannerDialogProps
     setSubmitting(true)
     setError(null)
     try {
-      await updateScanner(scanner.id, name.trim(), intervalSecs, concurrency)
+      await updateScanner(scanner.id, name.trim(), cronExpr, concurrency)
       onSaved()
       onClose()
     } catch (err) {
@@ -184,19 +175,10 @@ function EditScannerDialog({ scanner, onClose, onSaved }: EditScannerDialogProps
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="e-interval">
-              Scan interval{' '}
-              <span className="text-xs text-muted-foreground">(seconds)</span>
-            </Label>
-            <Input
-              id="e-interval"
-              type="number"
-              min={10}
-              value={intervalSecs}
-              onChange={(e) => setIntervalSecs(Number(e.target.value))}
-            />
+            <Label>Scan schedule</Label>
+            <SchedulePicker value={cronExpr} onChange={setCronExpr} />
             <p className="text-xs text-muted-foreground">
-              How often the scanner checks each host. Default: 3600 (1 hour).
+              How often the scanner checks each host.
             </p>
           </div>
 
@@ -439,7 +421,7 @@ export default function ScannersPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Interval</TableHead>
+            <TableHead>Schedule</TableHead>
             <TableHead>Concurrency</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Last Used</TableHead>
@@ -481,9 +463,9 @@ export default function ScannersPage() {
                   </span>
                 </TableCell>
 
-                {/* Scan interval */}
-                <TableCell className="text-sm text-muted-foreground">
-                  {fmtInterval(scanner.scanIntervalSeconds)}
+                {/* Scan schedule */}
+                <TableCell className="font-mono text-sm text-muted-foreground">
+                  {scanner.scanCronExpression}
                 </TableCell>
 
                 {/* Concurrency */}

@@ -79,14 +79,14 @@ type EndpointSAML struct {
 type Scanner struct {
 	bun.BaseModel `bun:"table:tlsentinel.scanners"`
 
-	ID                  string     `bun:"id,pk,type:uuid"`
-	Name                string     `bun:"name"`
-	TokenHash           string     `bun:"token_hash"`
-	IsDefault           bool       `bun:"is_default"`
-	ScanIntervalSeconds int        `bun:"scan_interval_seconds"`
-	ScanConcurrency     int        `bun:"scan_concurrency"`
-	CreatedAt           time.Time  `bun:"created_at"`
-	LastUsedAt          *time.Time `bun:"last_used_at"`
+	ID                 string     `bun:"id,pk,type:uuid"`
+	Name               string     `bun:"name"`
+	TokenHash          string     `bun:"token_hash"`
+	IsDefault          bool       `bun:"is_default"`
+	ScanCronExpression string     `bun:"scan_cron_expression"`
+	ScanConcurrency    int        `bun:"scan_concurrency"`
+	CreatedAt          time.Time  `bun:"created_at"`
+	LastUsedAt         *time.Time `bun:"last_used_at"`
 }
 
 // User maps to tlsentinel.users.
@@ -296,6 +296,38 @@ type VActiveCertificate struct {
 	NotBefore     time.Time `bun:"not_before"`
 	NotAfter      time.Time `bun:"not_after"`
 	DaysRemaining int       `bun:"days_remaining"`
+}
+
+// DiscoveryNetwork maps to tlsentinel.discovery_networks.
+type DiscoveryNetwork struct {
+	bun.BaseModel `bun:"table:tlsentinel.discovery_networks"`
+
+	ID             string    `bun:"id,pk,type:uuid"`
+	Name           string    `bun:"name"`
+	Range          string    `bun:"range"`
+	Ports          []int32   `bun:"ports,array"`
+	ScannerID      *string   `bun:"scanner_id,type:uuid"`
+	CronExpression string    `bun:"cron_expression"`
+	Enabled        bool      `bun:"enabled"`
+	CreatedAt      time.Time `bun:"created_at"`
+	UpdatedAt      time.Time `bun:"updated_at"`
+}
+
+// DiscoveryInboxItem maps to tlsentinel.discovery_inbox.
+type DiscoveryInboxItem struct {
+	bun.BaseModel `bun:"table:tlsentinel.discovery_inbox"`
+
+	ID          string    `bun:"id,pk,type:uuid"`
+	NetworkID   *string   `bun:"network_id,type:uuid"`
+	ScannerID   *string   `bun:"scanner_id,type:uuid"`
+	IP          string    `bun:"ip"`
+	RDNS        *string   `bun:"rdns"`
+	Port        int       `bun:"port"`
+	Fingerprint *string   `bun:"fingerprint"`
+	Status      string    `bun:"status"`
+	EndpointID  *string   `bun:"endpoint_id,type:uuid"`
+	FirstSeenAt time.Time `bun:"first_seen_at"`
+	LastSeenAt  time.Time `bun:"last_seen_at"`
 }
 
 // ScheduledJob maps to tlsentinel.scheduled_jobs.
