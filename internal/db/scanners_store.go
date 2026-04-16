@@ -46,6 +46,30 @@ func (s *Store) GetAllScannerTokenHashes(ctx context.Context) ([]models.ScannerT
 	return result, nil
 }
 
+// GetScannerTokenByHash looks up a scanner by its SHA-256 token hash.
+// Used for fast O(1) auth of stx_s_ prefixed tokens.
+func (s *Store) GetScannerTokenByHash(ctx context.Context, hash string) (models.ScannerToken, error) {
+	var row Scanner
+	err := s.db.NewSelect().
+		Model(&row).
+		ColumnExpr("id, name, token_hash, created_at, last_used_at").
+		Where("token_hash = ?", hash).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.ScannerToken{}, ErrNotFound
+		}
+		return models.ScannerToken{}, fmt.Errorf("failed to get scanner token by hash: %w", err)
+	}
+	return models.ScannerToken{
+		ID:         row.ID,
+		Name:       row.Name,
+		TokenHash:  row.TokenHash,
+		CreatedAt:  row.CreatedAt,
+		LastUsedAt: row.LastUsedAt,
+	}, nil
+}
+
 // TouchScannerToken updates last_used_at for the given scanner ID.
 func (s *Store) TouchScannerToken(ctx context.Context, id string) error {
 	_, err := s.db.NewUpdate().

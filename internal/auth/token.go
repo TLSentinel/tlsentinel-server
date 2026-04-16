@@ -21,18 +21,14 @@ const legacyScannerTokenPrefix = "scanner_"
 const APIKeyPrefix = "stx_p_"
 
 // GenerateScannerToken creates a new opaque scanner token.
-// Returns the raw token (shown to the user once) and its bcrypt hash (stored in DB).
+// Returns the raw token (shown to the user once) and its SHA-256 hash (stored in DB).
 func GenerateScannerToken() (raw string, hash string, err error) {
 	b := make([]byte, 32) // 32 bytes = 64 hex chars
 	if _, err = rand.Read(b); err != nil {
 		return "", "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 	raw = ScannerTokenPrefix + hex.EncodeToString(b)
-	hashed, err := bcrypt.GenerateFromPassword([]byte(raw), bcrypt.DefaultCost)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to hash token: %w", err)
-	}
-	return raw, string(hashed), nil
+	return raw, db.HashAPIKey(raw), nil
 }
 
 // IsScannerToken returns true if the token looks like a scanner token.
@@ -43,6 +39,7 @@ func IsScannerToken(token string) bool {
 }
 
 // CheckScannerToken compares a raw token against a bcrypt hash.
+// Used only for legacy scanner_ tokens.
 func CheckScannerToken(raw, hash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(raw)) == nil
 }
