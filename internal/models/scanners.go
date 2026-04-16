@@ -20,7 +20,4 @@ type ScannerTokenResponse struct {
 	CreatedAt          time.Time  `json:"createdAt"`
 	LastUsedAt         *time.Time `json:"lastUsedAt"`
 
-	// Deprecated: use ScanCronExpression. Kept for scanner binary backward
-	// compatibility until scanners are updated to read the cron field.
-	ScanIntervalSeconds int `json:"scanIntervalSeconds"`
 }

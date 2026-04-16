@@ -5,59 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-
-	"github.com/uptrace/bun"
+"github.com/uptrace/bun"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// approxIntervalSeconds derives a rough scan interval in seconds from a 5-field
-// cron expression. Used only to populate the deprecated scanIntervalSeconds field
-// for backward compatibility with scanner binaries that haven't been updated yet.
-func approxIntervalSeconds(expr string) int {
-	parts := strings.Fields(expr)
-	if len(parts) != 5 {
-		return 3600
-	}
-	min, hr, dom, _, dow := parts[0], parts[1], parts[2], parts[3], parts[4]
-
-	// Every N minutes: */N * * * *
-	if strings.HasPrefix(min, "*/") {
-		if n, err := strconv.Atoi(min[2:]); err == nil && n > 0 {
-			return n * 60
-		}
-	}
-	// Hourly: X * * * *
-	if hr == "*" && dom == "*" && dow == "*" {
-		return 3600
-	}
-	// Daily: X H * * *
-	if dom == "*" && dow == "*" {
-		return 86400
-	}
-	// Weekly: X H * * D
-	if dom == "*" && dow != "*" {
-		return 604800
-	}
-	// Monthly: X H D * *
-	if dom != "*" && dow == "*" {
-		return 2592000
-	}
-	return 3600
-}
-
 func scannerToResponse(s Scanner) models.ScannerTokenResponse {
 	return models.ScannerTokenResponse{
-		ID:                  s.ID,
-		Name:                s.Name,
-		IsDefault:           s.IsDefault,
-		ScanCronExpression:  s.ScanCronExpression,
-		ScanConcurrency:     s.ScanConcurrency,
-		CreatedAt:           s.CreatedAt,
-		LastUsedAt:          s.LastUsedAt,
-		ScanIntervalSeconds: approxIntervalSeconds(s.ScanCronExpression),
+		ID:                 s.ID,
+		Name:               s.Name,
+		IsDefault:          s.IsDefault,
+		ScanCronExpression: s.ScanCronExpression,
+		ScanConcurrency:    s.ScanConcurrency,
+		CreatedAt:          s.CreatedAt,
+		LastUsedAt:         s.LastUsedAt,
 	}
 }
 

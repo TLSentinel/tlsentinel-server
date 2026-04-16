@@ -301,6 +301,35 @@ func (s *Store) GetDiscoveryInboxItem(ctx context.Context, id string) (models.Di
 	return discoveryInboxToModel(row), nil
 }
 
+// ListNetworksForScanner returns all enabled discovery networks assigned to the
+// given scanner. Used by the probe API so the scanner knows what to sweep.
+func (s *Store) ListNetworksForScanner(ctx context.Context, scannerID string) ([]models.ScannerDiscoveryNetwork, error) {
+	var rows []DiscoveryNetwork
+	if err := s.db.NewSelect().
+		Model(&rows).
+		Where("scanner_id = ?", scannerID).
+		Where("enabled = TRUE").
+		OrderExpr("created_at ASC").
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list networks for scanner: %w", err)
+	}
+
+	result := make([]models.ScannerDiscoveryNetwork, len(rows))
+	for i, r := range rows {
+		ports := make([]int, len(r.Ports))
+		for j, p := range r.Ports {
+			ports[j] = int(p)
+		}
+		result[i] = models.ScannerDiscoveryNetwork{
+			ID:             r.ID,
+			Range:          r.Range,
+			Ports:          ports,
+			CronExpression: r.CronExpression,
+		}
+	}
+	return result, nil
+}
+
 // DeleteDiscoveryNetwork removes a discovery network by ID (cascades to inbox).
 func (s *Store) DeleteDiscoveryNetwork(ctx context.Context, id string) error {
 	res, err := s.db.NewDelete().

@@ -67,6 +67,15 @@ type DiscoveryInboxList struct {
 	TotalCount int                  `json:"totalCount"`
 }
 
+// ScannerDiscoveryNetwork is the probe-facing representation of a discovery
+// network — only the fields the scanner needs to perform a sweep.
+type ScannerDiscoveryNetwork struct {
+	ID             string `json:"id"`
+	Range          string `json:"range"`
+	Ports          []int  `json:"ports"`
+	CronExpression string `json:"cronExpression"`
+}
+
 // PromoteDiscoveryInboxRequest is the payload for promoting an inbox item to a monitored endpoint.
 type PromoteDiscoveryInboxRequest struct {
 	Name      string  `json:"name"`
