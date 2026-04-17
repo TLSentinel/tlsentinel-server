@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Network, Clock, MoreVertical } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import StrixEmpty from '@/components/StrixEmpty'
 import SchedulePicker from '@/components/SchedulePicker'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
@@ -21,11 +24,73 @@ import {
   createDiscoveryNetwork,
   updateDiscoveryNetwork,
   deleteDiscoveryNetwork,
+  listDiscoveryInbox,
 } from '@/api/discovery'
 import { listScanners } from '@/api/scanners'
 import { can } from '@/api/client'
 import type { DiscoveryNetwork, CreateDiscoveryNetworkRequest } from '@/types/api'
 import { ApiError } from '@/types/api'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function describeCron(expr: string): string {
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return expr
+  const [min, hour, dom, , dow] = parts
+  const time =
+    hour !== '*' && min !== '*'
+      ? ` at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`
+      : ''
+  if (dom === '*' && dow === '*') return `Daily${time}`
+  if (dom === '*' && dow !== '*') {
+    const n = parseInt(dow)
+    const day = !isNaN(n) && n >= 0 && n <= 6 ? DAYS[n] : dow
+    return `Weekly (${day})${time}`
+  }
+  if (dom !== '*' && dow === '*') return `Monthly${time}`
+  return expr
+}
+
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+type SignalColor = 'neutral' | 'green' | 'amber' | 'red'
+
+const SIGNAL_BORDER: Record<SignalColor, string> = {
+  neutral: 'border-l-foreground/20',
+  green:   'border-l-green-500',
+  amber:   'border-l-amber-500',
+  red:     'border-l-red-500',
+}
+
+const SIGNAL_VALUE: Record<SignalColor, string> = {
+  neutral: 'text-foreground',
+  green:   'text-green-600',
+  amber:   'text-amber-600',
+  red:     'text-red-600',
+}
+
+function StatCard({
+  label,
+  value,
+  signal = 'neutral',
+}: {
+  label: string
+  value: string | number
+  signal?: SignalColor
+}) {
+  return (
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-2`}>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Network form dialog (create + edit)
@@ -234,6 +299,100 @@ function DeleteDialog({ network, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Network row
+// ---------------------------------------------------------------------------
+
+interface NetworkRowProps {
+  network: DiscoveryNetwork
+  canEdit: boolean
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function NetworkRow({ network, canEdit, onEdit, onDelete }: NetworkRowProps) {
+  return (
+    <div className="grid grid-cols-[2fr_1.5fr_1fr_1.5fr_1.5fr_6rem_2.5rem] items-center gap-5 px-5 py-4 border-b border-border/40 last:border-0">
+
+      {/* Name + icon */}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="shrink-0 flex items-center justify-center h-9 w-9 rounded-md bg-muted">
+          <Network className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{network.name}</p>
+        </div>
+      </div>
+
+      {/* IP Range */}
+      <div className="min-w-0">
+        <span className="inline-block font-mono text-xs bg-muted px-2.5 py-1 rounded truncate max-w-full">
+          {network.range}
+        </span>
+      </div>
+
+      {/* Ports */}
+      <div className="flex flex-wrap gap-1">
+        {network.ports.map(p => (
+          <span key={p} className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
+            {p}
+          </span>
+        ))}
+      </div>
+
+      {/* Scanner */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`shrink-0 h-2 w-2 rounded-full ${network.scannerId ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+        <span className="text-sm text-muted-foreground truncate">
+          {network.scannerName ?? <span className="italic">None</span>}
+        </span>
+      </div>
+
+      {/* Schedule */}
+      <div className="flex items-center gap-2 min-w-0">
+        <Clock className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground truncate">{describeCron(network.cronExpression)}</span>
+      </div>
+
+      {/* Status */}
+      <div>
+        {network.enabled ? (
+          <span className="inline-block rounded-full px-3 py-0.5 text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 uppercase tracking-wide">
+            Enabled
+          </span>
+        ) : (
+          <span className="inline-block rounded-full px-3 py-0.5 text-xs font-semibold bg-muted text-muted-foreground uppercase tracking-wide">
+            Disabled
+          </span>
+        )}
+      </div>
+
+      {/* Actions */}
+      {canEdit ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onEdit}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <div />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -241,40 +400,76 @@ export default function DiscoveryNetworksPage() {
   const queryClient = useQueryClient()
   const canEdit = can('discovery:edit')
 
-  const [showCreate, setShowCreate]       = useState(false)
-  const [editing, setEditing]             = useState<DiscoveryNetwork | null>(null)
-  const [deleting, setDeleting]           = useState<DiscoveryNetwork | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing]       = useState<DiscoveryNetwork | null>(null)
+  const [deleting, setDeleting]     = useState<DiscoveryNetwork | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['discovery-networks'],
     queryFn: () => listDiscoveryNetworks(1, 100),
   })
 
+  const { data: inboxData } = useQuery({
+    queryKey: ['discovery-inbox-count'],
+    queryFn: () => listDiscoveryInbox(1, 1),
+  })
+
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ['discovery-networks'] })
   }
 
-  const networks = data?.items ?? []
+  const networks     = data?.items ?? []
+  const activeCount  = networks.filter(n => n.enabled).length
+  const totalCount   = data?.totalCount ?? networks.length
+  const inboxTotal   = inboxData?.totalCount ?? null
+  const uniquePorts  = new Set(networks.flatMap(n => n.ports)).size
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Networks</h1>
+          <h1 className="text-2xl font-semibold">Discovery Networks</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Network ranges scanned for TLS endpoints by your discovery scanner.
+            Configure and monitor automated scanning of your network infrastructure<br />
+            to maintain real-time visibility of TLS certificates.
           </p>
         </div>
         {canEdit && (
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
-            Add Network
+            Create Network
           </Button>
         )}
       </div>
 
-      {/* Table */}
+      {/* Stat cards */}
+      {!isLoading && networks.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard
+            label="Active Networks"
+            value={activeCount}
+            signal={activeCount === 0 ? 'amber' : 'green'}
+          />
+          <StatCard
+            label="Total Networks"
+            value={totalCount}
+            signal="neutral"
+          />
+          <StatCard
+            label="Discovered Assets"
+            value={inboxTotal ?? '—'}
+            signal="neutral"
+          />
+          <StatCard
+            label="Unique Ports"
+            value={uniquePorts}
+            signal="neutral"
+          />
+        </div>
+      )}
+
+      {/* Networks table */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">Loading…</div>
       ) : networks.length === 0 ? (
@@ -282,50 +477,28 @@ export default function DiscoveryNetworksPage() {
           <StrixEmpty message="No networks configured yet." />
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Range</TableHead>
-              <TableHead>Ports</TableHead>
-              <TableHead>Scanner</TableHead>
-              <TableHead>Schedule</TableHead>
-              <TableHead>Status</TableHead>
-              {canEdit && <TableHead className="w-20" />}
-            </TableRow>
-          </TableHeader>
-          <TableBody className="[&_tr]:border-b-0">
-            {networks.map(net => (
-              <TableRow key={net.id}>
-                <TableCell className="font-medium">{net.name}</TableCell>
-                <TableCell className="font-mono text-sm">{net.range}</TableCell>
-                <TableCell className="font-mono text-sm">{net.ports.join(', ')}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {net.scannerName ?? <span className="italic">None</span>}
-                </TableCell>
-                <TableCell className="font-mono text-sm">{net.cronExpression}</TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${net.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                    {net.enabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </TableCell>
-                {canEdit && (
-                  <TableCell>
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button variant="ghost" size="icon" onClick={() => setEditing(net)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleting(net)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="rounded-lg border">
+          {/* Column headers */}
+          <div className="grid grid-cols-[2fr_1.5fr_1fr_1.5fr_1.5fr_6rem_2.5rem] gap-5 px-5 py-3 border-b bg-muted/40">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Network Name</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IP Range</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ports</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Scanner Node</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Schedule</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
+            {canEdit && <span />}
+          </div>
+
+          {networks.map(net => (
+            <NetworkRow
+              key={net.id}
+              network={net}
+              canEdit={canEdit}
+              onEdit={() => setEditing(net)}
+              onDelete={() => setDeleting(net)}
+            />
+          ))}
+        </div>
       )}
 
       <NetworkDialog
