@@ -49,6 +49,10 @@ once it reaches 1.0.
 - `endpoint_tls_profiles.scanned_at` is now set entirely by the database
   (`DEFAULT NOW()` on insert, `NOW()` on conflict). Same clock-skew fix as
   `endpoint_certs`, added via migration 000039.
+- The manual "look up certificate" helper (`dialAndFetchCert`) now honors
+  request context cancellation for both the TCP dial and the TLS handshake.
+  Cancelling the HTTP request no longer waits out the full 10-second dial
+  timeout; a cancelled context also suppresses the insecure retry.
 - `PUT /endpoints/{id}/tags` now returns 400 when the body references an
   unknown tag id. The previous implementation relied on `ON CONFLICT DO
   NOTHING` to tolerate duplicates and inadvertently swallowed FK violations
