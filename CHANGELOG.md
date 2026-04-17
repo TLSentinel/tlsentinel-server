@@ -24,6 +24,11 @@ once it reaches 1.0.
   `127.0.0.1/32,::1/128` (sidecar), `172.16.0.0/12` (docker-compose),
   `10.0.0.0/8` (k8s). Not setting this is *safer* (spoof-proof) but changes what
   IP appears in audit entries.
+- **`PUT /endpoints/{endpointID}/tags` now returns `200 OK` with the updated tag
+  list instead of `204 No Content`.** Aligns with the PUT/PATCH convention used
+  across the rest of the API and saves the frontend a follow-up `GET`. Clients
+  that asserted on the 204 status must be updated; any client reading the body
+  or checking for 2xx is unaffected.
 
 ### Security
 
