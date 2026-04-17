@@ -3,13 +3,11 @@ package scanners
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
-	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -22,24 +20,6 @@ type Handler struct {
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
 }
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptr.IfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
 
 // defaultCron is the cron expression used when none is supplied.
 const defaultCron = "0 * * * *"
@@ -146,7 +126,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerCreate, "scanner", token.ID)
+	auth.LogAction(r.Context(), h.store, r, audit.ScannerCreate, "scanner", token.ID)
 	response.JSON(w, http.StatusCreated, createScannerTokenResponse{
 		ID:         token.ID,
 		Name:       token.Name,
@@ -197,7 +177,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerUpdate, "scanner", scannerID)
+	auth.LogAction(r.Context(), h.store, r, audit.ScannerUpdate, "scanner", scannerID)
 	response.JSON(w, http.StatusOK, token)
 }
 
@@ -276,7 +256,7 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerUpdate, "scanner", scannerID)
+	auth.LogAction(r.Context(), h.store, r, audit.ScannerUpdate, "scanner", scannerID)
 	response.JSON(w, http.StatusOK, token)
 }
 
@@ -300,7 +280,7 @@ func (h *Handler) SetDefault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerSetDefault, "scanner", scannerID)
+	auth.LogAction(r.Context(), h.store, r, audit.ScannerSetDefault, "scanner", scannerID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -324,6 +304,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerDelete, "scanner", scannerID)
+	auth.LogAction(r.Context(), h.store, r, audit.ScannerDelete, "scanner", scannerID)
 	w.WriteHeader(http.StatusNoContent)
 }

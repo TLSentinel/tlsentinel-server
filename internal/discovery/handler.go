@@ -17,7 +17,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
-	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -28,24 +27,6 @@ type Handler struct {
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
 }
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptr.IfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
 
 // validateRange accepts CIDR notation or a hyphenated IPv4 range.
 // Returns a human-readable error string, or "" if valid.
@@ -174,7 +155,7 @@ func (h *Handler) CreateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryNetworkCreate, "discovery_network", net.ID)
+	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryNetworkCreate, "discovery_network", net.ID)
 	response.JSON(w, http.StatusCreated, net)
 }
 
@@ -229,7 +210,7 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryNetworkUpdate, "discovery_network", id)
+	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryNetworkUpdate, "discovery_network", id)
 	response.JSON(w, http.StatusOK, net)
 }
 
@@ -253,7 +234,7 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryNetworkDelete, "discovery_network", id)
+	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryNetworkDelete, "discovery_network", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -353,7 +334,7 @@ func (h *Handler) PromoteInboxItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryInboxPromote, "endpoint", endpoint.ID)
+	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryInboxPromote, "endpoint", endpoint.ID)
 	response.JSON(w, http.StatusCreated, endpoint)
 }
 
