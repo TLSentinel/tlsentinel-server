@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -28,6 +30,10 @@ type Config struct {
 	OIDCIssuer        string             `env:"TLSENTINEL_OIDC_ISSUER"`
 	OIDCScopes        []string           `env:"TLSENTINEL_OIDC_SCOPES" envDefault:"openid,profile,email"`
 	OIDCUsernameClaim string             `env:"TLSENTINEL_OIDC_USERNAME_CLAIM"`
+	// TrustedProxyCIDRs lists CIDRs whose traffic is allowed to set
+	// X-Forwarded-For. Empty means no proxies are trusted and XFF is
+	// ignored (audit IP falls back to the TCP peer).
+	TrustedProxyCIDRs []string `env:"TLSENTINEL_TRUSTED_PROXY_CIDRS" envSeparator:","`
 }
 
 type JWTSecret []byte
@@ -92,4 +98,35 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// ParseTrustedProxies converts the configured CIDR strings into parsed
+// networks. Returns an error naming the offending entry if any string is
+// not a valid CIDR. A bare IP (no "/") is accepted and promoted to a /32
+// or /128.
+func (cfg *Config) ParseTrustedProxies() ([]*net.IPNet, error) {
+	nets := make([]*net.IPNet, 0, len(cfg.TrustedProxyCIDRs))
+	for _, raw := range cfg.TrustedProxyCIDRs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		if !strings.Contains(raw, "/") {
+			ip := net.ParseIP(raw)
+			if ip == nil {
+				return nil, fmt.Errorf("TLSENTINEL_TRUSTED_PROXY_CIDRS: %q is not a valid IP or CIDR", raw)
+			}
+			if ip.To4() != nil {
+				raw += "/32"
+			} else {
+				raw += "/128"
+			}
+		}
+		_, ipnet, err := net.ParseCIDR(raw)
+		if err != nil {
+			return nil, fmt.Errorf("TLSENTINEL_TRUSTED_PROXY_CIDRS: %q: %w", raw, err)
+		}
+		nets = append(nets, ipnet)
+	}
+	return nets, nil
 }
