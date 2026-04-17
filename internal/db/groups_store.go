@@ -108,8 +108,36 @@ func (s *Store) ListGroupHostIDs(ctx context.Context, groupID string) ([]string,
 }
 
 // ReplaceGroupHosts atomically replaces all host assignments for a group.
+// Duplicate host IDs in the input are silently deduplicated. Returns
+// ErrInvalidInput if any supplied host ID does not reference an existing host.
 func (s *Store) ReplaceGroupHosts(ctx context.Context, groupID string, hostIDs []string) error {
+	// Dedupe preserving order — callers may supply the same ID twice and we
+	// don't want that to trip the count check below.
+	seen := make(map[string]struct{}, len(hostIDs))
+	unique := make([]string, 0, len(hostIDs))
+	for _, id := range hostIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+
 	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if len(unique) > 0 {
+			var count int
+			if err := tx.NewSelect().
+				TableExpr("tlsentinel.hosts").
+				ColumnExpr("count(*)").
+				Where("id IN (?)", bun.In(unique)).
+				Scan(ctx, &count); err != nil {
+				return fmt.Errorf("failed to validate host ids: %w", err)
+			}
+			if count != len(unique) {
+				return ErrInvalidInput
+			}
+		}
+
 		// Remove all existing assignments.
 		if _, err := tx.NewDelete().
 			TableExpr("tlsentinel.host_groups").
@@ -118,12 +146,12 @@ func (s *Store) ReplaceGroupHosts(ctx context.Context, groupID string, hostIDs [
 			return fmt.Errorf("failed to clear group hosts: %w", err)
 		}
 
-		if len(hostIDs) == 0 {
+		if len(unique) == 0 {
 			return nil
 		}
 
-		rows := make([]HostGroup, len(hostIDs))
-		for i, hid := range hostIDs {
+		rows := make([]HostGroup, len(unique))
+		for i, hid := range unique {
 			rows[i] = HostGroup{HostID: hid, GroupID: groupID}
 		}
 		if _, err := tx.NewInsert().Model(&rows).Exec(ctx); err != nil {
