@@ -306,8 +306,7 @@ func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"calendarToken": token})
+	response.JSON(w, http.StatusOK, map[string]string{"calendarToken": token})
 }
 
 // @Summary      List users
