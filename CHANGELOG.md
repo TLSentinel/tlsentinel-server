@@ -46,6 +46,9 @@ once it reaches 1.0.
 - `endpoint_certs.first_seen_at` and `last_seen_at` are now set entirely by the
   database (`DEFAULT NOW()`), eliminating clock-skew drift between app and DB
   that could make the two timestamps disagree on the same upsert.
+- `endpoint_tls_profiles.scanned_at` is now set entirely by the database
+  (`DEFAULT NOW()` on insert, `NOW()` on conflict). Same clock-skew fix as
+  `endpoint_certs`, added via migration 000039.
 - `PUT /endpoints/{id}/tags` now returns 400 when the body references an
   unknown tag id. The previous implementation relied on `ON CONFLICT DO
   NOTHING` to tolerate duplicates and inadvertently swallowed FK violations
