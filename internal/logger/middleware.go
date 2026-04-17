@@ -1,11 +1,11 @@
 package logger
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"go.uber.org/zap"
 )
 
 // RequestLogger is a chi-compatible middleware that logs each completed HTTP
@@ -17,13 +17,13 @@ func RequestLogger(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ww, r)
 
-		zap.L().Info("request",
-			zap.String("method", r.Method),
-			zap.String("path", r.URL.Path),
-			zap.Int("status", ww.Status()),
-			zap.Duration("latency", time.Since(start)),
-			zap.String("request_id", middleware.GetReqID(r.Context())),
-			zap.String("remote_addr", r.RemoteAddr),
+		slog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.Status(),
+			"latency", time.Since(start),
+			"request_id", middleware.GetReqID(r.Context()),
+			"remote_addr", r.RemoteAddr,
 		)
 	})
 }

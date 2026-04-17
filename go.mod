@@ -17,7 +17,6 @@ require (
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
-	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.49.0
 	golang.org/x/oauth2 v0.36.0
 )
@@ -40,7 +39,6 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect

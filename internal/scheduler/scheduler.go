@@ -6,9 +6,8 @@ package scheduler
 
 import (
 	"context"
+	"log/slog"
 	"time"
-
-	"go.uber.org/zap"
 
 	"github.com/netresearch/go-cron"
 )
@@ -28,10 +27,10 @@ type JobFunc struct {
 // Scheduler wraps a cron instance and manages named jobs.
 type Scheduler struct {
 	c        *cron.Cron
-	entryIDs map[string]cron.EntryID              // job name → cron entry ID
-	registry map[string]func(context.Context)     // job name → function
-	parent   context.Context                      // parent ctx for job invocations
-	timeout  time.Duration                        // per-invocation timeout
+	entryIDs map[string]cron.EntryID          // job name → cron entry ID
+	registry map[string]func(context.Context) // job name → function
+	parent   context.Context                  // parent ctx for job invocations
+	timeout  time.Duration                    // per-invocation timeout
 }
 
 // New creates a scheduler that runs in the server's local timezone.
@@ -55,32 +54,32 @@ func (s *Scheduler) Func(name string) func(context.Context) {
 // parent context and bounded by DefaultJobTimeout.
 func (s *Scheduler) Add(spec, name string, fn func(context.Context)) {
 	id, err := s.c.AddFunc(spec, func() {
-		zap.L().Info("job starting", zap.String("job", name))
+		slog.Info("job starting", "job", name)
 		ctx, cancel := context.WithTimeout(s.parent, s.timeout)
 		defer cancel()
 		fn(ctx)
 		if err := ctx.Err(); err != nil {
-			zap.L().Warn("job context error",
-				zap.String("job", name),
-				zap.Duration("timeout", s.timeout),
-				zap.Error(err),
+			slog.Warn("job context error",
+				"job", name,
+				"timeout", s.timeout,
+				"error", err,
 			)
 			return
 		}
-		zap.L().Info("job completed", zap.String("job", name))
+		slog.Info("job completed", "job", name)
 	})
 	if err != nil {
-		zap.L().Error("failed to register job",
-			zap.String("job", name),
-			zap.String("spec", spec),
-			zap.Error(err),
+		slog.Error("failed to register job",
+			"job", name,
+			"spec", spec,
+			"error", err,
 		)
 		return
 	}
 	s.entryIDs[name] = id
-	zap.L().Info("job registered",
-		zap.String("job", name),
-		zap.String("spec", spec),
+	slog.Info("job registered",
+		"job", name,
+		"spec", spec,
 	)
 }
 
@@ -90,10 +89,10 @@ func (s *Scheduler) Reload(name, spec string, enabled bool, fn func(context.Cont
 	if id, ok := s.entryIDs[name]; ok {
 		s.c.Remove(id)
 		delete(s.entryIDs, name)
-		zap.L().Info("job removed for reload", zap.String("job", name))
+		slog.Info("job removed for reload", "job", name)
 	}
 	if !enabled {
-		zap.L().Info("job disabled, not re-registering", zap.String("job", name))
+		slog.Info("job disabled, not re-registering", "job", name)
 		return
 	}
 	s.Add(spec, name, fn)
@@ -105,7 +104,7 @@ func (s *Scheduler) Reload(name, spec string, enabled bool, fn func(context.Cont
 func (s *Scheduler) Start(ctx context.Context) {
 	s.parent = ctx
 	s.c.Start()
-	zap.L().Info("scheduler started")
+	slog.Info("scheduler started")
 
 	go func() {
 		<-ctx.Done()
@@ -115,8 +114,8 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 // stop halts the cron runner and waits for any running job to finish.
 func (s *Scheduler) stop() {
-	zap.L().Info("scheduler stopping")
+	slog.Info("scheduler stopping")
 	ctx := s.c.Stop()
 	<-ctx.Done()
-	zap.L().Info("scheduler stopped")
+	slog.Info("scheduler stopped")
 }

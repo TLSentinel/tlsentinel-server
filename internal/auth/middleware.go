@@ -3,10 +3,9 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
-
-	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -106,12 +105,12 @@ func RequirePermission(perm string) func(http.Handler) http.Handler {
 // Authenticate. Reason is a short machine-readable token; detail is the
 // underlying error string when available (never the raw bearer token).
 func logAuthFailure(r *http.Request, reason, detail string) {
-	zap.L().Warn("auth failed",
-		zap.String("reason", reason),
-		zap.String("method", r.Method),
-		zap.String("path", r.URL.Path),
-		zap.String("remote_addr", r.RemoteAddr),
-		zap.String("detail", detail),
+	slog.Warn("auth failed",
+		"reason", reason,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"remote_addr", r.RemoteAddr,
+		"detail", detail,
 	)
 }
 
@@ -120,15 +119,15 @@ func logAuthFailure(r *http.Request, reason, detail string) {
 // oncall can tell "unknown caller" from "legitimate user hitting the wrong
 // endpoint".
 func logPermissionFailure(r *http.Request, id Identity, reason, permName string) {
-	zap.L().Warn("permission denied",
-		zap.String("reason", reason),
-		zap.String("method", r.Method),
-		zap.String("path", r.URL.Path),
-		zap.String("remote_addr", r.RemoteAddr),
-		zap.String("user_id", id.UserID),
-		zap.String("username", id.Username),
-		zap.String("role", id.Role),
-		zap.String("permission", permName),
+	slog.Warn("permission denied",
+		"reason", reason,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"remote_addr", r.RemoteAddr,
+		"user_id", id.UserID,
+		"username", id.Username,
+		"role", id.Role,
+		"permission", permName,
 	)
 }
 

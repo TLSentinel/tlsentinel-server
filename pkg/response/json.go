@@ -2,9 +2,8 @@ package response
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
-
-	"go.uber.org/zap"
 )
 
 // JSON writes payload as JSON with the given status code.
@@ -17,6 +16,6 @@ func JSON(w http.ResponseWriter, status int, payload any) {
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		zap.L().Error("json encode failed", zap.Error(err))
+		slog.Error("json encode failed", "error", err)
 	}
 }

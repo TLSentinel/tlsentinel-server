@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
@@ -15,14 +17,13 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 	"github.com/uptrace/bun"
-	"go.uber.org/zap"
 )
 
 // App holds every long-lived dependency for the server process.
 // Create it with New, start it with Start, and tear it down with Shutdown.
 type App struct {
 	Config    *config.Config
-	Logger    *zap.Logger
+	Logger    *slog.Logger
 	Store     *db.Store
 	Scheduler *scheduler.Scheduler
 	Server    *http.Server
@@ -34,14 +35,14 @@ type App struct {
 // New initialises the full dependency graph: migrations, database, store,
 // admin bootstrap, one-time backfills, job registry, scheduler, and HTTP
 // server. It does not start any goroutines — call Start for that.
-func New(cfg *config.Config, log *zap.Logger) (*App, error) {
+func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	proxies, err := cfg.ParseTrustedProxies()
 	if err != nil {
 		return nil, fmt.Errorf("trusted proxies: %w", err)
 	}
 	audit.SetTrustedProxies(proxies)
 	if len(proxies) > 0 {
-		log.Info("trusted proxies configured", zap.Int("count", len(proxies)))
+		log.Info("trusted proxies configured", "count", len(proxies))
 	} else {
 		log.Info("no trusted proxies — X-Forwarded-For will be ignored")
 	}
@@ -63,15 +64,15 @@ func New(cfg *config.Config, log *zap.Logger) (*App, error) {
 
 	// One-time backfills — no-ops once all rows are populated.
 	if n, err := store.BackfillDNHashes(context.Background()); err != nil {
-		log.Warn("dn hash backfill failed", zap.Error(err))
+		log.Warn("dn hash backfill failed", "error", err)
 	} else if n > 0 {
-		log.Info("backfilled dn hashes", zap.Int64("count", n))
+		log.Info("backfilled dn hashes", "count", n)
 	}
 
 	if n, err := store.ReconcileCertificateChains(context.Background()); err != nil {
-		log.Warn("certificate chain reconciliation failed", zap.Error(err))
+		log.Warn("certificate chain reconciliation failed", "error", err)
 	} else if n > 0 {
-		log.Info("reconciled certificate chain links", zap.Int64("count", n))
+		log.Info("reconciled certificate chain links", "count", n)
 	}
 
 	enc := crypto.NewEncryptor(cfg.EncryptionKey)
@@ -112,9 +113,10 @@ func (a *App) Start() {
 	a.Scheduler.Start(schedCtx)
 
 	go func() {
-		a.Logger.Info("server listening", zap.String("addr", a.Config.ListenAddr()))
+		a.Logger.Info("server listening", "addr", a.Config.ListenAddr())
 		if err := a.Server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			a.Logger.Fatal("server error", zap.Error(err))
+			a.Logger.Error("server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 }

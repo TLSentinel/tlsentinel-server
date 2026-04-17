@@ -9,9 +9,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
-	"go.uber.org/zap"
 	"github.com/uptrace/bun"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
@@ -349,12 +349,12 @@ func (s *Store) BackfillDNHashes(ctx context.Context) (int64, error) {
 
 		block, _ := pem.Decode([]byte(pemStr))
 		if block == nil {
-			zap.L().Warn("dn hash backfill: failed to decode PEM", zap.String("fingerprint", fingerprint))
+			slog.Warn("dn hash backfill: failed to decode PEM", "fingerprint", fingerprint)
 			continue
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			zap.L().Warn("dn hash backfill: failed to parse certificate", zap.String("fingerprint", fingerprint), zap.Error(err))
+			slog.Warn("dn hash backfill: failed to parse certificate", "fingerprint", fingerprint, "error", err)
 			continue
 		}
 
@@ -368,7 +368,7 @@ func (s *Store) BackfillDNHashes(ctx context.Context) (int64, error) {
 			fingerprint,
 		)
 		if err != nil {
-			zap.L().Warn("dn hash backfill: failed to update", zap.String("fingerprint", fingerprint), zap.Error(err))
+			slog.Warn("dn hash backfill: failed to update", "fingerprint", fingerprint, "error", err)
 			continue
 		}
 		updated++

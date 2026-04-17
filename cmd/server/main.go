@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,7 +16,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/version"
 
 	"github.com/joho/godotenv"
-	"go.uber.org/zap"
 )
 
 // @title           TLSentinel API
@@ -38,18 +38,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialise logger: %v\n", err)
 		os.Exit(1)
 	}
-	zap.ReplaceGlobals(log)
-	defer log.Sync() //nolint:errcheck
+	slog.SetDefault(log)
 
 	log.Info("starting",
-		zap.String("version", version.Version),
-		zap.String("commit", version.Commit),
-		zap.String("built", version.BuildTime),
+		"version", version.Version,
+		"commit", version.Commit,
+		"built", version.BuildTime,
 	)
 
 	a, err := app.New(cfg, log)
 	if err != nil {
-		log.Fatal("failed to initialise app", zap.Error(err))
+		log.Error("failed to initialise app", "error", err)
+		os.Exit(1)
 	}
 
 	a.Start()
@@ -63,7 +63,8 @@ func main() {
 	defer cancel()
 
 	if err := a.Shutdown(ctx); err != nil {
-		log.Fatal("server forced to shutdown", zap.Error(err))
+		log.Error("server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
 	log.Info("server stopped")
 }

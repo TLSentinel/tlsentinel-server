@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
@@ -38,6 +38,6 @@ func EnsureAdminUser(ctx context.Context, store *db.Store, cfg *config.Config) e
 		return fmt.Errorf("failed to create admin user: %w", err)
 	}
 
-	zap.L().Info("bootstrapped admin user", zap.String("username", cfg.AdminUsername))
+	slog.Info("bootstrapped admin user", "username", cfg.AdminUsername)
 	return nil
 }
