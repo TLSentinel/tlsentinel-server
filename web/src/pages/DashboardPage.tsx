@@ -128,17 +128,22 @@ function errorAge(since: string): string {
 
 function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
+    <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-6 px-5 py-4 border-b border-border/40 last:border-0">
+      {/* Endpoint name */}
       <div className="min-w-0">
         <Link
           to={`/endpoints/${endpoint.id}`}
-          className="text-sm font-medium hover:underline truncate block"
+          className="text-sm font-semibold hover:underline truncate block"
         >
           {endpoint.name}
         </Link>
-        <p className="text-xs text-muted-foreground truncate">{endpoint.lastScanError}</p>
       </div>
-      <div className="ml-4 shrink-0">
+      {/* Error message */}
+      <div className="min-w-0">
+        <p className="text-sm text-muted-foreground truncate">{endpoint.lastScanError}</p>
+      </div>
+      {/* Error age */}
+      <div className="shrink-0">
         <span className="inline-flex items-center gap-1 text-sm font-medium text-red-600 dark:text-red-400">
           <XCircle className="h-4 w-4 shrink-0" />
           {endpoint.errorSince ? errorAge(endpoint.errorSince) : '?'}
@@ -275,7 +280,7 @@ export default function DashboardPage() {
 
         {/* Left: TLS Distribution */}
         <div className="rounded-lg border p-5 space-y-4 self-start">
-          <h2 className="text-sm font-semibold">TLS Distribution</h2>
+          <h2 className="font-semibold">TLS Distribution</h2>
           {!tlsReport ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : (() => {
@@ -346,11 +351,8 @@ export default function DashboardPage() {
 
           {/* Scan errors */}
           <div className="rounded-lg border">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="text-sm font-semibold">Scan Errors</h2>
-              {errorCount !== null && errorCount > 0 && (
-                <span className="text-xs text-muted-foreground">{plural(errorCount, 'endpoint')} failing</span>
-              )}
+            <div className="flex items-center border-b px-5 py-4">
+              <h2 className="font-semibold">Scan Errors</h2>
             </div>
             {errorHosts === null ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -360,6 +362,11 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div>
+                <div className="grid grid-cols-[1fr_2fr_auto] gap-6 px-5 py-2.5 border-b border-border/40 bg-muted/40">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Error</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Duration</span>
+                </div>
                 {errorHosts.map((h) => (
                   <ErrorRow key={h.id} endpoint={h} />
                 ))}
