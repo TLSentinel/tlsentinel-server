@@ -47,6 +47,11 @@ once it reaches 1.0.
 - Bound every scheduled job invocation with a 30-minute context deadline and
   propagate the context into DB calls. A hung job previously had no upper
   bound — it could hold connections and overlap with later firings indefinitely.
+- Propagate errors from `crypto/rand.Read` when generating MIME boundaries
+  in outgoing mail. The previous implementation discarded the error, which
+  would have silently produced an all-zero boundary on RNG failure. Failures
+  are near-unreachable on current Linux/macOS/Windows, but the buffer is no
+  longer used when they do occur.
 - Validate user email addresses and mail-config `fromAddress` / `fromName`
   at the API boundary via `net/mail.ParseAddress`, and re-check recipient,
   from address, subject, and from name inside the mailer before handing
