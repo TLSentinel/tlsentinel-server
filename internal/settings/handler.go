@@ -15,7 +15,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
-	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -29,20 +28,6 @@ type Handler struct {
 func NewHandler(store *db.Store, sched *scheduler.Scheduler) *Handler {
 	return &Handler{store: store, sched: sched}
 }
-
-func (h *Handler) logAudit(r *http.Request, action string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:   ptr.IfNonEmpty(identity.UserID),
-		Username: identity.Username,
-		Action:   action,
-		IPAddress: &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
 
 // alertThresholdsResponse is the response envelope for alert threshold endpoints.
 type alertThresholdsResponse struct {
@@ -110,7 +95,7 @@ func (h *Handler) SetAlertThresholds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.AlertThresholdsUpdate)
+	auth.LogAction(r.Context(), h.store, r, audit.AlertThresholdsUpdate, "", "")
 	response.JSON(w, http.StatusOK, alertThresholdsResponse{Thresholds: sorted})
 }
 
@@ -193,7 +178,7 @@ func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 		h.sched.Reload(name, req.CronExpression, req.Enabled, fn)
 	}
 
-	h.logAudit(r, "settings.scheduled_job.update")
+	auth.LogAction(r.Context(), h.store, r, "settings.scheduled_job.update", "", "")
 	response.JSON(w, http.StatusOK, job)
 }
 
@@ -218,7 +203,7 @@ func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 		http.Error(w, "failed to save scan history retention", http.StatusInternalServerError)
 		return
 	}
-	h.logAudit(r, "settings.scan_history_retention.update")
+	auth.LogAction(r.Context(), h.store, r, "settings.scan_history_retention.update", "", "")
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: req.Days})
 }
 
@@ -249,7 +234,7 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual purge", "err", err)
 	}
-	h.logAudit(r, "maintenance.purge_scan_history.run")
+	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_scan_history.run", "", "")
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
 
@@ -275,7 +260,7 @@ func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual expiry alerts purge", "err", err)
 	}
-	h.logAudit(r, "maintenance.purge_expiry_alerts.run")
+	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_expiry_alerts.run", "", "")
 	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
 }
 
@@ -319,7 +304,7 @@ func (h *Handler) SetAuditLogRetention(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save audit log retention", http.StatusInternalServerError)
 		return
 	}
-	h.logAudit(r, "settings.audit_log_retention.update")
+	auth.LogAction(r.Context(), h.store, r, "settings.audit_log_retention.update", "", "")
 	response.JSON(w, http.StatusOK, auditLogRetentionResponse{Days: req.Days})
 }
 
@@ -350,6 +335,6 @@ func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual audit log purge", "err", err)
 	}
-	h.logAudit(r, "maintenance.purge_audit_logs.run")
+	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_audit_logs.run", "", "")
 	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
 }

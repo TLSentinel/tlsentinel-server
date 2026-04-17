@@ -15,7 +15,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
 	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
-	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -28,22 +27,6 @@ type Handler struct {
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
 }
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptr.IfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resourceType,
-		ResourceID:   &resourceID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
 
 // CreateEndpointRequest is the payload for creating a new endpoint.
 // Which fields are required depends on type:
@@ -178,7 +161,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointCreate, "endpoint", endpoint.ID)
+	auth.LogAction(r.Context(), h.store, r, audit.EndpointCreate, "endpoint", endpoint.ID)
 	response.JSON(w, http.StatusCreated, endpoint)
 }
 
@@ -280,7 +263,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.LogAction(r.Context(), h.store, r, audit.EndpointUpdate, "endpoint", endpointID)
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -430,7 +413,7 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.LogAction(r.Context(), h.store, r, audit.EndpointUpdate, "endpoint", endpointID)
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -454,7 +437,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointDelete, "endpoint", endpointID)
+	auth.LogAction(r.Context(), h.store, r, audit.EndpointDelete, "endpoint", endpointID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -603,7 +586,7 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.LogAction(r.Context(), h.store, r, audit.EndpointUpdate, "endpoint", endpointID)
 
 	endpoint, err := h.store.GetEndpoint(r.Context(), endpointID)
 	if err != nil {
@@ -741,7 +724,7 @@ func (h *Handler) BulkImport(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		h.logAudit(r, audit.EndpointCreate, "endpoint", endpoint.ID)
+		auth.LogAction(r.Context(), h.store, r, audit.EndpointCreate, "endpoint", endpoint.ID)
 		result.ID = &endpoint.ID
 		resp.Created++
 		resp.Results = append(resp.Results, result)

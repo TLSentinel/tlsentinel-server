@@ -15,7 +15,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
-	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -28,24 +27,6 @@ type Handler struct {
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
 }
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptr.IfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
 
 // IngestCertificateRequest represents the payload for ingesting a certificate,
 // accepting either a PEM string or a base64-encoded DER certificate.
@@ -199,7 +180,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if inserted {
 		status = http.StatusCreated
-		h.logAudit(r, audit.CertIngest, "certificate", rec.Fingerprint)
+		auth.LogAction(r.Context(), h.store, r, audit.CertIngest, "certificate", rec.Fingerprint)
 	}
 	response.JSON(w, status, stored)
 }
@@ -276,7 +257,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.CertDelete, "certificate", fingerprint)
+	auth.LogAction(r.Context(), h.store, r, audit.CertDelete, "certificate", fingerprint)
 	w.WriteHeader(http.StatusNoContent)
 }
 

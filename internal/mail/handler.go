@@ -3,7 +3,6 @@ package mail
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	netmail "net/mail"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
-	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -34,20 +32,6 @@ func NewHandler(store *db.Store, cfg *config.Config) *Handler {
 	key := cfg.EncryptionKey
 	return &Handler{store: store, enc: crypto.NewEncryptor(key)}
 }
-
-func (h *Handler) logAudit(r *http.Request, action string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:    ptr.IfNonEmpty(identity.UserID),
-		Username:  identity.Username,
-		Action:    action,
-		IPAddress: &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
 
 // @Summary      Get mail config
 // @Description  Returns the current SMTP / mail configuration. The password is never returned; passwordSet indicates whether one is stored.
@@ -174,7 +158,7 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.MailConfigUpdate)
+	auth.LogAction(r.Context(), h.store, r, audit.MailConfigUpdate, "", "")
 	response.JSON(w, http.StatusOK, cfg.ToResponse())
 }
 
