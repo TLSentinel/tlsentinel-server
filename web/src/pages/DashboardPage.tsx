@@ -237,18 +237,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Panels */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
 
         {/* Left: TLS Distribution */}
-        <div className="rounded-lg border p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">TLS Distribution</h2>
-            {tlsReport && (
-              <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
-                Global
-              </span>
-            )}
-          </div>
+        <div className="rounded-lg border p-5 space-y-4 self-start">
+          <h2 className="text-sm font-semibold">TLS Distribution</h2>
           {!tlsReport ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : (() => {
@@ -286,7 +279,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right: Expiring soon + Scan errors stacked */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="space-y-6 lg:col-span-3">
           {/* Expiring soon */}
           <div className="rounded-lg border">
             <div className="flex items-center justify-between border-b px-4 py-3">
