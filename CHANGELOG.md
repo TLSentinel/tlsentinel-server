@@ -53,6 +53,14 @@ once it reaches 1.0.
   request context cancellation for both the TCP dial and the TLS handshake.
   Cancelling the HTTP request no longer waits out the full 10-second dial
   timeout; a cancelled context also suppresses the insecure retry.
+
+### Observability
+
+- Auth middleware now emits structured `warn` logs on 401 (missing /
+  invalid bearer, invalid API key, invalid scanner token, invalid JWT) and
+  on 403 (role not allowed, permission denied). Each entry carries
+  `method`, `path`, `remote_addr`, a machine-readable `reason`, and — for
+  403s — the authenticated `user_id` / `username` / `role` / `permission`.
 - `PUT /endpoints/{id}/tags` now returns 400 when the body references an
   unknown tag id. The previous implementation relied on `ON CONFLICT DO
   NOTHING` to tolerate duplicates and inadvertently swallowed FK violations

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
@@ -21,24 +23,30 @@ func Authenticate(store *db.Store, cfg *config.Config) func(http.Handler) http.H
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := extractBearerToken(r)
 			if raw == "" {
+				logAuthFailure(r, "missing_bearer", "")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			var identity Identity
 			var err error
+			var tokenKind string
 
 			switch {
 			case IsScannerToken(raw):
+				tokenKind = "scanner"
 				identity, err = verifyScannerToken(r.Context(), store, raw)
 			case IsAPIKey(raw):
+				tokenKind = "api_key"
 				identity, err = verifyAPIKey(r.Context(), store, raw)
 			default:
+				tokenKind = "jwt"
 				jwtCfg := cfg.JWTSecret.Config()
 				identity, err = verifyJWT(&jwtCfg, raw)
 			}
 
 			if err != nil {
+				logAuthFailure(r, "invalid_"+tokenKind, err.Error())
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -59,10 +67,12 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, ok := GetIdentity(r.Context())
 			if !ok || id.Kind != KindUser {
+				logPermissionFailure(r, id, "non_user_identity", "")
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			if _, permitted := allowed[id.Role]; !permitted {
+				logPermissionFailure(r, id, "role_not_allowed", "")
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
@@ -78,16 +88,48 @@ func RequirePermission(perm string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, ok := GetIdentity(r.Context())
 			if !ok || id.Kind != KindUser {
+				logPermissionFailure(r, id, "non_user_identity", perm)
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			if !permission.Has(id.Role, perm) {
+				logPermissionFailure(r, id, "permission_denied", perm)
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// logAuthFailure emits a structured warning for 401 responses from
+// Authenticate. Reason is a short machine-readable token; detail is the
+// underlying error string when available (never the raw bearer token).
+func logAuthFailure(r *http.Request, reason, detail string) {
+	zap.L().Warn("auth failed",
+		zap.String("reason", reason),
+		zap.String("method", r.Method),
+		zap.String("path", r.URL.Path),
+		zap.String("remote_addr", r.RemoteAddr),
+		zap.String("detail", detail),
+	)
+}
+
+// logPermissionFailure emits a structured warning for 403 responses from
+// RequireRole / RequirePermission. Includes the authenticated identity so
+// oncall can tell "unknown caller" from "legitimate user hitting the wrong
+// endpoint".
+func logPermissionFailure(r *http.Request, id Identity, reason, permName string) {
+	zap.L().Warn("permission denied",
+		zap.String("reason", reason),
+		zap.String("method", r.Method),
+		zap.String("path", r.URL.Path),
+		zap.String("remote_addr", r.RemoteAddr),
+		zap.String("user_id", id.UserID),
+		zap.String("username", id.Username),
+		zap.String("role", id.Role),
+		zap.String("permission", permName),
+	)
 }
 
 func extractBearerToken(r *http.Request) string {
