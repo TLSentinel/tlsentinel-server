@@ -20,6 +20,9 @@ const (
 	UsersView = "users:view"
 	UsersEdit = "users:edit"
 
+	// API keys (cross-user management; self-service is always allowed)
+	APIKeysAdmin = "apikeys:admin"
+
 	// Groups
 	GroupsView = "groups:view"
 	GroupsEdit = "groups:edit"

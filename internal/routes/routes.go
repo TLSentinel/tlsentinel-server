@@ -180,14 +180,9 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 
 			// /admin/api-keys — cross-user API key management (admin only).
 			r.Route("/admin/api-keys", func(r chi.Router) {
-				r.Group(func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.UsersView))
-					r.Get("/", apiKeyHandler.ListAll)
-				})
-				r.Group(func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.UsersEdit))
-					r.Delete("/{id}", apiKeyHandler.DeleteAdmin)
-				})
+				r.Use(auth.RequirePermission(permission.APIKeysAdmin))
+				r.Get("/", apiKeyHandler.ListAll)
+				r.Delete("/{id}", apiKeyHandler.DeleteAdmin)
 			})
 
 			r.Route("/users", func(r chi.Router) {
