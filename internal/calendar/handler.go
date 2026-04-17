@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	ical "github.com/arran4/golang-ical"
@@ -11,6 +12,12 @@ import (
 
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
+
+// icsSafe strips CR and LF from cert-derived strings before they land in
+// ICS TEXT properties. The golang-ical library already escapes LF via
+// ToText, but a bare CR is not escaped and a permissive parser could
+// treat it as a line break — stripping both is belt-and-suspenders.
+var icsSafe = strings.NewReplacer("\r", "", "\n", " ")
 
 type Handler struct {
 	store *db.Store
@@ -49,13 +56,17 @@ func (h *Handler) ServeUserCalendar(w http.ResponseWriter, r *http.Request) {
 	cal.SetRefreshInterval("PT1H")
 
 	for _, cert := range certs {
+		cn := icsSafe.Replace(cert.CommonName)
+		endpointName := icsSafe.Replace(cert.EndpointName)
+		endpointType := icsSafe.Replace(cert.EndpointType)
+
 		event := cal.AddEvent(fmt.Sprintf("%s@tlsentinel", cert.Fingerprint))
-		event.SetSummary(fmt.Sprintf("Certificate expiry: %s (%s)", cert.CommonName, cert.EndpointName))
+		event.SetSummary(fmt.Sprintf("Certificate expiry: %s (%s)", cn, endpointName))
 		event.SetDescription(fmt.Sprintf(
 			"Endpoint: %s\nType: %s\nCommon Name: %s\nExpires: %s\nDays Remaining: %d\nFingerprint: %s",
-			cert.EndpointName,
-			cert.EndpointType,
-			cert.CommonName,
+			endpointName,
+			endpointType,
+			cn,
 			cert.NotAfter.UTC().Format(time.RFC1123),
 			cert.DaysRemaining,
 			cert.Fingerprint,
@@ -71,7 +82,7 @@ func (h *Handler) ServeUserCalendar(w http.ResponseWriter, r *http.Request) {
 			alarm := event.AddAlarm()
 			alarm.SetAction(ical.ActionDisplay)
 			alarm.SetTrigger(fmt.Sprintf("-P%dD", days))
-			alarm.SetDescription(fmt.Sprintf("Certificate expiring in %d days: %s", days, cert.CommonName))
+			alarm.SetDescription(fmt.Sprintf("Certificate expiring in %d days: %s", days, cn))
 		}
 	}
 
