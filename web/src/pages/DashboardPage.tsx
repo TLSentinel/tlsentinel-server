@@ -6,8 +6,7 @@ import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import { getTLSPostureReport } from '@/api/reports'
 import type { EndpointListItem } from '@/types/api'
-import { plural } from '@/lib/utils'
-import { ExpiryStatus } from '@/components/CertCard'
+import { fmtDate, plural } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -51,28 +50,63 @@ function StatCard({ icon, label, value, sub, signal = 'neutral' }: StatCardProps
 }
 
 // ---------------------------------------------------------------------------
-// Expiring Soon panel row
+// Expiring Soon table
 // ---------------------------------------------------------------------------
+
+function DaysLeftBadge({ notAfter }: { notAfter: string }) {
+  const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
+  if (days < 0) {
+    return (
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
+        EXPIRED
+      </span>
+    )
+  }
+  if (days <= 7) {
+    return (
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
+        {days} DAYS
+      </span>
+    )
+  }
+  return (
+    <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 whitespace-nowrap">
+      {days} DAYS
+    </span>
+  )
+}
 
 function ExpiringRow({ item }: { item: ExpiringCertItem }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b last:border-0">
+    <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-6 px-5 py-4 border-b border-border/40 last:border-0">
+      {/* Common name */}
       <div className="min-w-0">
         <Link
-          to={`/endpoints/${item.endpointId}`}
-          className="text-sm font-medium hover:underline truncate block"
-        >
-          {item.endpointName}
-        </Link>
-        <Link
           to={`/certificates/${item.fingerprint}`}
-          className="text-xs text-muted-foreground hover:underline truncate block"
+          className="text-sm font-semibold hover:underline truncate block"
         >
           {item.commonName}
         </Link>
+        <Link
+          to={`/endpoints/${item.endpointId}`}
+          className="text-xs text-muted-foreground hover:underline truncate block mt-0.5"
+        >
+          {item.endpointName}
+        </Link>
       </div>
-      <div className="ml-4 shrink-0">
-        <ExpiryStatus notAfter={item.notAfter} />
+      {/* Issuer */}
+      <div className="min-w-0">
+        <span className="text-sm text-muted-foreground truncate block">
+          {item.issuerCn || '—'}
+        </span>
+      </div>
+      {/* Expiry date */}
+      <div className="shrink-0">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">{fmtDate(item.notAfter)}</span>
+      </div>
+      {/* Days left badge */}
+      <div className="shrink-0">
+        <DaysLeftBadge notAfter={item.notAfter} />
       </div>
     </div>
   )
@@ -282,11 +316,11 @@ export default function DashboardPage() {
         <div className="space-y-6 lg:col-span-3">
           {/* Expiring soon */}
           <div className="rounded-lg border">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="text-sm font-semibold">Expiring Soon</h2>
-              {expiringCount !== null && (
-                <span className="text-xs text-muted-foreground">{expiringCount} within 30 days</span>
-              )}
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <h2 className="font-semibold">Certificates Expiring Soon</h2>
+              <Link to="/certificates" className="text-sm font-medium text-primary hover:underline">
+                View All Certificates
+              </Link>
             </div>
             {expiring === null ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -296,6 +330,13 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div>
+                {/* Column headers */}
+                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-6 px-5 py-2.5 border-b border-border/40 bg-muted/40">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiry Date</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
+                </div>
                 {expiring.map((item) => (
                   <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
                 ))}

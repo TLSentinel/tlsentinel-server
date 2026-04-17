@@ -79,13 +79,15 @@ type CertificateList struct {
 // ExpiringCertItem represents a certificate that is active on an endpoint,
 // used by the /certificates/active and /certificates/expiring endpoints.
 type ExpiringCertItem struct {
-	EndpointID    string           `json:"endpointId"`
-	EndpointName  string           `json:"endpointName"`
-	EndpointType  string           `json:"endpointType"`
-	Fingerprint   string           `json:"fingerprint"`
-	CommonName    string           `json:"commonName"`
-	NotAfter      time.Time        `json:"notAfter"`
-	DaysRemaining int              `json:"daysRemaining"`
+	EndpointID    string            `json:"endpointId"`
+	EndpointName  string            `json:"endpointName"`
+	EndpointType  string            `json:"endpointType"`
+	Fingerprint   string            `json:"fingerprint"`
+	CommonName    string            `json:"commonName"`
+	SANs          []string          `json:"sans"`
+	IssuerCN      string            `json:"issuerCn"`
+	NotAfter      time.Time         `json:"notAfter"`
+	DaysRemaining int               `json:"daysRemaining"`
 	Tags          []TagWithCategory `json:"tags"`
 }
 
