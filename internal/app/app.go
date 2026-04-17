@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
@@ -34,6 +35,17 @@ type App struct {
 // admin bootstrap, one-time backfills, job registry, scheduler, and HTTP
 // server. It does not start any goroutines — call Start for that.
 func New(cfg *config.Config, log *zap.Logger) (*App, error) {
+	proxies, err := cfg.ParseTrustedProxies()
+	if err != nil {
+		return nil, fmt.Errorf("trusted proxies: %w", err)
+	}
+	audit.SetTrustedProxies(proxies)
+	if len(proxies) > 0 {
+		log.Info("trusted proxies configured", zap.Int("count", len(proxies)))
+	} else {
+		log.Info("no trusted proxies — X-Forwarded-For will be ignored")
+	}
+
 	if err := db.RunMigrations(cfg, log); err != nil {
 		return nil, fmt.Errorf("migrations: %w", err)
 	}

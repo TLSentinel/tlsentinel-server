@@ -17,6 +17,13 @@ once it reaches 1.0.
 - **Legacy `scanner_`-prefixed scanner tokens are no longer accepted.** Any remaining
   legacy tokens must be rotated via Settings → Scanners before upgrading. All new
   tokens use the `stx_s_` prefix with SHA-256 hashing.
+- **`X-Forwarded-For` is no longer trusted by default.** Operators running behind
+  a reverse proxy (Traefik, nginx, etc.) must set `TLSENTINEL_TRUSTED_PROXY_CIDRS`
+  to the proxy's source network, otherwise audit logs will record the proxy IP
+  instead of the real client. Example values:
+  `127.0.0.1/32,::1/128` (sidecar), `172.16.0.0/12` (docker-compose),
+  `10.0.0.0/8` (k8s). Not setting this is *safer* (spoof-proof) but changes what
+  IP appears in audit entries.
 
 ### Security
 
@@ -40,6 +47,11 @@ once it reaches 1.0.
 - Bound every scheduled job invocation with a 30-minute context deadline and
   propagate the context into DB calls. A hung job previously had no upper
   bound — it could hold connections and overlap with later firings indefinitely.
+- Gate `X-Forwarded-For` behind a trusted-proxy allowlist
+  (`TLSENTINEL_TRUSTED_PROXY_CIDRS`). Previously any caller could spoof the
+  audit-log source IP by supplying their own `X-Forwarded-For` header. Now
+  XFF is honoured only when the TCP peer lies inside a configured CIDR;
+  otherwise the audit IP falls back to the peer address.
 
 ### Fixed
 

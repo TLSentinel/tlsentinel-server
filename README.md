@@ -67,6 +67,7 @@ Configure the required environment variables below, point it at a PostgreSQL dat
 | `TLSENTINEL_ADMIN_USERNAME` | Bootstrapped admin username |
 | `TLSENTINEL_ADMIN_PASSWORD` | Bootstrapped admin password |
 | `TLSENTINEL_ENCRYPTION_KEY` | AES-256 key for encrypting SMTP passwords at rest. Generate: `openssl rand -base64 32` |
+| `TLSENTINEL_TRUSTED_PROXY_CIDRS` | Comma-separated CIDRs whose traffic may set `X-Forwarded-For`. Requests from other sources have XFF ignored and the audit log records the TCP peer IP. Examples: `127.0.0.1/32,::1/128` (sidecar proxy), `172.16.0.0/12` (docker-compose), `10.0.0.0/8` (k8s). Empty = no proxies trusted. |
 
 ## Project Layout
 
