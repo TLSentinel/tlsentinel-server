@@ -37,6 +37,9 @@ once it reaches 1.0.
   The `/admin/api-keys` list and revoke routes were previously gated by
   `users:view` / `users:edit`, which let operators enumerate and revoke every
   user's API keys. Only the admin role carries the new permission.
+- Bound every scheduled job invocation with a 30-minute context deadline and
+  propagate the context into DB calls. A hung job previously had no upper
+  bound — it could hold connections and overlap with later firings indefinitely.
 
 ### Fixed
 
