@@ -73,6 +73,10 @@ once it reaches 1.0.
   on 403 (role not allowed, permission denied). Each entry carries
   `method`, `path`, `remote_addr`, a machine-readable `reason`, and — for
   403s — the authenticated `user_id` / `username` / `role` / `permission`.
+- `response.JSON` now logs encode failures via `zap.Error`. Headers have
+  already been flushed by the time the encoder runs, so the client still
+  sees a truncated body, but operators finally get a signal when a handler
+  returns an unmarshalable payload.
 - `PUT /endpoints/{id}/tags` now returns 400 when the body references an
   unknown tag id. The previous implementation relied on `ON CONFLICT DO
   NOTHING` to tolerate duplicates and inadvertently swallowed FK violations
