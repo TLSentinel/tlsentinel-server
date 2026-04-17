@@ -437,6 +437,8 @@ export interface DiscoveryInboxItem {
   port: number
   fingerprint: string | null
   commonName: string | null
+  sans: string[]
+  notAfter: string | null
   status: string
   endpointId: string | null
   endpointName: string | null

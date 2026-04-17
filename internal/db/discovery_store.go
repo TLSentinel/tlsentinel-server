@@ -156,10 +156,13 @@ type discoveryInboxWithJoins struct {
 	NetworkName  *string `bun:"network_name"`
 	ScannerName  *string `bun:"scanner_name"`
 	EndpointName *string `bun:"endpoint_name"`
-	CommonName   *string `bun:"common_name"`
 }
 
 func discoveryInboxToModel(r discoveryInboxWithJoins) models.DiscoveryInboxItem {
+	sans := r.SANs
+	if sans == nil {
+		sans = []string{}
+	}
 	return models.DiscoveryInboxItem{
 		ID:           r.ID,
 		NetworkID:    r.NetworkID,
@@ -171,6 +174,8 @@ func discoveryInboxToModel(r discoveryInboxWithJoins) models.DiscoveryInboxItem 
 		Port:         r.Port,
 		Fingerprint:  r.Fingerprint,
 		CommonName:   r.CommonName,
+		SANs:         sans,
+		NotAfter:     r.NotAfter,
 		Status:       r.Status,
 		EndpointID:   r.EndpointID,
 		EndpointName: r.EndpointName,
@@ -186,11 +191,9 @@ func (s *Store) inboxBaseQuery() *bun.SelectQuery {
 		ColumnExpr("dn.name AS network_name").
 		ColumnExpr("sc.name AS scanner_name").
 		ColumnExpr("ep.name AS endpoint_name").
-		ColumnExpr("c.common_name AS common_name").
 		Join("LEFT JOIN tlsentinel.discovery_networks dn ON dn.id = di.network_id").
 		Join("LEFT JOIN tlsentinel.scanners sc ON sc.id = di.scanner_id").
 		Join("LEFT JOIN tlsentinel.endpoints ep ON ep.id = di.endpoint_id").
-		Join("LEFT JOIN tlsentinel.certificates c ON c.fingerprint = di.fingerprint").
 		OrderExpr("di.last_seen_at DESC")
 }
 
@@ -383,12 +386,16 @@ func (s *Store) UpsertDiscoveryInboxItems(ctx context.Context, scannerID, networ
 	rows := make([]DiscoveryInboxItem, len(items))
 	for i, item := range items {
 		rows[i] = DiscoveryInboxItem{
-			NetworkID: &networkID,
-			ScannerID: &scannerID,
-			IP:        item.IP,
-			Port:      item.Port,
-			RDNS:      item.RDNS,
-			Status:    "new",
+			NetworkID:   &networkID,
+			ScannerID:   &scannerID,
+			IP:          item.IP,
+			Port:        item.Port,
+			RDNS:        item.RDNS,
+			Fingerprint: item.Fingerprint,
+			CommonName:  item.CommonName,
+			SANs:        item.SANs,
+			NotAfter:    item.NotAfter,
+			Status:      "new",
 		}
 	}
 
@@ -400,6 +407,10 @@ func (s *Store) UpsertDiscoveryInboxItems(ctx context.Context, scannerID, networ
 		Set("scanner_id = EXCLUDED.scanner_id").
 		Set("network_id = EXCLUDED.network_id").
 		Set("rdns = EXCLUDED.rdns").
+		Set("fingerprint = EXCLUDED.fingerprint").
+		Set("common_name = EXCLUDED.common_name").
+		Set("sans = EXCLUDED.sans").
+		Set("not_after = EXCLUDED.not_after").
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to upsert discovery inbox items: %w", err)

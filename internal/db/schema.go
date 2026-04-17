@@ -317,17 +317,20 @@ type DiscoveryNetwork struct {
 type DiscoveryInboxItem struct {
 	bun.BaseModel `bun:"table:tlsentinel.discovery_inbox"`
 
-	ID          string    `bun:"id,pk,type:uuid"`
-	NetworkID   *string   `bun:"network_id,type:uuid"`
-	ScannerID   *string   `bun:"scanner_id,type:uuid"`
-	IP          string    `bun:"ip"`
-	RDNS        *string   `bun:"rdns"`
-	Port        int       `bun:"port"`
-	Fingerprint *string   `bun:"fingerprint"`
-	Status      string    `bun:"status"`
-	EndpointID  *string   `bun:"endpoint_id,type:uuid"`
-	FirstSeenAt time.Time `bun:"first_seen_at"`
-	LastSeenAt  time.Time `bun:"last_seen_at"`
+	ID          string     `bun:"id,pk,type:uuid"`
+	NetworkID   *string    `bun:"network_id,type:uuid"`
+	ScannerID   *string    `bun:"scanner_id,type:uuid"`
+	IP          string     `bun:"ip"`
+	RDNS        *string    `bun:"rdns"`
+	Port        int        `bun:"port"`
+	Fingerprint *string    `bun:"fingerprint"`
+	CommonName  *string    `bun:"common_name"`
+	SANs        []string   `bun:"sans,array"`
+	NotAfter    *time.Time `bun:"not_after"`
+	Status      string     `bun:"status"`
+	EndpointID  *string    `bun:"endpoint_id,type:uuid"`
+	FirstSeenAt time.Time  `bun:"first_seen_at"`
+	LastSeenAt  time.Time  `bun:"last_seen_at"`
 }
 
 // ScheduledJob maps to tlsentinel.scheduled_jobs.
