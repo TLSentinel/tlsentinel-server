@@ -126,6 +126,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if len(req.HostIDs) > 0 {
 		if err := h.store.ReplaceGroupHosts(r.Context(), group.ID, req.HostIDs); err != nil {
+			if errors.Is(err, db.ErrInvalidInput) {
+				http.Error(w, "one or more host ids are invalid", http.StatusBadRequest)
+				return
+			}
 			http.Error(w, "failed to assign hosts", http.StatusInternalServerError)
 			return
 		}
@@ -162,6 +166,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.ReplaceGroupHosts(r.Context(), id, req.HostIDs); err != nil {
+		if errors.Is(err, db.ErrInvalidInput) {
+			http.Error(w, "one or more host ids are invalid", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "failed to update hosts", http.StatusInternalServerError)
 		return
 	}

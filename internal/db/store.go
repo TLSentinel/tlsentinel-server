@@ -18,3 +18,7 @@ func NewStore(db *bun.DB) *Store {
 
 // ErrNotFound is returned by Get/Delete methods when the requested record does not exist.
 var ErrNotFound = errors.New("not found")
+
+// ErrInvalidInput is returned when a caller-supplied value references records
+// that do not exist (e.g. unknown host IDs passed to ReplaceGroupHosts).
+var ErrInvalidInput = errors.New("invalid input")
