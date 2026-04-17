@@ -47,6 +47,13 @@ once it reaches 1.0.
 - Bound every scheduled job invocation with a 30-minute context deadline and
   propagate the context into DB calls. A hung job previously had no upper
   bound — it could hold connections and overlap with later firings indefinitely.
+- Validate user email addresses and mail-config `fromAddress` / `fromName`
+  at the API boundary via `net/mail.ParseAddress`, and re-check recipient,
+  from address, subject, and from name inside the mailer before handing
+  them to SMTP. The alert pipeline previously concatenated `user.Email`
+  straight into a `To:` header, so a user who set their email to
+  `victim@x.com\r\nBcc: attacker@y.com` could inject extra SMTP headers
+  whenever an expiry alert fired.
 - Strip CR/LF from cert-derived strings before embedding them in ICS
   `SUMMARY` / `DESCRIPTION` properties served by `/calendar/u/{token}`.
   The `golang-ical` library already escapes LF on TEXT properties, but

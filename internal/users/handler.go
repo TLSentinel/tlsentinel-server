@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
@@ -18,6 +19,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// validateEmailPtr returns nil for a nil or empty-string pointer; otherwise
+// it parses the value with net/mail and rejects anything that isn't a valid
+// RFC 5322 address. This also rejects embedded CR/LF that would enable SMTP
+// header injection downstream in the alert pipeline.
+func validateEmailPtr(e *string) error {
+	if e == nil || *e == "" {
+		return nil
+	}
+	if _, err := mail.ParseAddress(*e); err != nil {
+		return err
+	}
+	return nil
+}
 
 var validRoles = map[string]bool{permission.RoleAdmin: true, permission.RoleOperator: true, permission.RoleViewer: true}
 var validProviders = map[string]bool{provider.Local: true, provider.OIDC: true}
@@ -154,6 +169,10 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	var req UpdateMeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := validateEmailPtr(req.Email); err != nil {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
 		return
 	}
 
@@ -395,6 +414,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "password is required for local users", http.StatusBadRequest)
 		return
 	}
+	if err := validateEmailPtr(req.Email); err != nil {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
+		return
+	}
 
 	var passwordHash string
 	if req.Provider == provider.Local {
@@ -475,6 +498,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validProviders[req.Provider] {
 		http.Error(w, "provider must be 'local' or 'oidc'", http.StatusBadRequest)
+		return
+	}
+	if err := validateEmailPtr(req.Email); err != nil {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
 		return
 	}
 
