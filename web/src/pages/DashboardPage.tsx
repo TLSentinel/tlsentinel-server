@@ -6,7 +6,7 @@ import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import { getTLSPostureReport } from '@/api/reports'
 import type { EndpointListItem } from '@/types/api'
-import { fmtDate, plural } from '@/lib/utils'
+import { fmtDate } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
 // Stat card

@@ -12,9 +12,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listActive } from '@/api/certificates'
+import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
-import type { CategoryWithTags, ExpiringCertItem } from '@/types/api'
+import type { CategoryWithTags } from '@/types/api'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { fmtDate } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'

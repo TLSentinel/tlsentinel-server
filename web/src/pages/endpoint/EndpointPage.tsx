@@ -370,6 +370,7 @@ const PAGE_SIZE = 20
 
 export default function HostsPage() {
   const admin = can('endpoints:edit')
+  const navigate = useNavigate()
   const [now] = useState(Date.now)
 
   const [page, setPage]                       = useState(1)
