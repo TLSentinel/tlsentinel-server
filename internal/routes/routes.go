@@ -364,12 +364,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	distFS, _ := fs.Sub(tlsetinelWeb.FS, "dist")
 	fileServer := http.FileServer(http.FS(distFS))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := distFS.Open(r.URL.Path[1:]) // strip leading /
-		if err != nil {
+		// Existence check only — http.FileServer opens the file itself. Using
+		// fs.Stat avoids the extra Open/Close pair the old implementation did.
+		if _, err := fs.Stat(distFS, r.URL.Path[1:]); err != nil {
 			// Not a real file — serve index.html and let React Router handle it.
 			r.URL.Path = "/"
-		} else {
-			f.Close()
 		}
 		fileServer.ServeHTTP(w, r)
 	}))
