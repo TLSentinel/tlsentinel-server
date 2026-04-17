@@ -9,32 +9,51 @@ import (
 	"time"
 )
 
+// dialTimeout bounds a single dial+handshake attempt when the caller ctx
+// has no deadline of its own.
+const dialTimeout = 10 * time.Second
+
 // dialAndFetchCert opens a TLS connection to host:port and returns the leaf
-// certificate from the server's certificate chain.
+// certificate from the server's certificate chain. Honors ctx cancellation
+// for both the TCP dial and the TLS handshake.
 func dialAndFetchCert(ctx context.Context, host string, port int) (*x509.Certificate, error) {
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
+	defer cancel()
+
 	addr := fmt.Sprintf("%s:%d", host, port)
 
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-		ServerName:         host,
-		InsecureSkipVerify: false, // honour trust chain; caller can inspect validity separately
-	})
+	d := &tls.Dialer{
+		NetDialer: &net.Dialer{},
+		Config: &tls.Config{
+			ServerName:         host,
+			InsecureSkipVerify: false, // honour trust chain; caller inspects validity separately
+		},
+	}
+	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
+		// If ctx was cancelled or deadline exceeded, do not retry — surface it.
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("TLS dial failed: %w", err)
+		}
 		// Retry with verification disabled so we still return cert data for
 		// expired / self-signed certs — the caller surfaces validity to the user.
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+		d.Config = &tls.Config{
 			ServerName:         host,
 			InsecureSkipVerify: true,
-		})
+		}
+		conn, err = d.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("TLS dial failed: %w", err)
 		}
 	}
 	defer conn.Close()
 
-	_ = ctx // context respected via Dialer.Timeout; extend if needed
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return nil, fmt.Errorf("unexpected non-TLS connection to %s", addr)
+	}
 
-	certs := conn.ConnectionState().PeerCertificates
+	certs := tlsConn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
 		return nil, fmt.Errorf("no certificates returned by %s", addr)
 	}
