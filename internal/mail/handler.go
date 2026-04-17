@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	netmail "net/mail"
+	"strings"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
@@ -121,6 +123,16 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AuthType != "none" && req.SMTPUsername == "" {
 		http.Error(w, "smtpUsername is required when authType is not none", http.StatusBadRequest)
+		return
+	}
+	if req.FromAddress != "" {
+		if _, err := netmail.ParseAddress(req.FromAddress); err != nil {
+			http.Error(w, "fromAddress is not a valid email address", http.StatusBadRequest)
+			return
+		}
+	}
+	if strings.ContainsAny(req.FromName, "\r\n") {
+		http.Error(w, "fromName must not contain CR or LF", http.StatusBadRequest)
 		return
 	}
 
