@@ -57,7 +57,10 @@ func send(cfg Config, to, subject, htmlBody string) error {
 		return err
 	}
 
-	msg := buildMessage(cfg.FromAddress, cfg.FromName, to, subject, htmlBody)
+	msg, err := buildMessage(cfg.FromAddress, cfg.FromName, to, subject, htmlBody)
+	if err != nil {
+		return err
+	}
 
 	switch cfg.TLSMode {
 	case "tls":
@@ -169,13 +172,16 @@ func writeMessage(c *smtp.Client, from, to string, msg []byte) error {
 
 // buildMessage formats a multipart/alternative RFC 5322 message with both a
 // plain-text fallback (auto-stripped from HTML) and the full HTML part.
-func buildMessage(fromAddr, fromName, to, subject, htmlBody string) []byte {
+func buildMessage(fromAddr, fromName, to, subject, htmlBody string) ([]byte, error) {
 	from := fromAddr
 	if fromName != "" {
 		from = fmt.Sprintf("%s <%s>", fromName, fromAddr)
 	}
 
-	boundary := randomBoundary()
+	boundary, err := randomBoundary()
+	if err != nil {
+		return nil, err
+	}
 	plainText := htmlToText(htmlBody)
 
 	var sb strings.Builder
@@ -200,14 +206,19 @@ func buildMessage(fromAddr, fromName, to, subject, htmlBody string) []byte {
 
 	sb.WriteString("--" + boundary + "--\r\n")
 
-	return []byte(sb.String())
+	return []byte(sb.String()), nil
 }
 
-// randomBoundary generates a random MIME boundary string.
-func randomBoundary() string {
+// randomBoundary generates a random MIME boundary string. A rand.Read
+// failure would leave the buffer all-zeros, giving every message the
+// same boundary — we surface the error instead of silently producing
+// a degenerate one.
+func randomBoundary() (string, error) {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return "===============" + hex.EncodeToString(b) + "=="
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate mime boundary: %w", err)
+	}
+	return "===============" + hex.EncodeToString(b) + "==", nil
 }
 
 // Compiled regexes for htmlToText.
