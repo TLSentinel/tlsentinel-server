@@ -182,8 +182,35 @@ func (s *Store) GetEndpointTags(ctx context.Context, endpointID string) ([]model
 	return result, nil
 }
 
+// SetEndpointTags atomically replaces all tags on an endpoint. Duplicate tag
+// IDs in the input are silently deduplicated. Returns ErrInvalidInput if any
+// supplied tag ID does not reference an existing tag.
 func (s *Store) SetEndpointTags(ctx context.Context, endpointID string, tagIDs []string) error {
+	seen := make(map[string]struct{}, len(tagIDs))
+	unique := make([]string, 0, len(tagIDs))
+	for _, id := range tagIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+
 	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if len(unique) > 0 {
+			var count int
+			if err := tx.NewSelect().
+				TableExpr("tlsentinel.tags").
+				ColumnExpr("count(*)").
+				Where("id IN (?)", bun.In(unique)).
+				Scan(ctx, &count); err != nil {
+				return fmt.Errorf("failed to validate tag ids: %w", err)
+			}
+			if count != len(unique) {
+				return ErrInvalidInput
+			}
+		}
+
 		_, err := tx.NewDelete().
 			Model((*EndpointTag)(nil)).
 			Where("endpoint_id = ?", endpointID).
@@ -192,16 +219,15 @@ func (s *Store) SetEndpointTags(ctx context.Context, endpointID string, tagIDs [
 			return fmt.Errorf("failed to clear endpoint tags: %w", err)
 		}
 
-		if len(tagIDs) == 0 {
+		if len(unique) == 0 {
 			return nil
 		}
 
-		rows := make([]EndpointTag, len(tagIDs))
-		for i, tid := range tagIDs {
+		rows := make([]EndpointTag, len(unique))
+		for i, tid := range unique {
 			rows[i] = EndpointTag{EndpointID: endpointID, TagID: tid}
 		}
-		_, err = tx.NewInsert().Model(&rows).On("CONFLICT DO NOTHING").Exec(ctx)
-		if err != nil {
+		if _, err := tx.NewInsert().Model(&rows).Exec(ctx); err != nil {
 			return fmt.Errorf("failed to insert endpoint tags: %w", err)
 		}
 		return nil

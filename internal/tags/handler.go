@@ -2,6 +2,7 @@ package tags
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -232,6 +233,10 @@ func (h *Handler) SetEndpointTags(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.SetEndpointTags(r.Context(), endpointID, req.TagIDs); err != nil {
+		if errors.Is(err, db.ErrInvalidInput) {
+			http.Error(w, "one or more tag ids are invalid", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "failed to set endpoint tags", http.StatusInternalServerError)
 		return
 	}
