@@ -5,16 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
 // UpsertEndpointTLSProfile inserts or replaces the TLS profile for an endpoint.
+// scanned_at is set entirely by the database (DEFAULT NOW() on insert, NOW()
+// on conflict) so both paths use the same clock source.
 func (s *Store) UpsertEndpointTLSProfile(ctx context.Context, endpointID string, req models.TLSProfileIngestRequest) error {
 	row := &EndpointTLSProfile{
 		EndpointID:     endpointID,
-		ScannedAt:      time.Now(),
 		TLS10:          req.TLS10,
 		TLS11:          req.TLS11,
 		TLS12:          req.TLS12,
@@ -25,6 +25,7 @@ func (s *Store) UpsertEndpointTLSProfile(ctx context.Context, endpointID string,
 	}
 	_, err := s.db.NewInsert().
 		Model(row).
+		ExcludeColumn("scanned_at").
 		On("CONFLICT (endpoint_id) DO UPDATE SET" +
 			" scanned_at = NOW()," +
 			" tls10 = EXCLUDED.tls10," +
