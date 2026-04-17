@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, KeyRound, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronRight, MoreVertical } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
 import TablePagination from '@/components/TablePagination'
@@ -10,20 +10,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser } from '@/api/users'
 import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
@@ -32,249 +31,143 @@ import { fmtDate, plural } from '@/lib/utils'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
+// Badges
+// ---------------------------------------------------------------------------
+
+const ROLE_STYLE: Record<string, string> = {
+  admin:    'bg-muted text-red-500 dark:text-red-400',
+  operator: 'bg-muted text-blue-500 dark:text-blue-400',
+  viewer:   'bg-muted text-muted-foreground',
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Admin', operator: 'Operator', viewer: 'Viewer',
+}
+
+function RoleBadge({ role }: { role: string }) {
+  return (
+    <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase ${ROLE_STYLE[role] ?? 'bg-muted text-muted-foreground'}`}>
+      {ROLE_LABEL[role] ?? role}
+    </span>
+  )
+}
+
+function ProviderBadge({ provider }: { provider: string }) {
+  const style = provider === 'oidc'
+    ? 'bg-muted text-purple-500 dark:text-purple-400'
+    : 'bg-muted text-muted-foreground'
+  return (
+    <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase ${style}`}>
+      {provider === 'oidc' ? 'OIDC' : 'Local'}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Add / Edit dialog
 // ---------------------------------------------------------------------------
 
 interface UserDialogProps {
-  /** null = create mode; non-null = edit mode (pre-fills from user). */
   user: User | null
   open: boolean
   onClose: () => void
   onSaved: () => void
 }
 
-/**
- * Keyed by the parent so it remounts (fresh state) on every open.
- * Initial state is derived from the `user` prop at mount time — no
- * useEffect reset needed.
- */
 function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
   const isEdit = user !== null
-
-  const [username, setUsername] = useState(user?.username ?? '')
-  const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'admin' | 'operator' | 'viewer'>(user?.role ?? 'viewer')
-  const [provider, setProvider] = useState<'local' | 'oidc'>(user?.provider ?? 'local')
-  const [notify, setNotify] = useState(user?.notify ?? false)
+  const [username, setUsername]   = useState(user?.username ?? '')
+  const [password, setPassword]   = useState('')
+  const [role, setRole]           = useState<'admin' | 'operator' | 'viewer'>(user?.role ?? 'viewer')
+  const [provider, setProvider]   = useState<'local' | 'oidc'>(user?.provider ?? 'local')
+  const [notify, setNotify]       = useState(user?.notify ?? false)
   const [firstName, setFirstName] = useState(user?.firstName ?? '')
-  const [lastName, setLastName] = useState(user?.lastName ?? '')
-  const [email, setEmail] = useState(user?.email ?? '')
+  const [lastName, setLastName]   = useState(user?.lastName ?? '')
+  const [email, setEmail]         = useState(user?.email ?? '')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
 
-  // Helper: convert empty string → null for optional fields.
-  function nullable(s: string): string | null {
-    return s.trim() || null
-  }
+  function nullable(s: string): string | null { return s.trim() || null }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!username.trim()) {
-      setError('Username is required.')
-      return
-    }
-    if (!isEdit && provider === 'local' && !password) {
-      setError('Password is required for local users.')
-      return
-    }
-
-    setSubmitting(true)
-    setError(null)
-
+    if (!username.trim()) { setError('Username is required.'); return }
+    if (!isEdit && provider === 'local' && !password) { setError('Password is required for local users.'); return }
+    setSubmitting(true); setError(null)
     try {
       if (isEdit) {
-        await updateUser(user.id, {
-          username: username.trim(),
-          role,
-          provider,
-          notify,
-          firstName: nullable(firstName),
-          lastName: nullable(lastName),
-          email: nullable(email),
-        })
+        await updateUser(user.id, { username: username.trim(), role, provider, notify, firstName: nullable(firstName), lastName: nullable(lastName), email: nullable(email) })
       } else {
-        await createUser({
-          username: username.trim(),
-          password: provider === 'local' ? password : undefined,
-          role,
-          provider,
-          notify,
-          firstName: nullable(firstName),
-          lastName: nullable(lastName),
-          email: nullable(email),
-        })
+        await createUser({ username: username.trim(), password: provider === 'local' ? password : undefined, role, provider, notify, firstName: nullable(firstName), lastName: nullable(lastName), email: nullable(email) })
       }
-      onSaved()
-      onClose()
+      onSaved(); onClose()
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : `Failed to ${isEdit ? 'update' : 'create'} user.`,
-      )
-    } finally {
-      setSubmitting(false)
-    }
+      setError(err instanceof ApiError ? err.message : `Failed to ${isEdit ? 'update' : 'create'} user.`)
+    } finally { setSubmitting(false) }
   }
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit User' : 'Add User'}</DialogTitle>
-        </DialogHeader>
-
+        <DialogHeader><DialogTitle>{isEdit ? 'Edit User' : 'Add User'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="u-username">
-              Username <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="u-username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="jane"
-              required
-            />
+            <Label htmlFor="u-username">Username <span className="text-destructive">*</span></Label>
+            <Input id="u-username" value={username} onChange={e => setUsername(e.target.value)} placeholder="jane" required />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="u-firstname">First Name</Label>
-              <Input
-                id="u-firstname"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Jane"
-              />
+              <Input id="u-firstname" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jane" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-lastname">Last Name</Label>
-              <Input
-                id="u-lastname"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Smith"
-              />
+              <Input id="u-lastname" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Smith" />
             </div>
           </div>
-
           <div className="space-y-1.5">
             <Label htmlFor="u-email">Email</Label>
-            <Input
-              id="u-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="jane@example.com"
-            />
+            <Input id="u-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
           </div>
-
           <div className="space-y-1.5">
             <Label>Provider</Label>
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={provider === 'local' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setProvider('local')}
-              >
-                Local
-              </Button>
-              <Button
-                type="button"
-                variant={provider === 'oidc' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setProvider('oidc')}
-              >
-                OIDC
-              </Button>
+              <Button type="button" variant={provider === 'local' ? 'default' : 'outline'} size="sm" onClick={() => setProvider('local')}>Local</Button>
+              <Button type="button" variant={provider === 'oidc' ? 'default' : 'outline'} size="sm" onClick={() => setProvider('oidc')}>OIDC</Button>
             </div>
             {provider === 'oidc' && (
               <p className="text-xs text-muted-foreground">
                 OIDC users authenticate via SSO. No password is stored.
-                {isEdit && user?.provider === 'local' && (
-                  <span className="ml-1 text-amber-600">Switching will clear the existing password.</span>
-                )}
+                {isEdit && user?.provider === 'local' && <span className="ml-1 text-amber-600">Switching will clear the existing password.</span>}
               </p>
             )}
           </div>
-
           {provider === 'local' && !isEdit && (
             <div className="space-y-1.5">
-              <Label htmlFor="u-password">
-                Password <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="u-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+              <Label htmlFor="u-password">Password <span className="text-destructive">*</span></Label>
+              <Input id="u-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
           )}
-
           <div className="space-y-1.5">
             <Label>Role</Label>
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={role === 'viewer' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setRole('viewer')}
-              >
-                Viewer
-              </Button>
-              <Button
-                type="button"
-                variant={role === 'operator' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setRole('operator')}
-              >
-                Operator
-              </Button>
-              <Button
-                type="button"
-                variant={role === 'admin' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setRole('admin')}
-              >
-                Admin
-              </Button>
+              <Button type="button" variant={role === 'viewer' ? 'default' : 'outline'} size="sm" onClick={() => setRole('viewer')}>Viewer</Button>
+              <Button type="button" variant={role === 'operator' ? 'default' : 'outline'} size="sm" onClick={() => setRole('operator')}>Operator</Button>
+              <Button type="button" variant={role === 'admin' ? 'default' : 'outline'} size="sm" onClick={() => setRole('admin')}>Admin</Button>
             </div>
           </div>
-
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="u-notify">Receive alert emails</Label>
-              <p className="text-xs text-muted-foreground">
-                {email.trim() ? 'Send expiry alerts to this user.' : 'Requires an email address.'}
-              </p>
+              <p className="text-xs text-muted-foreground">{email.trim() ? 'Send expiry alerts to this user.' : 'Requires an email address.'}</p>
             </div>
-            <Switch
-              id="u-notify"
-              checked={notify}
-              onCheckedChange={setNotify}
-              disabled={!email.trim()}
-            />
+            <Switch id="u-notify" checked={notify} onCheckedChange={setNotify} disabled={!email.trim()} />
           </div>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
-
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
-              Cancel
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
             <Button type="submit" disabled={submitting}>
-              {submitting
-                ? isEdit
-                  ? 'Saving…'
-                  : 'Adding…'
-                : isEdit
-                  ? 'Save Changes'
-                  : 'Add User'}
+              {submitting ? (isEdit ? 'Saving…' : 'Adding…') : (isEdit ? 'Save Changes' : 'Add User')}
             </Button>
           </DialogFooter>
         </form>
@@ -293,86 +186,40 @@ interface ChangePasswordDialogProps {
 }
 
 function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProps) {
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
+  const [password, setPassword]   = useState('')
+  const [confirm, setConfirm]     = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!user) return
-    if (!password) {
-      setError('Password is required.')
-      return
-    }
-    if (password !== confirm) {
-      setError('Passwords do not match.')
-      return
-    }
-
-    setSubmitting(true)
-    setError(null)
-
-    try {
-      await changePassword(user.id, password)
-      onClose()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to change password.')
-    } finally {
-      setSubmitting(false)
-    }
+    if (!password) { setError('Password is required.'); return }
+    if (password !== confirm) { setError('Passwords do not match.'); return }
+    setSubmitting(true); setError(null)
+    try { await changePassword(user.id, password); onClose() }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Failed to change password.') }
+    finally { setSubmitting(false) }
   }
 
   return (
     <Dialog open={user !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Change Password</DialogTitle>
-        </DialogHeader>
-
-        <p className="text-sm text-muted-foreground">
-          Set a new password for{' '}
-          <span className="font-medium text-foreground">{user?.username}</span>.
-        </p>
-
+        <DialogHeader><DialogTitle>Change Password</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Set a new password for <span className="font-medium text-foreground">{user?.username}</span>.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="cp-password">
-              New Password <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="cp-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+            <Label htmlFor="cp-password">New Password <span className="text-destructive">*</span></Label>
+            <Input id="cp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
-
           <div className="space-y-1.5">
-            <Label htmlFor="cp-confirm">
-              Confirm Password <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="cp-confirm"
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+            <Label htmlFor="cp-confirm">Confirm Password <span className="text-destructive">*</span></Label>
+            <Input id="cp-confirm" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="••••••••" required />
           </div>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
-
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Saving…' : 'Change Password'}
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Change Password'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -381,7 +228,7 @@ function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Delete confirmation dialog
+// Delete dialog
 // ---------------------------------------------------------------------------
 
 interface DeleteDialogProps {
@@ -392,45 +239,27 @@ interface DeleteDialogProps {
 
 function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]     = useState<string | null>(null)
 
   async function handleDelete() {
     if (!user) return
-    setLoading(true)
-    setError(null)
-    try {
-      await deleteUser(user.id)
-      onDeleted()
-      onClose()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to delete user.')
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true); setError(null)
+    try { await deleteUser(user.id); onDeleted(); onClose() }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Failed to delete user.') }
+    finally { setLoading(false) }
   }
 
   return (
     <Dialog open={user !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete User</DialogTitle>
-        </DialogHeader>
-
+        <DialogHeader><DialogTitle>Delete User</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete{' '}
-          <span className="font-medium text-foreground">{user?.username}</span>? This action
-          cannot be undone.
+          Are you sure you want to delete <span className="font-medium text-foreground">{user?.username}</span>? This action cannot be undone.
         </p>
-
         {error && <p className="text-sm text-destructive">{error}</p>}
-
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={loading}>
-            {loading ? 'Deleting…' : 'Delete'}
-          </Button>
+          <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={loading}>{loading ? 'Deleting…' : 'Delete'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -441,9 +270,9 @@ function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
 // Filter types
 // ---------------------------------------------------------------------------
 
-type RoleFilter = '' | 'admin' | 'operator' | 'viewer'
+type RoleFilter     = '' | 'admin' | 'operator' | 'viewer'
 type ProviderFilter = '' | 'local' | 'oidc'
-type SortOption = '' | 'username' | 'name'
+type SortOption     = '' | 'username' | 'name'
 
 const ROLE_OPTIONS: { value: RoleFilter; label: string }[] = [
   { value: '',         label: 'All roles' },
@@ -453,52 +282,46 @@ const ROLE_OPTIONS: { value: RoleFilter; label: string }[] = [
 ]
 
 const PROVIDER_OPTIONS: { value: ProviderFilter; label: string }[] = [
-  { value: '', label: 'All providers' },
+  { value: '',      label: 'All providers' },
   { value: 'local', label: 'Local' },
-  { value: 'oidc', label: 'OIDC' },
+  { value: 'oidc',  label: 'OIDC' },
 ]
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: '', label: 'Newest first' },
+  { value: '',         label: 'Newest first' },
   { value: 'username', label: 'Username A→Z' },
-  { value: 'name', label: 'Name A→Z' },
+  { value: 'name',     label: 'Name A→Z' },
 ]
 
 // ---------------------------------------------------------------------------
-// Main page
+// Page
 // ---------------------------------------------------------------------------
 
 const PAGE_SIZE = 20
 
 export default function UsersPage() {
-  const admin = can('users:edit')
+  const admin         = can('users:edit')
   const currentUserID = getIdentity()?.uid ?? ''
 
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('')
-  const [providerFilter, setProviderFilter] = useState<ProviderFilter>('')
-  const [sortOption, setSortOption] = useState<SortOption>('')
-  const [mutationError, setMutationError] = useState<string | null>(null)
+  const [page, setPage]                           = useState(1)
+  const [search, setSearch]                       = useState('')
+  const [debouncedSearch, setDebouncedSearch]     = useState('')
+  const [roleFilter, setRoleFilter]               = useState<RoleFilter>('')
+  const [providerFilter, setProviderFilter]       = useState<ProviderFilter>('')
+  const [sortOption, setSortOption]               = useState<SortOption>('')
+  const [mutationError, setMutationError]         = useState<string | null>(null)
+  const [addSeq, setAddSeq]                       = useState(0)
+  const [addOpen, setAddOpen]                     = useState(false)
+  const [editTarget, setEditTarget]               = useState<User | null>(null)
+  const [passwordTarget, setPasswordTarget]       = useState<User | null>(null)
+  const [deleteTarget, setDeleteTarget]           = useState<User | null>(null)
 
-  // Incremented each time "Add User" is clicked so the dialog remounts fresh.
-  const [addSeq, setAddSeq] = useState(0)
-  const [addOpen, setAddOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<User | null>(null)
-  const [passwordTarget, setPasswordTarget] = useState<User | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
-
-  // Debounce search input by 400 ms.
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reset to page 1 whenever any filter changes.
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, roleFilter, providerFilter, sortOption])
+  useEffect(() => { setPage(1) }, [debouncedSearch, roleFilter, providerFilter, sortOption])
 
   const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
     queryKey: ['users', page, debouncedSearch, roleFilter, providerFilter, sortOption],
@@ -506,240 +329,178 @@ export default function UsersPage() {
     placeholderData: keepPreviousData,
   })
 
-  const users = data?.items ?? []
+  const users      = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
 
   async function handleToggleEnabled(user: User) {
-    try {
-      await setUserEnabled(user.id, !user.enabled)
-      refetch()
-    } catch (err) {
-      setMutationError(err instanceof ApiError ? err.message : 'Failed to update user.')
-    }
+    try { await setUserEnabled(user.id, !user.enabled); refetch() }
+    catch (err) { setMutationError(err instanceof ApiError ? err.message : 'Failed to update user.') }
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  function handleCloseDialog() { setAddOpen(false); setEditTarget(null) }
 
-  function handleCloseDialog() {
-    setAddOpen(false)
-    setEditTarget(null)
-  }
+  // Grid varies by admin role: admin has Enabled + Actions columns
+  const ROW_GRID = admin
+    ? 'grid-cols-[2fr_1.5fr_6rem_6rem_7rem_4rem_2.5rem]'
+    : 'grid-cols-[2fr_1.5fr_6rem_6rem_7rem]'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link to="/settings" className="hover:text-foreground">Settings</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground">Users</span>
       </nav>
-      {/* Header */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Users</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} {plural(totalCount, 'user')}
+            Manage user accounts and access.
           </p>
         </div>
         {admin && (
-          <Button
-            onClick={() => {
-              setAddSeq((s) => s + 1)
-              setAddOpen(true)
-            }}
-          >
+          <Button onClick={() => { setAddSeq(s => s + 1); setAddOpen(true) }}>
             <Plus className="mr-1.5 h-4 w-4" />
             Add User
           </Button>
         )}
       </div>
 
-      {/* Search + filters */}
-      <div className="flex items-center gap-2">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search username or name…"
-          className="max-w-sm flex-1"
-        />
-
-        <FilterDropdown
-          label="Role"
-          options={ROLE_OPTIONS}
-          value={roleFilter}
-          onSelect={(value) => setRoleFilter(value as RoleFilter)}
-        />
-
-        <FilterDropdown
-          label="Provider"
-          options={PROVIDER_OPTIONS}
-          value={providerFilter}
-          onSelect={(value) => setProviderFilter(value as ProviderFilter)}
-        />
-
-        <FilterDropdown
-          label="Sort"
-          options={SORT_OPTIONS}
-          value={sortOption}
-          onSelect={(value) => setSortOption(value as SortOption)}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search username or name…" className="max-w-sm flex-1" />
+        <FilterDropdown label="Role" options={ROLE_OPTIONS} value={roleFilter} onSelect={v => setRoleFilter(v as RoleFilter)} />
+        <FilterDropdown label="Provider" options={PROVIDER_OPTIONS} value={providerFilter} onSelect={v => setProviderFilter(v as ProviderFilter)} />
+        <FilterDropdown label="Sort" options={SORT_OPTIONS} value={sortOption} onSelect={v => setSortOption(v as SortOption)} />
       </div>
 
-      {/* Active filter context line */}
-      <p className="text-sm text-muted-foreground">
-        Showing{' '}
-        <span className="font-semibold text-foreground">
-          {roleFilter ? roleFilter : 'all'}
-        </span>{' '}
-        {providerFilter && (
-          <><span className="font-semibold text-foreground">{providerFilter}</span>{' '}</>
-        )}
-        users
-        {debouncedSearch && (
-          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
-        )}
-        {sortOption && (
-          <> · sorted by <span className="font-semibold text-foreground">{SORT_OPTIONS.find((o) => o.value === sortOption)?.label}</span></>
-        )}
-      </p>
-
-      {/* Error */}
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
       {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>User</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Provider</TableHead>
-            <TableHead>Created</TableHead>
-            {admin && <TableHead className="w-8">Enabled</TableHead>}
-            {admin && <TableHead className="w-28" />}
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {isLoading && (
-            <TableRow>
-              <TableCell
-                colSpan={admin ? 7 : 5}
-                className="py-10 text-center text-sm text-muted-foreground"
-              >
-                Loading…
-              </TableCell>
-            </TableRow>
-          )}
+      <div className="rounded-lg border">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No users'
+              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'user')}`}
+          </p>
+        </div>
 
-          {!isLoading && users.length === 0 && (
-            <TableRow>
-              <TableCell
-                colSpan={admin ? 7 : 5}
-                className="py-10 text-center"
-              >
-                {debouncedSearch || roleFilter || providerFilter
-                  ? <span className="text-sm text-muted-foreground">No users match your filters.</span>
-                  : <StrixEmpty message={<>No users yet. Click <strong>Add User</strong> to get started.</>} />}
-              </TableCell>
-            </TableRow>
-          )}
+        {/* Column headers */}
+        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provider</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
+          {admin && <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enabled</span>}
+          {admin && <span />}
+        </div>
 
-          {!isLoading &&
-            users.map((user) => (
-              <TableRow
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : users.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            {debouncedSearch || roleFilter || providerFilter
+              ? <span className="text-sm text-muted-foreground">No users match your filters.</span>
+              : <StrixEmpty message={<>No users yet. Click <strong>Add User</strong> to get started.</>} />}
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {users.map(user => (
+              <div
                 key={user.id}
-                className={!user.enabled ? 'opacity-50' : undefined}
+                className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 ${!user.enabled ? 'opacity-50' : ''}`}
               >
-                {/* User: full name (if set) + username */}
-                <TableCell>
+                {/* User */}
+                <div className="min-w-0">
                   {(user.firstName || user.lastName) && (
-                    <p className="font-medium">
+                    <p className="text-sm font-semibold truncate">
                       {[user.firstName, user.lastName].filter(Boolean).join(' ')}
                     </p>
                   )}
-                  <p className={user.firstName || user.lastName ? 'text-sm text-muted-foreground' : 'font-medium'}>
+                  <p className={`truncate ${user.firstName || user.lastName ? 'text-xs text-muted-foreground' : 'text-sm font-semibold'}`}>
                     {user.username}
                   </p>
-                </TableCell>
+                </div>
 
                 {/* Email */}
-                <TableCell className="text-sm text-muted-foreground">
-                  {user.email ?? <span className="text-muted-foreground/50">—</span>}
-                </TableCell>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm text-muted-foreground truncate block">
+                    {user.email ?? <span className="text-muted-foreground/50">—</span>}
+                  </span>
+                </div>
 
                 {/* Role */}
-                <TableCell>
-                  <span className="text-sm text-muted-foreground">
-                    {user.role === 'admin' ? 'Admin' : user.role === 'operator' ? 'Operator' : 'Viewer'}
-                  </span>
-                </TableCell>
+                <div className="pt-0.5">
+                  <RoleBadge role={user.role} />
+                </div>
 
                 {/* Provider */}
-                <TableCell>
-                  <span className="text-sm text-muted-foreground">
-                    {user.provider === 'oidc' ? 'OIDC' : 'Local'}
-                  </span>
-                </TableCell>
+                <div className="pt-0.5">
+                  <ProviderBadge provider={user.provider} />
+                </div>
 
                 {/* Created */}
-                <TableCell className="text-sm text-muted-foreground">
-                  {fmtDate(user.createdAt)}
-                </TableCell>
+                <div className="pt-0.5">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">{fmtDate(user.createdAt)}</span>
+                </div>
 
-                {/* Enabled toggle — admin only */}
+                {/* Enabled toggle */}
                 {admin && (
-                  <TableCell>
+                  <div className="pt-0.5">
                     <Switch
                       checked={user.enabled}
                       disabled={user.id === currentUserID}
                       onCheckedChange={() => handleToggleEnabled(user)}
                       aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
                     />
-                  </TableCell>
+                  </div>
                 )}
 
-                {/* Row actions — admin only */}
+                {/* Actions */}
                 {admin && (
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => setEditTarget(user)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit {user.username}</span>
-                      </Button>
-                      {user.provider === 'local' && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground"
-                          onClick={() => setPasswordTarget(user)}
-                        >
-                          <KeyRound className="h-4 w-4" />
-                          <span className="sr-only">Change password for {user.username}</span>
+                  <div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteTarget(user)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete {user.username}</span>
-                      </Button>
-                    </div>
-                  </TableCell>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEditTarget(user)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        {user.provider === 'local' && (
+                          <DropdownMenuItem onClick={() => setPasswordTarget(user)}>
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            Change Password
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteTarget(user)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
-              </TableRow>
+              </div>
             ))}
-        </TableBody>
-      </Table>
+          </div>
+        )}
+      </div>
 
-      {/* Pagination */}
       <TablePagination
         page={page}
         totalPages={totalPages}
@@ -749,11 +510,6 @@ export default function UsersPage() {
         noun="user"
       />
 
-      {/*
-        UserDialog is keyed so it remounts with fresh form state on every open:
-        – Add mode: addSeq increments on each click, giving a unique key.
-        – Edit mode: key is the user ID, so switching users also remounts.
-      */}
       <UserDialog
         key={editTarget ? editTarget.id : `add-${addSeq}`}
         user={editTarget}
@@ -761,19 +517,8 @@ export default function UsersPage() {
         onClose={handleCloseDialog}
         onSaved={refetch}
       />
-
-      {/* Keyed by user ID so it remounts (fresh password fields) for each user. */}
-      <ChangePasswordDialog
-        key={passwordTarget?.id}
-        user={passwordTarget}
-        onClose={() => setPasswordTarget(null)}
-      />
-
-      <DeleteDialog
-        user={deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onDeleted={refetch}
-      />
+      <ChangePasswordDialog key={passwordTarget?.id} user={passwordTarget} onClose={() => setPasswordTarget(null)} />
+      <DeleteDialog user={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={refetch} />
     </div>
   )
 }

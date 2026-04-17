@@ -1,19 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, MoreVertical } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   listTagCategories,
   createTagCategory,
@@ -43,7 +42,7 @@ function emptyStr(v: string | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
-// Category dialog (create + edit)
+// Category dialog
 // ---------------------------------------------------------------------------
 
 interface CategoryDialogProps {
@@ -55,67 +54,39 @@ interface CategoryDialogProps {
 
 function CategoryDialog({ open, initial, onClose, onSaved }: CategoryDialogProps) {
   const isEdit = Boolean(initial)
-  const [name, setName] = useState('')
+  const [name, setName]               = useState('')
   const [description, setDescription] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState('')
 
   useEffect(() => {
-    if (open) {
-      setName(initial?.name ?? '')
-      setDescription(emptyStr(initial?.description))
-      setError('')
-    }
+    if (open) { setName(initial?.name ?? ''); setDescription(emptyStr(initial?.description)); setError('') }
   }, [open, initial])
 
   async function handleSubmit() {
     if (!name.trim()) { setError('Name is required'); return }
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true); setError('')
     try {
-      if (isEdit && initial) {
-        await updateTagCategory(initial.id, name.trim(), description.trim() || null)
-      } else {
-        await createTagCategory(name.trim(), description.trim() || undefined)
-      }
-      onSaved()
-      onClose()
+      if (isEdit && initial) await updateTagCategory(initial.id, name.trim(), description.trim() || null)
+      else await createTagCategory(name.trim(), description.trim() || undefined)
+      onSaved(); onClose()
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Failed to save category')
-    } finally {
-      setSubmitting(false)
-    }
+    } finally { setSubmitting(false) }
   }
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Category' : 'New Category'}</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? 'Edit Category' : 'New Category'}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
             <Label htmlFor="cat-name">Name</Label>
-            <Input
-              id="cat-name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              placeholder="e.g. Environment"
-              autoFocus
-            />
+            <Input id="cat-name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} placeholder="e.g. Environment" autoFocus />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cat-desc">
-              Description <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Textarea
-              id="cat-desc"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="e.g. Deployment environment this endpoint belongs to"
-              rows={2}
-            />
+            <Label htmlFor="cat-desc">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Textarea id="cat-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Deployment environment this endpoint belongs to" rows={2} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
@@ -131,7 +102,7 @@ function CategoryDialog({ open, initial, onClose, onSaved }: CategoryDialogProps
 }
 
 // ---------------------------------------------------------------------------
-// Tag dialog (create + edit)
+// Tag dialog
 // ---------------------------------------------------------------------------
 
 interface TagDialogProps {
@@ -145,11 +116,11 @@ interface TagDialogProps {
 
 function TagDialog({ open, initial, categories, defaultCategoryId, onClose, onSaved }: TagDialogProps) {
   const isEdit = Boolean(initial)
-  const [categoryId, setCategoryId] = useState('')
-  const [name, setName] = useState('')
+  const [categoryId, setCategoryId]   = useState('')
+  const [name, setName]               = useState('')
   const [description, setDescription] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState('')
 
   useEffect(() => {
     if (open) {
@@ -163,40 +134,24 @@ function TagDialog({ open, initial, categories, defaultCategoryId, onClose, onSa
   async function handleSubmit() {
     if (!name.trim()) { setError('Name is required'); return }
     if (!categoryId) { setError('Category is required'); return }
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true); setError('')
     try {
-      if (isEdit && initial) {
-        await updateTag(initial.id, name.trim(), description.trim() || null)
-      } else {
-        await createTag(categoryId, name.trim(), description.trim() || undefined)
-      }
-      onSaved()
-      onClose()
+      if (isEdit && initial) await updateTag(initial.id, name.trim(), description.trim() || null)
+      else await createTag(categoryId, name.trim(), description.trim() || undefined)
+      onSaved(); onClose()
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Failed to save tag')
-    } finally {
-      setSubmitting(false)
-    }
+    } finally { setSubmitting(false) }
   }
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Tag' : 'New Tag'}</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? 'Edit Tag' : 'New Tag'}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
             <Label htmlFor="tag-name">Name</Label>
-            <Input
-              id="tag-name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              placeholder="e.g. Production"
-              autoFocus
-            />
+            <Input id="tag-name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} placeholder="e.g. Production" autoFocus />
           </div>
           {!isEdit && (
             <div className="space-y-1.5">
@@ -207,23 +162,13 @@ function TagDialog({ open, initial, categories, defaultCategoryId, onClose, onSa
                 onChange={e => setCategoryId(e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="tag-desc">
-              Description <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Textarea
-              id="tag-desc"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="e.g. Live production environment"
-              rows={2}
-            />
+            <Label htmlFor="tag-desc">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Textarea id="tag-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Live production environment" rows={2} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
@@ -261,9 +206,7 @@ function DeleteDialog({ open, label, warning, onClose, onConfirm }: DeleteDialog
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete "{label}"?</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Delete "{label}"?</DialogTitle></DialogHeader>
         {warning && <p className="text-sm text-muted-foreground">{warning}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={deleting}>Cancel</Button>
@@ -277,8 +220,11 @@ function DeleteDialog({ open, label, warning, onClose, onConfirm }: DeleteDialog
 }
 
 // ---------------------------------------------------------------------------
-// Tags table
+// Tags grid
 // ---------------------------------------------------------------------------
+
+const TAGS_GRID = 'grid-cols-[1.5fr_1fr_2fr_2.5rem]'
+const TAGS_GRID_READONLY = 'grid-cols-[1.5fr_1fr_2fr]'
 
 interface TagsTableProps {
   categories: CategoryWithTags[]
@@ -291,10 +237,8 @@ interface TagsTableProps {
 }
 
 function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isLoading }: TagsTableProps) {
-  // Flatten all tags with their category name for the table
-  const rows = categories.flatMap(cat =>
-    cat.tags.map(tag => ({ ...tag, categoryName: cat.name }))
-  )
+  const rows = categories.flatMap(cat => cat.tags.map(tag => ({ ...tag, categoryName: cat.name })))
+  const grid = admin ? TAGS_GRID : TAGS_GRID_READONLY
 
   return (
     <div className="space-y-4">
@@ -306,66 +250,65 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isL
           </Button>
         </div>
       )}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Description</TableHead>
-            {admin && <TableHead className="w-20" />}
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={admin ? 4 : 3} className="py-10 text-center">
-                <StrixEmpty message="No tags yet." />
-              </TableCell>
-            </TableRow>
-          ) : (
-            rows.map(tag => (
-              <TableRow key={tag.id}>
-                <TableCell className="font-medium">{tag.name}</TableCell>
-                <TableCell className="text-muted-foreground">{tag.categoryName}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {tag.description ?? <span className="italic text-muted-foreground/50">—</span>}
-                </TableCell>
+      <div className="rounded-lg border">
+        <div className={`grid ${grid} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>
+          {admin && <span />}
+        </div>
+        {rows.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            <StrixEmpty message="No tags yet." />
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {rows.map(tag => (
+              <div key={tag.id} className={`grid ${grid} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm font-semibold truncate block">{tag.name}</span>
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm text-muted-foreground truncate block">{tag.categoryName}</span>
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm text-muted-foreground truncate block">
+                    {tag.description ?? <span className="italic text-muted-foreground/50">—</span>}
+                  </span>
+                </div>
                 {admin && (
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => onEdit(tag)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit {tag.name}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => onDelete(tag, tag.categoryName)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete {tag.name}</span>
-                      </Button>
-                    </div>
-                  </TableCell>
+                  <div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(tag)}>
+                          <Pencil className="mr-2 h-4 w-4" />Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(tag, tag.categoryName)}>
+                          <Trash2 className="mr-2 h-4 w-4" />Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Categories table
+// Categories grid
 // ---------------------------------------------------------------------------
+
+const CATS_GRID = 'grid-cols-[1.5fr_3fr_2.5rem]'
+const CATS_GRID_READONLY = 'grid-cols-[1.5fr_3fr]'
 
 interface CategoriesTableProps {
   categories: CategoryWithTags[]
@@ -378,6 +321,8 @@ interface CategoriesTableProps {
 }
 
 function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isLoading }: CategoriesTableProps) {
+  const grid = admin ? CATS_GRID : CATS_GRID_READONLY
+
   return (
     <div className="space-y-4">
       {admin && (
@@ -388,57 +333,51 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetchin
           </Button>
         </div>
       )}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Description</TableHead>
-            {admin && <TableHead className="w-20" />}
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {categories.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={admin ? 3 : 2} className="py-10 text-center">
-                <StrixEmpty message="No categories yet." />
-              </TableCell>
-            </TableRow>
-          ) : (
-            categories.map(cat => (
-              <TableRow key={cat.id}>
-                <TableCell className="font-medium">{cat.name}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {cat.description ?? <span className="italic text-muted-foreground/50">—</span>}
-                </TableCell>
+      <div className="rounded-lg border">
+        <div className={`grid ${grid} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>
+          {admin && <span />}
+        </div>
+        {categories.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            <StrixEmpty message="No categories yet." />
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {categories.map(cat => (
+              <div key={cat.id} className={`grid ${grid} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm font-semibold truncate block">{cat.name}</span>
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm text-muted-foreground truncate block">
+                    {cat.description ?? <span className="italic text-muted-foreground/50">—</span>}
+                  </span>
+                </div>
                 {admin && (
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => onEdit(cat)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Edit {cat.name}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => onDelete(cat)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete {cat.name}</span>
-                      </Button>
-                    </div>
-                  </TableCell>
+                  <div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(cat)}>
+                          <Pencil className="mr-2 h-4 w-4" />Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(cat)}>
+                          <Trash2 className="mr-2 h-4 w-4" />Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -451,17 +390,10 @@ type TabValue = 'tags' | 'categories'
 
 export default function TagsPage() {
   const [tab, setTab] = useState<TabValue>('tags')
-
-  // Tag dialog state
-  const [tagDialog, setTagDialog] = useState<{ open: boolean; tag?: Tag | null }>({ open: false })
-  // Category dialog state
-  const [catDialog, setCatDialog] = useState<{ open: boolean; cat?: TagCategory | null }>({ open: false })
-  // Delete dialog state
+  const [tagDialog, setTagDialog]   = useState<{ open: boolean; tag?: Tag | null }>({ open: false })
+  const [catDialog, setCatDialog]   = useState<{ open: boolean; cat?: TagCategory | null }>({ open: false })
   const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean
-    label: string
-    warning?: string
-    onConfirm: () => Promise<void>
+    open: boolean; label: string; warning?: string; onConfirm: () => Promise<void>
   }>({ open: false, label: '', onConfirm: async () => {} })
 
   const admin = can('tags:edit')
@@ -480,17 +412,12 @@ export default function TagsPage() {
   if (isLoading) return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
   if (fetchError) return <div className="py-8 text-center text-sm text-destructive">{fetchError.message}</div>
 
-  // Flatten categories to TagCategory[] for the tag dialog dropdown
   const categoryList: TagCategory[] = categories.map(c => ({
-    id: c.id,
-    name: c.name,
-    description: c.description ?? null,
-    createdAt: c.createdAt,
+    id: c.id, name: c.name, description: c.description ?? null, createdAt: c.createdAt,
   }))
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold">Tags</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
@@ -498,31 +425,21 @@ export default function TagsPage() {
         </p>
       </div>
 
-      {/* Tab switcher */}
       <div className="inline-flex rounded-md border overflow-hidden">
         <button
           onClick={() => setTab('tags')}
-          className={`px-5 py-1.5 text-sm font-medium transition-colors ${
-            tab === 'tags'
-              ? 'bg-foreground text-background'
-              : 'bg-background text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-5 py-1.5 text-sm font-medium transition-colors ${tab === 'tags' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground'}`}
         >
           Tags
         </button>
         <button
           onClick={() => setTab('categories')}
-          className={`px-5 py-1.5 text-sm font-medium border-l transition-colors ${
-            tab === 'categories'
-              ? 'bg-foreground text-background'
-              : 'bg-background text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-5 py-1.5 text-sm font-medium border-l transition-colors ${tab === 'categories' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground'}`}
         >
           Categories
         </button>
       </div>
 
-      {/* Tables */}
       {tab === 'tags' ? (
         <TagsTable
           categories={categories}
@@ -533,7 +450,7 @@ export default function TagsPage() {
           onEdit={tag => setTagDialog({ open: true, tag })}
           onDelete={(tag, _catName) => openDeleteDialog(
             tag.name,
-            `This will remove the tag from all endpoints it is currently assigned to.`,
+            'This will remove the tag from all endpoints it is currently assigned to.',
             async () => { await deleteTag(tag.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
           )}
         />
@@ -547,13 +464,12 @@ export default function TagsPage() {
           onEdit={cat => setCatDialog({ open: true, cat })}
           onDelete={cat => openDeleteDialog(
             cat.name,
-            `This will also delete all tags in this category and remove them from any endpoints.`,
+            'This will also delete all tags in this category and remove them from any endpoints.',
             async () => { await deleteTagCategory(cat.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
           )}
         />
       )}
 
-      {/* Dialogs */}
       <TagDialog
         open={tagDialog.open}
         initial={tagDialog.tag}
@@ -561,14 +477,12 @@ export default function TagsPage() {
         onClose={() => setTagDialog({ open: false })}
         onSaved={refetch}
       />
-
       <CategoryDialog
         open={catDialog.open}
         initial={catDialog.cat}
         onClose={() => setCatDialog({ open: false })}
         onSaved={refetch}
       />
-
       <DeleteDialog
         open={deleteDialog.open}
         label={deleteDialog.label}
