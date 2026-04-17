@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
-import { ExternalLink, EyeOff, Trash2, Plus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { EyeOff, Trash2, Plus } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import FilterDropdown from '@/components/FilterDropdown'
 import TablePagination from '@/components/TablePagination'
@@ -40,11 +40,13 @@ import type { DiscoveryInboxItem } from '@/types/api'
 
 const STATUS_DOT: Record<string, string> = {
   new:       'bg-blue-500',
+  promoted:  'bg-green-500',
   dismissed: 'bg-muted-foreground/40',
 }
 
 const STATUS_LABEL: Record<string, string> = {
   new:       'New',
+  promoted:  'Promoted',
   dismissed: 'Dismissed',
 }
 
@@ -261,18 +263,19 @@ export default function DiscoveryInboxPage() {
                 {item.networkName ?? <span className="text-muted-foreground italic">—</span>}
               </TableCell>
               <TableCell className="text-sm">
-                {item.fingerprint ? (
+                {item.commonName ? (
                   <div className="flex flex-col gap-0.5">
-                    {item.commonName && (
-                      <span className="text-foreground">{item.commonName}</span>
+                    <span className="text-foreground">{item.commonName}</span>
+                    {item.notAfter && (
+                      <span className="text-xs text-muted-foreground">
+                        Expires {new Date(item.notAfter).toLocaleDateString()}
+                      </span>
                     )}
-                    <Link
-                      to={`/certificates/${item.fingerprint}`}
-                      className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      {shortFingerprint(item.fingerprint)}…
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
+                    {item.fingerprint && (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {shortFingerprint(item.fingerprint)}…
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <span className="text-muted-foreground italic">—</span>
