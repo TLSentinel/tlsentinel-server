@@ -14,6 +14,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
@@ -91,18 +92,7 @@ func (h *Handler) Expiring(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/active [get]
 func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	name := r.URL.Query().Get("name")
 	status := r.URL.Query().Get("status")
@@ -135,18 +125,7 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	commonName := r.URL.Query().Get("common_name")
 	status := r.URL.Query().Get("status")

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
-	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
@@ -344,17 +344,7 @@ func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /users [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	search := r.URL.Query().Get("search")
 	role := r.URL.Query().Get("role")
