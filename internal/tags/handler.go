@@ -211,14 +211,15 @@ func (h *Handler) GetEndpointTags(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Set endpoint tags
-// @Description  Replaces all tags on an endpoint
+// @Description  Replaces all tags on an endpoint. Returns the updated tag list.
 // @Tags         tags
 // @Accept       json
-// @Param        endpointID  path  string                       true  "Endpoint ID"
-// @Param        body        body  models.SetEndpointTagsRequest  true  "Tag IDs"
-// @Success      204
-// @Failure      400  {string}  string  "bad request"
-// @Failure      500  {string}  string  "internal server error"
+// @Produce      json
+// @Param        endpointID  path      string                         true  "Endpoint ID"
+// @Param        body        body      models.SetEndpointTagsRequest  true  "Tag IDs"
+// @Success      200         {array}   models.TagWithCategory
+// @Failure      400         {string}  string  "bad request"
+// @Failure      500         {string}  string  "internal server error"
 // @Router       /endpoints/{endpointID}/tags [put]
 func (h *Handler) SetEndpointTags(w http.ResponseWriter, r *http.Request) {
 	endpointID := chi.URLParam(r, "endpointID")
@@ -240,5 +241,11 @@ func (h *Handler) SetEndpointTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to set endpoint tags", http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+
+	tags, err := h.store.GetEndpointTags(r.Context(), endpointID)
+	if err != nil {
+		http.Error(w, "failed to load endpoint tags", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, tags)
 }
