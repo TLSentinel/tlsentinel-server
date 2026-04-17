@@ -14,7 +14,7 @@ import (
 
 
 // Authenticate is Chi middleware that validates bearer tokens.
-// It handles JWTs (users), scanner tokens (stx_s_ or legacy scanner_ prefix), and API keys (stx_p_ prefix).
+// It handles JWTs (users), scanner tokens (stx_s_ prefix), and API keys (stx_p_ prefix).
 // Returns 401 immediately on failure.
 func Authenticate(store *db.Store, cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -137,26 +137,10 @@ func verifyAPIKey(ctx context.Context, store *db.Store, raw string) (Identity, e
 }
 
 func verifyScannerToken(ctx context.Context, store *db.Store, raw string) (Identity, error) {
-	// stx_s_ tokens: SHA-256 hash → single indexed lookup, no bcrypt overhead.
-	if strings.HasPrefix(raw, ScannerTokenPrefix) {
-		t, err := store.GetScannerTokenByHash(ctx, db.HashAPIKey(raw))
-		if err != nil {
-			return Identity{}, fmt.Errorf("invalid scanner token")
-		}
-		_ = store.TouchScannerToken(ctx, t.ID)
-		return Identity{Kind: KindScanner, ScannerID: t.ID}, nil
-	}
-
-	// Legacy scanner_ tokens: bcrypt comparison against all stored hashes.
-	tokens, err := store.GetAllScannerTokenHashes(ctx)
+	t, err := store.GetScannerTokenByHash(ctx, db.HashAPIKey(raw))
 	if err != nil {
-		return Identity{}, fmt.Errorf("failed to load scanner tokens: %w", err)
+		return Identity{}, fmt.Errorf("invalid scanner token")
 	}
-	for _, t := range tokens {
-		if CheckScannerToken(raw, t.TokenHash) {
-			_ = store.TouchScannerToken(ctx, t.ID)
-			return Identity{Kind: KindScanner, ScannerID: t.ID}, nil
-		}
-	}
-	return Identity{}, fmt.Errorf("no matching scanner token")
+	_ = store.TouchScannerToken(ctx, t.ID)
+	return Identity{Kind: KindScanner, ScannerID: t.ID}, nil
 }

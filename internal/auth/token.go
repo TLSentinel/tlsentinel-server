@@ -6,16 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
 
-// ScannerTokenPrefix is the prefix used for newly issued scanner tokens.
+// ScannerTokenPrefix is the prefix used for scanner tokens.
 const ScannerTokenPrefix = "stx_s_"
-
-// legacyScannerTokenPrefix is the old prefix, still accepted for existing tokens.
-const legacyScannerTokenPrefix = "scanner_"
 
 // APIKeyPrefix is the prefix for all user API keys.
 const APIKeyPrefix = "stx_p_"
@@ -31,17 +26,9 @@ func GenerateScannerToken() (raw string, hash string, err error) {
 	return raw, db.HashAPIKey(raw), nil
 }
 
-// IsScannerToken returns true if the token looks like a scanner token.
-// Accepts both the current stx_s_ prefix and the legacy scanner_ prefix.
+// IsScannerToken returns true if the token has the scanner token prefix.
 func IsScannerToken(token string) bool {
-	return strings.HasPrefix(token, ScannerTokenPrefix) ||
-		strings.HasPrefix(token, legacyScannerTokenPrefix)
-}
-
-// CheckScannerToken compares a raw token against a bcrypt hash.
-// Used only for legacy scanner_ tokens.
-func CheckScannerToken(raw, hash string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(raw)) == nil
+	return strings.HasPrefix(token, ScannerTokenPrefix)
 }
 
 // GenerateAPIKey creates a new user API key.

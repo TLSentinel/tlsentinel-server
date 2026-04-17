@@ -22,30 +22,6 @@ func scannerToResponse(s Scanner) models.ScannerTokenResponse {
 	}
 }
 
-// GetAllScannerTokenHashes returns the minimal scanner data needed for auth middleware.
-func (s *Store) GetAllScannerTokenHashes(ctx context.Context) ([]models.ScannerToken, error) {
-	var rows []Scanner
-	err := s.db.NewSelect().
-		Model(&rows).
-		ColumnExpr("id, name, token_hash, created_at, last_used_at").
-		Scan(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get scanner token hashes: %w", err)
-	}
-
-	result := make([]models.ScannerToken, len(rows))
-	for i, r := range rows {
-		result[i] = models.ScannerToken{
-			ID:         r.ID,
-			Name:       r.Name,
-			TokenHash:  r.TokenHash,
-			CreatedAt:  r.CreatedAt,
-			LastUsedAt: r.LastUsedAt,
-		}
-	}
-	return result, nil
-}
-
 // GetScannerTokenByHash looks up a scanner by its SHA-256 token hash.
 // Used for fast O(1) auth of stx_s_ prefixed tokens.
 func (s *Store) GetScannerTokenByHash(ctx context.Context, hash string) (models.ScannerToken, error) {
