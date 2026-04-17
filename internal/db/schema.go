@@ -293,6 +293,8 @@ type VActiveCertificate struct {
 	CertUse       string    `bun:"cert_use"`
 	Fingerprint   string    `bun:"fingerprint"`
 	CommonName    string    `bun:"common_name"`
+	SANs          []string  `bun:"sans,array"`
+	IssuerCN      string    `bun:"issuer_cn"`
 	NotBefore     time.Time `bun:"not_before"`
 	NotAfter      time.Time `bun:"not_after"`
 	DaysRemaining int       `bun:"days_remaining"`

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, FolderOpen } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
@@ -8,13 +8,12 @@ import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -31,16 +30,15 @@ import { can } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
-import { ExpiryStatus } from '@/components/CertCard'
-import { useQuery, keepPreviousData } from "@tanstack/react-query"
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Filter / sort options
 // ---------------------------------------------------------------------------
 
-type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
+type CertStatus   = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
-type SortOption = '' | 'expiry_asc' | 'expiry_desc' | 'common_name'
+type SortOption   = '' | 'expiry_asc' | 'expiry_desc' | 'common_name'
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: '',         label: 'All' },
@@ -57,6 +55,186 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'common_name', label: 'Common name A→Z' },
 ]
 
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+type SignalColor = 'neutral' | 'green' | 'amber' | 'red'
+
+const SIGNAL_BORDER: Record<SignalColor, string> = {
+  neutral: 'border-l-foreground/20',
+  green:   'border-l-green-500',
+  amber:   'border-l-amber-500',
+  red:     'border-l-red-500',
+}
+
+const SIGNAL_VALUE: Record<SignalColor, string> = {
+  neutral: 'text-foreground',
+  green:   'text-green-600',
+  amber:   'text-amber-600',
+  red:     'text-red-600',
+}
+
+interface StatCardProps {
+  icon: React.ReactNode
+  label: string
+  value: number | string
+  signal?: SignalColor
+  active?: boolean
+  onClick?: () => void
+}
+
+function StatCard({ icon, label, value, signal = 'neutral', active, onClick }: StatCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3 transition-colors ${onClick ? 'cursor-pointer hover:bg-muted/40' : 'cursor-default'} ${active ? 'bg-muted/40 ring-1 ring-inset ring-border' : ''}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className={`shrink-0 ${SIGNAL_VALUE[signal]}`}>{icon}</span>
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      </div>
+      <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Days-left badge
+// ---------------------------------------------------------------------------
+
+function DaysLeftBadge({ notAfter }: { notAfter: string }) {
+  const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
+  if (days < 0) {
+    return (
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
+        EXPIRED
+      </span>
+    )
+  }
+  if (days <= 7) {
+    return (
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
+        {days} DAYS
+      </span>
+    )
+  }
+  if (days <= 30) {
+    return (
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 whitespace-nowrap">
+        {days} DAYS
+      </span>
+    )
+  }
+  return (
+    <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-muted text-muted-foreground whitespace-nowrap">
+      {days} DAYS
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Row
+// ---------------------------------------------------------------------------
+
+const ROW_GRID = 'grid-cols-[2fr_2.5fr_7rem_8rem_7rem_2.5rem]'
+
+interface CertRowProps {
+  cert: CertificateListItem
+  admin: boolean
+  onDelete: (cert: CertificateListItem) => void
+}
+
+function CertRow({ cert, admin, onDelete }: CertRowProps) {
+  const navigate = useNavigate()
+  const isWildcard = cert.commonName.startsWith('*.') || cert.sans.some(s => s.startsWith('*.'))
+  const sansDisplay = cert.sans.length === 0
+    ? '—'
+    : cert.sans.slice(0, 3).join(', ') + (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')
+
+  return (
+    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+
+      {/* Common Name */}
+      <div className="min-w-0">
+        <Link
+          to={`/certificates/${cert.fingerprint}`}
+          className="text-sm font-semibold hover:underline truncate block pt-0.5"
+        >
+          {cert.commonName || '—'}
+        </Link>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {isWildcard && (
+            <span className="inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase bg-muted text-violet-500 dark:text-violet-400">
+              Wildcard
+            </span>
+          )}
+          {cert.sans.length > 1 && (
+            <span className="inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase bg-muted text-muted-foreground">
+              {cert.sans.length} SANs
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* SANs */}
+      <div className="min-w-0 pt-0.5">
+        <span className="text-sm text-muted-foreground truncate block" title={cert.sans.join(', ')}>
+          {sansDisplay}
+        </span>
+      </div>
+
+      {/* Issued */}
+      <div className="pt-0.5">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          {fmtDate(cert.notBefore)}
+        </span>
+      </div>
+
+      {/* Expires */}
+      <div className="pt-0.5">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          {fmtDate(cert.notAfter)}
+        </span>
+      </div>
+
+      {/* Days left */}
+      <div className="pt-0.5">
+        <DaysLeftBadge notAfter={cert.notAfter} />
+      </div>
+
+      {/* Actions */}
+      <div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate(`/certificates/${cert.fingerprint}`)}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View Certificate
+            </DropdownMenuItem>
+            {admin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => onDelete(cert)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Ingest Dialog
@@ -97,7 +275,6 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
     }
     reader.onerror = () => setError('Failed to read file.')
     reader.readAsText(file)
-    // reset so the same file can be re-selected if needed
     e.target.value = ''
   }
 
@@ -238,7 +415,7 @@ function DeleteDialog({ cert, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Main Page
+// Page
 // ---------------------------------------------------------------------------
 
 const PAGE_SIZE = 20
@@ -246,21 +423,16 @@ const PAGE_SIZE = 20
 export default function CertificatesPage() {
   const admin = can('certs:edit')
   const navigate = useNavigate()
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [page, setPage]                       = useState(1)
+  const [search, setSearch]                   = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
-  const [sortOption, setSortOption] = useState<SortOption>('')
+  const [statusFilter, setStatusFilter]       = useState<StatusFilter>('')
+  const [sortOption, setSortOption]           = useState<SortOption>('')
+  const [deleteTarget, setDeleteTarget]       = useState<CertificateListItem | null>(null)
+  const [ingestOpen, setIngestOpen]           = useState(false)
 
-  const [deleteTarget, setDeleteTarget] = useState<CertificateListItem | null>(null)
-  const [ingestOpen, setIngestOpen] = useState(false)
-
-  // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search)
-      setPage(1)
-    }, 400)
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
     return () => clearTimeout(t)
   }, [search])
 
@@ -270,31 +442,34 @@ export default function CertificatesPage() {
     placeholderData: keepPreviousData,
   })
 
-  const certs = data?.items ?? []
+  const { data: totalData }    = useQuery({ queryKey: ['certs-count', 'all'],      queryFn: () => listCertificates(1, 1, '', '', '') })
+  const { data: expiredData }  = useQuery({ queryKey: ['certs-count', 'expired'],  queryFn: () => listCertificates(1, 1, '', 'expired',  '') })
+  const { data: criticalData } = useQuery({ queryKey: ['certs-count', 'critical'], queryFn: () => listCertificates(1, 1, '', 'critical', '') })
+  const { data: warningData }  = useQuery({ queryKey: ['certs-count', 'warning'],  queryFn: () => listCertificates(1, 1, '', 'warning',  '') })
+
+  const totalAll     = totalData?.totalCount    ?? null
+  const totalExpired = expiredData?.totalCount  ?? null
+  const totalCrit    = criticalData?.totalCount ?? null
+  const totalWarn    = warningData?.totalCount  ?? null
+
+  const certs      = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
-
-  function handleStatusChange(value: StatusFilter) {
-    setStatusFilter(value)
-    setPage(1)
-  }
-
-  function handleSortChange(value: SortOption) {
-    setSortOption(value)
-    setPage(1)
-  }
-
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
-  const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Newest first'
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
+
+  function handleStatusChange(value: StatusFilter) { setStatusFilter(value); setPage(1) }
+  function handleSortChange(value: SortOption)      { setSortOption(value);   setPage(1) }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Certificates</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} {plural(totalCount, 'certificate')} stored
+            All certificates stored across monitored endpoints.
           </p>
         </div>
         {admin && (
@@ -305,116 +480,111 @@ export default function CertificatesPage() {
         )}
       </div>
 
-      {/* Search + filters */}
-      <div className="flex items-center gap-2">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard
+          icon={<Shield className="h-4 w-4" />}
+          label="Total"
+          value={totalAll ?? '—'}
+          signal="neutral"
+          active={statusFilter === ''}
+          onClick={() => handleStatusChange('')}
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="Expiring ≤30d"
+          value={totalWarn ?? '—'}
+          signal={totalWarn === null ? 'neutral' : totalWarn === 0 ? 'green' : 'amber'}
+          active={statusFilter === 'warning'}
+          onClick={() => handleStatusChange('warning')}
+        />
+        <StatCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Critical ≤7d"
+          value={totalCrit ?? '—'}
+          signal={totalCrit === null ? 'neutral' : totalCrit === 0 ? 'green' : 'red'}
+          active={statusFilter === 'critical'}
+          onClick={() => handleStatusChange('critical')}
+        />
+        <StatCard
+          icon={<ShieldOff className="h-4 w-4" />}
+          label="Expired"
+          value={totalExpired ?? '—'}
+          signal={totalExpired === null ? 'neutral' : totalExpired === 0 ? 'green' : 'red'}
+          active={statusFilter === 'expired'}
+          onClick={() => handleStatusChange('expired')}
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search common name…"
+          placeholder="Search common name or SAN…"
           className="max-w-sm flex-1"
         />
-
         <FilterDropdown
           label="Status"
           options={STATUS_OPTIONS}
           value={statusFilter}
-          onSelect={(value) => handleStatusChange(value as StatusFilter)}
+          onSelect={v => handleStatusChange(v as StatusFilter)}
         />
-
         <FilterDropdown
           label="Sort"
           options={SORT_OPTIONS}
           value={sortOption}
-          onSelect={(value) => handleSortChange(value as SortOption)}
+          onSelect={v => handleSortChange(v as SortOption)}
         />
       </div>
 
-      {/* Active filter context line */}
-      <p className="text-sm text-muted-foreground">
-        Showing results for{' '}
-        <span className="font-semibold text-foreground">{activeStatusLabel.toLowerCase()}</span>
-        {debouncedSearch && (
-          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
-        )}
-        {' · '}sorted by{' '}
-        <span className="font-semibold text-foreground">{activeSortLabel.toLowerCase()}</span>
-      </p>
-
-      {/* Error */}
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Common Name</TableHead>
-            <TableHead>SANs</TableHead>
-            <TableHead className="w-28">Status</TableHead>
-            <TableHead>Issued</TableHead>
-            <TableHead>Expires</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {isLoading && (
-            <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                Loading…
-              </TableCell>
-            </TableRow>
-          )}
+      <div className="rounded-lg border">
 
-          {!isLoading && certs.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center">
-                {debouncedSearch || statusFilter
-                  ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                  : <StrixEmpty message="No certificates yet." />}
-              </TableCell>
-            </TableRow>
-          )}
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No certificates'
+              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'certificate')}`}
+          </p>
+        </div>
 
-          {!isLoading &&
-            certs.map((cert) => (
-              <TableRow
+        {/* Column headers */}
+        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">SANs</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issued</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expires</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
+          <span />
+        </div>
+
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : certs.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            {debouncedSearch || statusFilter
+              ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+              : <StrixEmpty message="No certificates yet." />}
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {certs.map(cert => (
+              <CertRow
                 key={cert.fingerprint}
-                className="cursor-pointer"
-                onClick={() => navigate(`/certificates/${cert.fingerprint}`)}
-              >
-                <TableCell className="font-medium">{cert.commonName || '—'}</TableCell>
-                <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                  {cert.sans.length === 0
-                    ? '—'
-                    : cert.sans.slice(0, 3).join(', ') +
-                      (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
-                </TableCell>
-                <TableCell>
-                  <ExpiryStatus notAfter={cert.notAfter} />
-                </TableCell>
-                <TableCell>{fmtDate(cert.notBefore)}</TableCell>
-                <TableCell>{fmtDate(cert.notAfter)}</TableCell>
-                <TableCell>
-                  {admin && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTarget(cert)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete</span>
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
+                cert={cert}
+                admin={admin}
+                onDelete={setDeleteTarget}
+              />
             ))}
-        </TableBody>
-      </Table>
+          </div>
+        )}
+      </div>
 
-      {/* Pagination */}
       <TablePagination
         page={page}
         totalPages={totalPages}
@@ -424,7 +594,6 @@ export default function CertificatesPage() {
         noun="certificate"
       />
 
-      {/* Dialogs */}
       <IngestDialog
         open={ingestOpen}
         onClose={() => setIngestOpen(false)}

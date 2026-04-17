@@ -49,6 +49,17 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 		TLS10: proto.TLS10,
 	}
 
+	// ── Legacy endpoint count (tls10 OR tls11, deduplicated) ──────────────
+	var legacyCount int
+	if err := s.db.NewSelect().
+		TableExpr("tlsentinel.endpoint_tls_profiles").
+		ColumnExpr("COUNT(*) FILTER (WHERE tls10 OR tls11)").
+		Where("scan_error IS NULL").
+		Scan(ctx, &legacyCount); err != nil {
+		return report, fmt.Errorf("reports: legacy count: %w", err)
+	}
+	report.LegacyEndpoints = legacyCount
+
 	// ── Cipher distribution (all supported ciphers per endpoint) ────────────
 	// Unnest cipher_suites so every cipher an endpoint *accepts* is counted,
 	// not just the one that happened to be negotiated on the last scan.

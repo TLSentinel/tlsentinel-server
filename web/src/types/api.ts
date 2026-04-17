@@ -486,6 +486,7 @@ export interface TLSPostureReport {
   scannedEndpoints: number
   weakCipherEndpoints: number
   protocols: TLSProtocolCounts
+  legacyEndpoints: number
   ciphers: TLSCipherCount[]
   issuers: TLSIssuerCount[]
   attention: TLSAttentionItem[]

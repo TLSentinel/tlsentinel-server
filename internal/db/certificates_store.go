@@ -71,12 +71,18 @@ func (s *Store) ListAllActiveCerts(ctx context.Context, page, pageSize int, sear
 
 	items := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
+		sans := r.SANs
+		if sans == nil {
+			sans = []string{}
+		}
 		items[i] = models.ExpiringCertItem{
 			EndpointID:    r.EndpointID,
 			EndpointName:  r.EndpointName,
 			EndpointType:  r.EndpointType,
 			Fingerprint:   r.Fingerprint,
 			CommonName:    r.CommonName,
+			SANs:          sans,
+			IssuerCN:      r.IssuerCN,
 			NotAfter:      r.NotAfter,
 			DaysRemaining: r.DaysRemaining,
 			Tags:          []models.TagWithCategory{},
@@ -145,12 +151,18 @@ func (s *Store) ListExpiringCerts(ctx context.Context, daysRemaining int) ([]mod
 
 	items := make([]models.ExpiringCertItem, len(rows))
 	for i, r := range rows {
+		sans := r.SANs
+		if sans == nil {
+			sans = []string{}
+		}
 		items[i] = models.ExpiringCertItem{
 			EndpointID:    r.EndpointID,
 			EndpointName:  r.EndpointName,
 			EndpointType:  r.EndpointType,
 			Fingerprint:   r.Fingerprint,
 			CommonName:    r.CommonName,
+			SANs:          sans,
+			IssuerCN:      r.IssuerCN,
 			NotAfter:      r.NotAfter,
 			DaysRemaining: r.DaysRemaining,
 		}

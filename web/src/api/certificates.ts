@@ -13,6 +13,8 @@ export interface ExpiringCertItem {
   endpointType: string
   fingerprint: string
   commonName: string
+  sans: string[]
+  issuerCn: string
   notAfter: string
   daysRemaining: number
   tags: TagWithCategory[]

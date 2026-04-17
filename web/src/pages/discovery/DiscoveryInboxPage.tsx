@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { EyeOff, Trash2, Plus } from 'lucide-react'
+import { EyeOff, Trash2, Plus, MoreVertical, Lock, ShieldOff, RefreshCw } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import FilterDropdown from '@/components/FilterDropdown'
 import TablePagination from '@/components/TablePagination'
@@ -9,20 +9,19 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   listDiscoveryInbox,
   listDiscoveryNetworks,
@@ -35,44 +34,113 @@ import { ApiError } from '@/types/api'
 import type { DiscoveryInboxItem } from '@/types/api'
 
 // ---------------------------------------------------------------------------
-// Status indicator
-// ---------------------------------------------------------------------------
-
-const STATUS_DOT: Record<string, string> = {
-  new:       'bg-blue-500',
-  promoted:  'bg-green-500',
-  dismissed: 'bg-muted-foreground/40',
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  new:       'New',
-  promoted:  'Promoted',
-  dismissed: 'Dismissed',
-}
-
-function StatusIndicator({ status }: { status: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-      <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[status] ?? 'bg-muted-foreground/40'}`} />
-      {STATUS_LABEL[status] ?? status}
-    </span>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function fmtRelative(iso: string, now: number): string {
   const diff = now - new Date(iso).getTime()
-  if (diff < 60_000) return 'Just now'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  if (diff < 60_000)      return 'Just now'
+  if (diff < 3_600_000)   return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000)  return `${Math.floor(diff / 3_600_000)}h ago`
   return `${Math.floor(diff / 86_400_000)}d ago`
 }
 
-function shortFingerprint(fp: string): string {
-  return fp.replace(/:/g, '').slice(0, 16).toUpperCase()
+// ---------------------------------------------------------------------------
+// Badges
+// ---------------------------------------------------------------------------
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'new') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+        <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+        New
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <span className="h-2 w-2 rounded-full bg-muted-foreground/30 shrink-0" />
+      Dismissed
+    </span>
+  )
+}
+
+function CertBadge({ fingerprint, notAfter }: { fingerprint: string | null; notAfter: string | null }) {
+  if (!fingerprint) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <ShieldOff className="h-3.5 w-3.5 shrink-0" />
+        No Cert
+      </span>
+    )
+  }
+  if (!notAfter) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Lock className="h-3.5 w-3.5 shrink-0" />
+        Unknown
+      </span>
+    )
+  }
+  const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
+  if (days < 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+        <Lock className="h-3.5 w-3.5 shrink-0" />
+        Expired
+      </span>
+    )
+  }
+  if (days <= 30) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+        <Lock className="h-3.5 w-3.5 shrink-0" />
+        Expiring ({days}d)
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
+      <Lock className="h-3.5 w-3.5 shrink-0" />
+      Valid ({days}d)
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+type SignalColor = 'neutral' | 'green' | 'amber' | 'red' | 'blue'
+
+const SIGNAL_BORDER: Record<SignalColor, string> = {
+  neutral: 'border-l-foreground/20',
+  blue:    'border-l-blue-500',
+  green:   'border-l-green-500',
+  amber:   'border-l-amber-500',
+  red:     'border-l-red-500',
+}
+
+const SIGNAL_VALUE: Record<SignalColor, string> = {
+  neutral: 'text-foreground',
+  blue:    'text-blue-600',
+  green:   'text-green-600',
+  amber:   'text-amber-600',
+  red:     'text-red-600',
+}
+
+function StatCard({ label, value, signal = 'neutral' }: {
+  label: string
+  value: string | number
+  signal?: SignalColor
+}) {
+  return (
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-2`}>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -127,27 +195,122 @@ function DeleteDialog({ item, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Filter options
+// Inbox row
 // ---------------------------------------------------------------------------
 
-type NetworkFilter = string
+const ROW_GRID = 'grid-cols-[6rem_1.5fr_3.5rem_1.5fr_1fr_8rem_5rem_2.5rem]'
 
-const PAGE_SIZE = 20
+interface InboxRowProps {
+  item: DiscoveryInboxItem
+  now: number
+  canEdit: boolean
+  dismissing: string | null
+  onPromote: () => void
+  onDismiss: () => void
+  onDelete: () => void
+}
+
+function InboxRow({ item, now, canEdit, dismissing, onPromote, onDismiss, onDelete }: InboxRowProps) {
+  return (
+    <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0 ${item.status === 'dismissed' ? 'opacity-50' : ''}`}>
+
+      {/* Status */}
+      <div>
+        <StatusBadge status={item.status} />
+      </div>
+
+      {/* IP */}
+      <div className="min-w-0">
+        <span className="font-mono text-sm font-semibold">{item.ip}</span>
+      </div>
+
+      {/* Port */}
+      <div>
+        <span className="font-mono text-sm text-muted-foreground">{item.port}</span>
+      </div>
+
+      {/* RDNS / Hostname */}
+      <div className="min-w-0">
+        <span className="text-sm text-muted-foreground truncate block">
+          {item.rdns ?? <span className="italic">—</span>}
+        </span>
+      </div>
+
+      {/* Network */}
+      <div className="min-w-0">
+        {item.networkName ? (
+          <span className="inline-block text-xs bg-muted px-2.5 py-1 rounded truncate max-w-full">
+            {item.networkName}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground italic">—</span>
+        )}
+      </div>
+
+      {/* Certificate */}
+      <div>
+        <CertBadge fingerprint={item.fingerprint} notAfter={item.notAfter} />
+      </div>
+
+      {/* Last seen */}
+      <div>
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          {fmtRelative(item.lastSeenAt, now)}
+        </span>
+      </div>
+
+      {/* Actions */}
+      {canEdit ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {item.status !== 'dismissed' && (
+              <>
+                <DropdownMenuItem onClick={onPromote}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add as Endpoint
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDismiss} disabled={dismissing === item.id}>
+                  <EyeOff className="mr-2 h-4 w-4" />
+                  Dismiss
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <div />
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
+const PAGE_SIZE = 20
+
 export default function DiscoveryInboxPage() {
-  const canEdit = can('discovery:edit')
-  const queryClient = useQueryClient()
+  const canEdit  = can('discovery:edit')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [now] = useState(Date.now)
-  const [page, setPage] = useState(1)
-  const [networkFilter, setNetworkFilter] = useState<NetworkFilter>('')
+
   const [showDismissed, setShowDismissed] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<DiscoveryInboxItem | null>(null)
-  const [dismissing, setDismissing] = useState<string | null>(null)
+  const [page, setPage]                   = useState(1)
+  const [networkFilter, setNetworkFilter] = useState('')
+  const [deleteTarget, setDeleteTarget]   = useState<DiscoveryInboxItem | null>(null)
+  const [dismissing, setDismissing]       = useState<string | null>(null)
 
   const queryKey = ['discovery-inbox', page, networkFilter, showDismissed]
 
@@ -157,22 +320,38 @@ export default function DiscoveryInboxPage() {
     placeholderData: keepPreviousData,
   })
 
-  const { data: networksData } = useQuery({
-    queryKey: ['discovery-networks'],
-    queryFn: () => listDiscoveryNetworks(1, 200),
+  // Global counts (unaffected by current filter/view) for stat cards.
+  const { data: newCountData } = useQuery({
+    queryKey: ['discovery-inbox-new-count'],
+    queryFn:  () => listDiscoveryInbox(1, 1, '', '', false),
+  })
+  const { data: allCountData } = useQuery({
+    queryKey: ['discovery-inbox-all-count'],
+    queryFn:  () => listDiscoveryInbox(1, 1, '', '', true),
   })
 
-  const items: DiscoveryInboxItem[] = data?.items ?? []
+  const { data: networksData } = useQuery({
+    queryKey: ['discovery-networks'],
+    queryFn:  () => listDiscoveryNetworks(1, 200),
+  })
+
+  const items      = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
+  const newCount       = newCountData?.totalCount ?? null
+  const allCount       = allCountData?.totalCount ?? null
+  const dismissedCount = allCount !== null && newCount !== null ? allCount - newCount : null
+
   const networkOptions = [
-    { value: '', label: 'All networks' },
+    { value: '', label: 'All Networks' },
     ...(networksData?.items ?? []).map(n => ({ value: n.id, label: n.name })),
   ]
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['discovery-inbox'] })
+    queryClient.invalidateQueries({ queryKey: ['discovery-inbox-new-count'] })
+    queryClient.invalidateQueries({ queryKey: ['discovery-inbox-all-count'] })
   }
 
   async function handleDismiss(item: DiscoveryInboxItem) {
@@ -185,22 +364,20 @@ export default function DiscoveryInboxPage() {
     }
   }
 
-  const colSpan = canEdit ? 8 : 7
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Discovery Inbox</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} {plural(totalCount, 'host')} discovered
+            Review newly identified assets across your monitored infrastructure.
           </p>
         </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-3">
         {networkOptions.length > 1 && (
           <FilterDropdown
             label="Network"
@@ -209,132 +386,94 @@ export default function DiscoveryInboxPage() {
             onSelect={v => { setNetworkFilter(v); setPage(1) }}
           />
         )}
-        <div className="flex items-center gap-2 ml-auto">
-          <Switch
-            id="show-dismissed"
-            checked={showDismissed}
-            onCheckedChange={v => { setShowDismissed(v); setPage(1) }}
-          />
-          <Label htmlFor="show-dismissed" className="text-sm text-muted-foreground cursor-pointer">
-            Show dismissed
-          </Label>
-        </div>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
+        <StatCard
+          label="New Findings"
+          value={newCount ?? '—'}
+          signal="blue"
+        />
+        <StatCard
+          label="Dismissed"
+          value={dismissedCount ?? '—'}
+          signal="neutral"
+        />
       </div>
 
       {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>IP</TableHead>
-            <TableHead>Port</TableHead>
-            <TableHead>rDNS</TableHead>
-            <TableHead>Network</TableHead>
-            <TableHead>Certificate</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Last Seen</TableHead>
-            {canEdit && <TableHead className="w-20" />}
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {isLoading && (
-            <TableRow>
-              <TableCell colSpan={colSpan} className="py-10 text-center text-sm text-muted-foreground">
-                Loading…
-              </TableCell>
-            </TableRow>
-          )}
+      <div className="rounded-lg border">
 
-          {!isLoading && items.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={colSpan} className="py-10 text-center">
-                <StrixEmpty message="No discovered hosts yet." />
-              </TableCell>
-            </TableRow>
-          )}
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="show-dismissed"
+              checked={showDismissed}
+              onCheckedChange={v => { setShowDismissed(v); setPage(1) }}
+            />
+            <Label htmlFor="show-dismissed" className="text-sm text-muted-foreground cursor-pointer">
+              Show dismissed
+            </Label>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">
+              {totalCount === 0
+                ? 'No discoveries'
+                : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'discovery')}`}
+            </p>
+            <Button variant="ghost" size="icon" onClick={invalidate} className="h-8 w-8">
+              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
 
-          {!isLoading && items.map(item => (
-            <TableRow key={item.id} className={item.status === 'dismissed' ? 'opacity-50' : ''}>
-              <TableCell className="font-mono text-sm">{item.ip}</TableCell>
-              <TableCell className="font-mono text-sm">{item.port}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {item.rdns ?? <span className="italic">—</span>}
-              </TableCell>
-              <TableCell className="text-sm">
-                {item.networkName ?? <span className="text-muted-foreground italic">—</span>}
-              </TableCell>
-              <TableCell className="text-sm">
-                {item.commonName ? (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-foreground">{item.commonName}</span>
-                    {item.notAfter && (
-                      <span className="text-xs text-muted-foreground">
-                        Expires {new Date(item.notAfter).toLocaleDateString()}
-                      </span>
-                    )}
-                    {item.fingerprint && (
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {shortFingerprint(item.fingerprint)}…
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground italic">—</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <StatusIndicator status={item.status} />
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {fmtRelative(item.lastSeenAt, now)}
-              </TableCell>
-              {canEdit && (
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    {item.status !== 'dismissed' && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Add as endpoint"
-                          onClick={() => navigate(`/endpoints/new?from_inbox=${item.id}`)}
-                        >
-                          <Plus className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Dismiss"
-                          disabled={dismissing === item.id}
-                          onClick={() => handleDismiss(item)}
-                        >
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Delete"
-                      onClick={() => setDeleteTarget(item)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+        {/* Column headers */}
+        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IP Address</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Port</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">RDNS / Hostname</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Network</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Certificate</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Seen</span>
+          <span />
+        </div>
 
-      {totalCount > 0 && (
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : items.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            <StrixEmpty message="No discovered hosts yet." />
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {items.map(item => (
+              <InboxRow
+                key={item.id}
+                item={item}
+                now={now}
+                canEdit={canEdit}
+                dismissing={dismissing}
+                onPromote={() => navigate(`/endpoints/new?from_inbox=${item.id}`)}
+                onDismiss={() => handleDismiss(item)}
+                onDelete={() => setDeleteTarget(item)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {totalCount > PAGE_SIZE && (
         <TablePagination
           page={page}
           totalPages={totalPages}
           totalCount={totalCount}
           onPrev={() => setPage(p => p - 1)}
           onNext={() => setPage(p => p + 1)}
-          noun="host"
+          noun="discovery"
         />
       )}
 

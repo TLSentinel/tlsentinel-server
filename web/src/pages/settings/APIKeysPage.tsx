@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Trash2 } from 'lucide-react'
+import { MoreVertical, Trash2, ChevronRight } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -14,13 +14,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { listAllAPIKeys, revokeAPIKey, type AdminAPIKey } from '@/api/apiKeys'
 import { plural } from '@/lib/utils'
 
@@ -28,10 +26,12 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+const ROW_GRID = 'grid-cols-[1.5fr_1fr_8rem_7rem_7rem_2.5rem]'
+
 export default function APIKeysPage() {
-  const [search, setSearch] = useState('')
+  const [search, setSearch]           = useState('')
   const [revokeTarget, setRevokeTarget] = useState<AdminAPIKey | null>(null)
-  const [revoking, setRevoking] = useState(false)
+  const [revoking, setRevoking]       = useState(false)
   const [revokeError, setRevokeError] = useState<string | null>(null)
 
   const { data, isLoading, error: fetchError, refetch } = useQuery({
@@ -39,10 +39,8 @@ export default function APIKeysPage() {
     queryFn: listAllAPIKeys,
     placeholderData: keepPreviousData,
   })
-
   const allKeys = data ?? []
 
-  // Client-side search across name, prefix, and username
   const filtered = search.trim()
     ? allKeys.filter(k =>
         k.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -67,7 +65,7 @@ export default function APIKeysPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link to="/settings" className="hover:text-foreground">Settings</Link>
         <ChevronRight className="h-3.5 w-3.5" />
@@ -77,13 +75,10 @@ export default function APIKeysPage() {
       <div>
         <h1 className="text-2xl font-semibold">API Keys</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          {allKeys.length > 0
-            ? `${allKeys.length} ${plural(allKeys.length, 'key')} across all users`
-            : 'All active API keys across all users.'}
+          All active API keys across all users.
         </p>
       </div>
 
-      {/* Search */}
       <SearchInput
         value={search}
         onChange={setSearch}
@@ -93,61 +88,85 @@ export default function APIKeysPage() {
 
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>User</TableHead>
-            <TableHead>Prefix</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Last Used</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {!isLoading && filtered.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center">
-                {search
-                  ? <span className="text-sm text-muted-foreground">No keys match your search.</span>
-                  : <StrixEmpty message="No API keys have been created yet." />}
-              </TableCell>
-            </TableRow>
-          )}
-          {filtered.map(k => (
-            <TableRow key={k.id}>
-              <TableCell className="font-medium">{k.name}</TableCell>
-              <TableCell>
-                <Link
-                  to={`/settings/users`}
-                  className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-                >
-                  {k.username}
-                </Link>
-              </TableCell>
-              <TableCell className="font-mono text-sm text-muted-foreground">{k.prefix}…</TableCell>
-              <TableCell className="text-sm text-muted-foreground">{fmtDate(k.createdAt)}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {k.lastUsedAt ? fmtDate(k.lastUsedAt) : <span className="text-muted-foreground/50">Never</span>}
-              </TableCell>
-              <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => setRevokeTarget(k)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Revoke {k.name}</span>
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <div className="rounded-lg border">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-5 py-3 border-b">
+          <p className="text-sm text-muted-foreground">
+            {filtered.length === 0
+              ? 'No keys'
+              : `${filtered.length} ${plural(filtered.length, 'key')}${search ? ' matching search' : ' across all users'}`}
+          </p>
+        </div>
 
-      {/* Confirm revoke dialog */}
+        {/* Column headers */}
+        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prefix</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Used</span>
+          <span />
+        </div>
+
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            {search
+              ? <span className="text-sm text-muted-foreground">No keys match your search.</span>
+              : <StrixEmpty message="No API keys have been created yet." />}
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {filtered.map(k => (
+              <div key={k.id} className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm font-semibold truncate block">{k.name}</span>
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <Link
+                    to="/settings/users"
+                    className="text-sm text-muted-foreground hover:text-foreground hover:underline truncate block"
+                  >
+                    {k.username}
+                  </Link>
+                </div>
+                <div className="pt-0.5">
+                  <span className="font-mono text-sm text-muted-foreground">{k.prefix}…</span>
+                </div>
+                <div className="pt-0.5">
+                  <span className="text-sm text-muted-foreground">{fmtDate(k.createdAt)}</span>
+                </div>
+                <div className="pt-0.5">
+                  <span className="text-sm text-muted-foreground">
+                    {k.lastUsedAt ? fmtDate(k.lastUsedAt) : <span className="text-muted-foreground/50">Never</span>}
+                  </span>
+                </div>
+                <div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setRevokeTarget(k)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Revoke
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <Dialog open={!!revokeTarget} onOpenChange={() => { setRevokeTarget(null); setRevokeError(null) }}>
         <DialogContent>
           <DialogHeader>
