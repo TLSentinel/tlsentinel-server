@@ -17,6 +17,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
+	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 )
 
 const (
@@ -86,7 +87,7 @@ func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*H
 
 func (h *Handler) logAudit(r *http.Request, userID, username, action string) {
 	ip := audit.IPFromRequest(r)
-	uid := ptrIfNonEmpty(userID)
+	uid := ptr.IfNonEmpty(userID)
 	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
 		UserID:    uid,
 		Username:  username,
@@ -97,12 +98,6 @@ func (h *Handler) logAudit(r *http.Request, userID, username, action string) {
 	}
 }
 
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
 
 // Login redirects the browser to the provider's authorization endpoint.
 //
