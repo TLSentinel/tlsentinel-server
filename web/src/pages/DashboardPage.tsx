@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
+import { getTLSPostureReport } from '@/api/reports'
 import type { EndpointListItem } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { ExpiryStatus } from '@/components/CertCard'
@@ -30,7 +31,7 @@ const SIGNAL_VALUE: Record<SignalColor, string> = {
 
 interface StatCardProps {
   icon: React.ReactNode
-  label: string
+  label: React.ReactNode
   value: string | number
   sub?: string
   signal?: SignalColor
@@ -39,9 +40,9 @@ interface StatCardProps {
 function StatCard({ icon, label, value, sub, signal = 'neutral' }: StatCardProps) {
   return (
     <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3`}>
-      <div className="flex items-center gap-2">
-        <span className={SIGNAL_VALUE[signal]}>{icon}</span>
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <div className="flex items-start gap-2 min-h-[2.5rem]">
+        <span className={`shrink-0 mt-0.5 ${SIGNAL_VALUE[signal]}`}>{icon}</span>
+        <span className="text-sm font-medium text-muted-foreground leading-snug">{label}</span>
       </div>
       <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
@@ -114,6 +115,36 @@ function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
 }
 
 // ---------------------------------------------------------------------------
+// TLS Distribution panel
+// ---------------------------------------------------------------------------
+
+interface TLSBarProps {
+  label: string
+  count: number
+  total: number
+  color: string
+  labelColor?: string
+}
+
+function TLSBar({ label, count, total, color, labelColor }: TLSBarProps) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-sm">
+        <span className={`font-medium ${labelColor ?? 'text-foreground'}`}>{label}</span>
+        <span className={`font-semibold ${labelColor ?? 'text-foreground'}`}>{pct}%</span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -136,6 +167,11 @@ export default function DashboardPage() {
   const { data: expiringData } = useQuery({
     queryKey: ['dashboard', 'expiring'],
     queryFn: () => getExpiringCerts(30),
+  })
+
+  const { data: tlsReport } = useQuery({
+    queryKey: ['dashboard', 'tls-posture'],
+    queryFn: getTLSPostureReport,
   })
 
   const hostCount    = endpointData?.totalCount ?? null
@@ -179,7 +215,7 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
-          label="Expiring Within 30 Days"
+          label={<>Expiring Soon<br />(&#x3C;=30D)</>}
           value={expiringCount ?? '—'}
           sub="Active certs expiring soon"
           signal={expiringCount === null ? 'neutral' : expiringCount === 0 ? 'green' : 'amber'}
@@ -193,7 +229,7 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={<AlertCircle className="h-4 w-4" />}
-          label="Endpoints with Scan Errors"
+          label="Scan Errors"
           value={errorCount ?? '—'}
           sub="Currently failing endpoints"
           signal={errorCount === null ? 'neutral' : errorCount === 0 ? 'green' : 'red'}
@@ -201,51 +237,101 @@ export default function DashboardPage() {
       </div>
 
       {/* Panels */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Expiring soon list */}
-        <div className="rounded-lg border">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="text-sm font-semibold">Expiring Soon</h2>
-            {expiringCount !== null && (
-              <span className="text-xs text-muted-foreground">{expiringCount} within 30 days</span>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+        {/* Left: TLS Distribution */}
+        <div className="rounded-lg border p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">TLS Distribution</h2>
+            {tlsReport && (
+              <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
+                Global
+              </span>
             )}
           </div>
-          {expiring === null ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : expiring.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No certificates expiring within 30 days.
-            </div>
-          ) : (
-            <div>
-              {expiring.map((item) => (
-                <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
-              ))}
-            </div>
-          )}
+          {!tlsReport ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : (() => {
+            const total = tlsReport.scannedEndpoints
+            const legacyPct = total > 0 ? Math.round((tlsReport.legacyEndpoints / total) * 100) : 0
+            const tls11Pct = total > 0 ? Math.round((tlsReport.protocols.tls11 / total) * 100) : 0
+            const tls10Pct = total > 0 ? Math.round((tlsReport.protocols.tls10 / total) * 100) : 0
+            return (
+              <div className="space-y-4">
+                <TLSBar label="TLS 1.3" count={tlsReport.protocols.tls13} total={total} color="bg-green-500" />
+                <TLSBar label="TLS 1.2" count={tlsReport.protocols.tls12} total={total} color="bg-blue-900" />
+                <TLSBar
+                  label="TLS 1.1 (Legacy)"
+                  count={tlsReport.protocols.tls11}
+                  total={total}
+                  color="bg-orange-500"
+                  labelColor={tls11Pct > 0 ? 'text-orange-600' : undefined}
+                />
+                <TLSBar
+                  label="TLS 1.0 (Legacy)"
+                  count={tlsReport.protocols.tls10}
+                  total={total}
+                  color="bg-red-500"
+                  labelColor={tls10Pct > 0 ? 'text-red-600' : undefined}
+                />
+                {legacyPct > 0 && (
+                  <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">Security Alert:</span>{' '}
+                    {legacyPct}% of endpoints still utilize deprecated TLS protocols. Plan migration soon.
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
-        {/* Scan errors */}
-        <div className="rounded-lg border">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="text-sm font-semibold">Scan Errors</h2>
-            {errorCount !== null && errorCount > 0 && (
-              <span className="text-xs text-muted-foreground">{plural(errorCount, 'endpoint')} failing</span>
+        {/* Right: Expiring soon + Scan errors stacked */}
+        <div className="space-y-6 lg:col-span-2">
+          {/* Expiring soon */}
+          <div className="rounded-lg border">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h2 className="text-sm font-semibold">Expiring Soon</h2>
+              {expiringCount !== null && (
+                <span className="text-xs text-muted-foreground">{expiringCount} within 30 days</span>
+              )}
+            </div>
+            {expiring === null ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
+            ) : expiring.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No certificates expiring within 30 days.
+              </div>
+            ) : (
+              <div>
+                {expiring.map((item) => (
+                  <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
+                ))}
+              </div>
             )}
           </div>
-          {errorHosts === null ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : errorHosts.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No scan errors. All endpoints are healthy.
+
+          {/* Scan errors */}
+          <div className="rounded-lg border">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h2 className="text-sm font-semibold">Scan Errors</h2>
+              {errorCount !== null && errorCount > 0 && (
+                <span className="text-xs text-muted-foreground">{plural(errorCount, 'endpoint')} failing</span>
+              )}
             </div>
-          ) : (
-            <div>
-              {errorHosts.map((h) => (
-                <ErrorRow key={h.id} endpoint={h} />
-              ))}
-            </div>
-          )}
+            {errorHosts === null ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
+            ) : errorHosts.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No scan errors. All endpoints are healthy.
+              </div>
+            ) : (
+              <div>
+                {errorHosts.map((h) => (
+                  <ErrorRow key={h.id} endpoint={h} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
