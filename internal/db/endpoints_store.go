@@ -610,21 +610,19 @@ func upsertEndpointCert(ctx context.Context, tx bun.Tx, endpointID, fingerprint,
 		return fmt.Errorf("failed to roll over previous endpoint cert: %w", err)
 	}
 
-	// Upsert the new/continuing cert as current.
-	// Use the model so bun can build the ON CONFLICT SET clause correctly.
-	// ExcludeColumn("id") lets Postgres apply the DEFAULT gen_random_uuid().
-	now := time.Now()
+	// Upsert the new/continuing cert as current. Exclude id, first_seen_at, and
+	// last_seen_at so Postgres applies the column defaults (gen_random_uuid and
+	// NOW() respectively) — keeping all timestamps on the DB clock avoids
+	// app/DB clock-skew between the insert and subsequent DO UPDATE paths.
 	ec := &EndpointCert{
 		EndpointID:  endpointID,
 		Fingerprint: fingerprint,
 		CertUse:     certUse,
 		IsCurrent:   true,
-		FirstSeenAt: now,
-		LastSeenAt:  now,
 	}
 	_, err = tx.NewInsert().
 		Model(ec).
-		ExcludeColumn("id").
+		ExcludeColumn("id", "first_seen_at", "last_seen_at").
 		On("CONFLICT (endpoint_id, fingerprint, cert_use) DO UPDATE").
 		Set("is_current = TRUE, last_seen_at = NOW()").
 		Exec(ctx)
