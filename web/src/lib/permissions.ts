@@ -12,6 +12,7 @@ export const PERM = {
   ScannersEdit:  'scanners:edit',
   UsersView:     'users:view',
   UsersEdit:     'users:edit',
+  APIKeysAdmin:  'apikeys:admin',
   GroupsView:    'groups:view',
   GroupsEdit:    'groups:edit',
   SettingsView:  'settings:view',

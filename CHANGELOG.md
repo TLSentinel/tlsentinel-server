@@ -33,6 +33,10 @@ once it reaches 1.0.
   previously the first 6 hex chars of the key material; newly issued keys
   embed an independent 8-hex-char identifier so a DB read leaks zero bits of
   the secret. Existing keys keep their original prefixes unchanged.
+- Add a dedicated `apikeys:admin` permission for cross-user API key management.
+  The `/admin/api-keys` list and revoke routes were previously gated by
+  `users:view` / `users:edit`, which let operators enumerate and revoke every
+  user's API keys. Only the admin role carries the new permission.
 
 ### Fixed
 
