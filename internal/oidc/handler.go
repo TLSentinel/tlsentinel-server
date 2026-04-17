@@ -11,7 +11,6 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
@@ -43,7 +42,7 @@ type Handler struct {
 	provider *gooidc.Provider
 	oauth2   oauth2.Config
 	cfg      Config
-	log      *zap.Logger
+	log      *slog.Logger
 }
 
 // NewHandler initialises the OIDC provider and returns a ready Handler.
@@ -73,7 +72,7 @@ func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*H
 		store:    store,
 		jwtCfg:   &jwtCfg,
 		cfg:      cfg,
-		log:      zap.L().With(zap.String("component", "oidc")),
+		log:      slog.Default().With("component", "oidc"),
 		provider: provider,
 		oauth2: oauth2.Config{
 			ClientID:     appCfg.OIDCClientID,
@@ -171,7 +170,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.oauth2.Exchange(r.Context(), code)
 	if err != nil {
-		h.log.Error("token exchange failed", zap.Error(err))
+		h.log.Error("token exchange failed", "error", err)
 		http.Error(w, "failed to exchange code", http.StatusInternalServerError)
 		return
 	}
@@ -187,7 +186,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	verifier := h.provider.Verifier(&gooidc.Config{ClientID: h.oauth2.ClientID})
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		h.log.Warn("id_token verification failed", zap.Error(err))
+		h.log.Warn("id_token verification failed", "error", err)
 		http.Error(w, "invalid id_token", http.StatusUnauthorized)
 		return
 	}
@@ -195,19 +194,19 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// --- Extract claims ---
 	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
-		h.log.Error("failed to parse id_token claims", zap.Error(err))
+		h.log.Error("failed to parse id_token claims", "error", err)
 		http.Error(w, "failed to parse claims", http.StatusInternalServerError)
 		return
 	}
 
 	username := h.extractUsername(claims, idToken.Subject)
 
-	h.log.Info("oidc callback", zap.String("username", username))
+	h.log.Info("oidc callback", "username", username)
 
 	// --- Look up pre-provisioned user ---
 	user, err := h.store.GetUserForOIDCLogin(r.Context(), username)
 	if err != nil {
-		h.log.Warn("oidc login rejected — user not found or disabled", zap.String("username", username))
+		h.log.Warn("oidc login rejected — user not found or disabled", "username", username)
 		http.Error(w, "account not provisioned or disabled", http.StatusUnauthorized)
 		return
 	}
@@ -215,7 +214,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// --- Issue our JWT ---
 	token, err := h.jwtCfg.IssueToken(user.ID, user.Username, user.Role, user.FirstName, user.LastName)
 	if err != nil {
-		h.log.Error("failed to issue jwt", zap.Error(err))
+		h.log.Error("failed to issue jwt", "error", err)
 		http.Error(w, "failed to issue token", http.StatusInternalServerError)
 		return
 	}

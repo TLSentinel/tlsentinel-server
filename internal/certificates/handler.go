@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -206,9 +204,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	inserted, err := h.store.InsertCertificate(r.Context(), rec)
 	if err != nil {
-		zap.L().Error("failed to store certificate",
-			zap.String("fingerprint", rec.Fingerprint),
-			zap.Error(err),
+		slog.Error("failed to store certificate",
+			"fingerprint", rec.Fingerprint,
+			"error", err,
 		)
 		http.Error(w, "failed to store certificate", http.StatusInternalServerError)
 		return
@@ -216,9 +214,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	stored, err := h.store.GetCertificate(r.Context(), rec.Fingerprint)
 	if err != nil {
-		zap.L().Error("failed to retrieve stored certificate",
-			zap.String("fingerprint", rec.Fingerprint),
-			zap.Error(err),
+		slog.Error("failed to retrieve stored certificate",
+			"fingerprint", rec.Fingerprint,
+			"error", err,
 		)
 		http.Error(w, "failed to retrieve stored certificate", http.StatusInternalServerError)
 		return

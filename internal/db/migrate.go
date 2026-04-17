@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -11,22 +12,21 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/migrations"
-	"go.uber.org/zap"
 )
 
 type migrateLogger struct {
-	logger *zap.Logger
+	logger *slog.Logger
 }
 
 func (l *migrateLogger) Printf(format string, v ...interface{}) {
-	l.logger.Sugar().Infof(strings.TrimRight(fmt.Sprintf(format, v...), "\n"))
+	l.logger.Info(strings.TrimRight(fmt.Sprintf(format, v...), "\n"))
 }
 
 func (l *migrateLogger) Verbose() bool {
 	return true
 }
 
-func RunMigrations(cfg *config.Config, logger *zap.Logger) error {
+func RunMigrations(cfg *config.Config, logger *slog.Logger) error {
 	// Ensure the tlsentinel schema exists before golang-migrate runs.
 	// This must happen first so migration 1 (which is now a no-op) doesn't
 	// race with schema_migrations table creation in the public schema.
@@ -40,7 +40,7 @@ func RunMigrations(cfg *config.Config, logger *zap.Logger) error {
 	}
 	sqlDB.Close()
 
-	logger.Info("running database migrations", zap.String("source", "embedded"))
+	logger.Info("running database migrations", "source", "embedded")
 
 	d, err := iofs.New(migrations.FS, ".")
 	if err != nil {
