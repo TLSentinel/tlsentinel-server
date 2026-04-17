@@ -65,6 +65,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	r.Use(middleware.RequestID)
 	r.Use(logger.RequestLogger)
 	r.Use(middleware.Recoverer)
+	r.Use(handlers.MaxBodySize)
 
 	r.Get("/api-docs/*", httpSwagger.WrapHandler)
 
