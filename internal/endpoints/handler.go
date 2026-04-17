@@ -14,6 +14,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
@@ -95,18 +96,7 @@ type UpdateEndpointRequest struct {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /endpoints [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	hasError := r.URL.Query().Get("has_error") == "true"
 	name := r.URL.Query().Get("name")

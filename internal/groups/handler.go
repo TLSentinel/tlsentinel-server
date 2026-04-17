@@ -5,13 +5,13 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 )
 
@@ -55,8 +55,7 @@ type UpdateGroupRequest struct {
 
 // List returns a paginated list of groups.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	list, err := h.store.ListGroups(r.Context(), page, pageSize)
 	if err != nil {
