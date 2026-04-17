@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
@@ -73,8 +74,12 @@ func New(cfg *config.Config, log *zap.Logger) (*App, error) {
 	}
 
 	srv := &http.Server{
-		Addr:    cfg.ListenAddr(),
-		Handler: r,
+		Addr:              cfg.ListenAddr(),
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	return &App{
