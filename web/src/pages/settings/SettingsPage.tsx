@@ -1,5 +1,6 @@
 import { Bot, Users, Mail, Webhook, SlidersHorizontal, Info, Wrench, ScrollText, Tag, Bell, KeyRound } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
+import { can } from '@/api/client'
 
 // ---------------------------------------------------------------------------
 // Page
@@ -28,12 +29,14 @@ export default function SettingsPage() {
           title="Users"
           description="Manage user accounts and role-based access control."
         />
-        <HubCard
-          to="/settings/api-keys"
-          icon={<KeyRound className="h-4 w-4" />}
-          title="API Keys"
-          description="View and revoke API keys across all users."
-        />
+        {can('apikeys:admin') && (
+          <HubCard
+            to="/settings/api-keys"
+            icon={<KeyRound className="h-4 w-4" />}
+            title="API Keys"
+            description="View and revoke API keys across all users."
+          />
+        )}
         {/* Groups hidden until feature is ready */}
         <HubCard
           to="/settings/mail"
