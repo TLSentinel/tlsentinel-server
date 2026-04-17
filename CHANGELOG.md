@@ -47,6 +47,12 @@ once it reaches 1.0.
 - Bound every scheduled job invocation with a 30-minute context deadline and
   propagate the context into DB calls. A hung job previously had no upper
   bound — it could hold connections and overlap with later firings indefinitely.
+- Strip CR/LF from cert-derived strings before embedding them in ICS
+  `SUMMARY` / `DESCRIPTION` properties served by `/calendar/u/{token}`.
+  The `golang-ical` library already escapes LF on TEXT properties, but
+  bare CR slipped through; a permissive calendar client could have
+  treated it as a line break and parsed forged properties out of an
+  attacker-controlled Common Name.
 - Gate `X-Forwarded-For` behind a trusted-proxy allowlist
   (`TLSENTINEL_TRUSTED_PROXY_CIDRS`). Previously any caller could spoof the
   audit-log source IP by supplying their own `X-Forwarded-For` header. Now
