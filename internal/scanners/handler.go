@@ -9,6 +9,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -28,7 +29,7 @@ func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID str
 	resType := resourceType
 	resID := resourceID
 	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
+		UserID:       ptr.IfNonEmpty(identity.UserID),
 		Username:     identity.Username,
 		Action:       action,
 		ResourceType: &resType,
@@ -39,12 +40,6 @@ func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID str
 	}
 }
 
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
 
 // defaultCron is the cron expression used when none is supplied.
 const defaultCron = "0 * * * *"

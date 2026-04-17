@@ -14,6 +14,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
+	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -31,7 +32,7 @@ func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID str
 	identity, _ := auth.GetIdentity(r.Context())
 	ip := audit.IPFromRequest(r)
 	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
+		UserID:       ptr.IfNonEmpty(identity.UserID),
 		Username:     identity.Username,
 		Action:       action,
 		ResourceType: &resourceType,
@@ -42,12 +43,6 @@ func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID str
 	}
 }
 
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
 
 // CreateEndpointRequest is the payload for creating a new endpoint.
 // Which fields are required depends on type:

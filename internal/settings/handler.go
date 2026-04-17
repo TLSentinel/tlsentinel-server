@@ -15,6 +15,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -33,7 +34,7 @@ func (h *Handler) logAudit(r *http.Request, action string) {
 	identity, _ := auth.GetIdentity(r.Context())
 	ip := audit.IPFromRequest(r)
 	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:   ptrIfNonEmpty(identity.UserID),
+		UserID:   ptr.IfNonEmpty(identity.UserID),
 		Username: identity.Username,
 		Action:   action,
 		IPAddress: &ip,
@@ -42,12 +43,6 @@ func (h *Handler) logAudit(r *http.Request, action string) {
 	}
 }
 
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
 
 // alertThresholdsResponse is the response envelope for alert threshold endpoints.
 type alertThresholdsResponse struct {

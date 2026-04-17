@@ -17,6 +17,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -34,7 +35,7 @@ func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID str
 	resType := resourceType
 	resID := resourceID
 	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
+		UserID:       ptr.IfNonEmpty(identity.UserID),
 		Username:     identity.Username,
 		Action:       action,
 		ResourceType: &resType,
@@ -45,12 +46,6 @@ func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID str
 	}
 }
 
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
 
 // validateRange accepts CIDR notation or a hyphenated IPv4 range.
 // Returns a human-readable error string, or "" if valid.
