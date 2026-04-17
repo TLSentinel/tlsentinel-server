@@ -223,6 +223,14 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect the SPA to the callback page with the token in the URL fragment
 	// so it never appears in server logs or the Referrer header.
+	//
+	// SECURITY: this path is intentionally hardcoded. If you ever make the
+	// destination configurable (env var, per-tenant setting, request param),
+	// you MUST reject anything that could resolve cross-origin — otherwise
+	// you've built a token-leaking open redirect. Fragments are readable by
+	// JS on the destination origin, so a redirect to attacker.example leaks
+	// the JWT. Safe forms: URL-parse, then require Scheme=="" && Host=="".
+	// Reject "//...", absolute URLs, and anything not starting with "/".
 	http.Redirect(w, r, "/auth/callback#token="+token, http.StatusFound)
 }
 
