@@ -29,6 +29,10 @@ once it reaches 1.0.
   timing.
 - Require `TLSENTINEL_JWT_SECRET` to decode from base64 to at least 32 bytes
   (256 bits). The previous floor of 32 ASCII characters accepted weak passphrases.
+- Decouple the stored API key display prefix from secret bytes. The prefix was
+  previously the first 6 hex chars of the key material; newly issued keys
+  embed an independent 8-hex-char identifier so a DB read leaks zero bits of
+  the secret. Existing keys keep their original prefixes unchanged.
 
 ### Fixed
 
