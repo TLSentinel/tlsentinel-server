@@ -30,13 +30,17 @@ type Config struct {
 	OIDCUsernameClaim string             `env:"TLSENTINEL_OIDC_USERNAME_CLAIM"`
 }
 
-type JWTSecret string
+type JWTSecret []byte
 
 func (s *JWTSecret) UnmarshalText(text []byte) error {
-	if len(text) < 32 {
-		return fmt.Errorf("TLSENTINEL_JWT_SECRET must be >= 32 characters")
+	decoded, err := base64.StdEncoding.DecodeString(string(text))
+	if err != nil {
+		return fmt.Errorf("TLSENTINEL_JWT_SECRET not valid base64: %w", err)
 	}
-	*s = JWTSecret(text)
+	if len(decoded) < 32 {
+		return fmt.Errorf("TLSENTINEL_JWT_SECRET must decode to >=32 bytes (got %d)", len(decoded))
+	}
+	*s = decoded
 	return nil
 }
 

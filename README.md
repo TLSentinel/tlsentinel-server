@@ -63,7 +63,7 @@ Configure the required environment variables below, point it at a PostgreSQL dat
 | `TLSENTINEL_DB_USERNAME` | Username |
 | `TLSENTINEL_DB_PASSWORD` | Password |
 | `TLSENTINEL_DB_SSLMODE` | SSL mode (default: `disable`) |
-| `TLSENTINEL_JWT_SECRET` | JWT signing secret (min 32 chars). Generate: `openssl rand -hex 32` |
+| `TLSENTINEL_JWT_SECRET` | JWT signing secret, base64-encoded, must decode to >=32 bytes. Generate: `openssl rand -base64 32` |
 | `TLSENTINEL_ADMIN_USERNAME` | Bootstrapped admin username |
 | `TLSENTINEL_ADMIN_PASSWORD` | Bootstrapped admin password |
 | `TLSENTINEL_ENCRYPTION_KEY` | AES-256 key for encrypting SMTP passwords at rest. Generate: `openssl rand -base64 32` |
