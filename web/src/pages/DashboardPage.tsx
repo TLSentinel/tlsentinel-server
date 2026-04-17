@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Server, Shield, Clock, AlertCircle, XCircle } from 'lucide-react'
+import { Server, Shield, Clock, AlertCircle, XCircle, ShieldOff } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
@@ -12,27 +12,38 @@ import { ExpiryStatus } from '@/components/CertCard'
 // Stat card
 // ---------------------------------------------------------------------------
 
+type SignalColor = 'neutral' | 'green' | 'amber' | 'red'
+
+const SIGNAL_BORDER: Record<SignalColor, string> = {
+  neutral: 'border-l-foreground',
+  green:   'border-l-green-500',
+  amber:   'border-l-amber-500',
+  red:     'border-l-red-500',
+}
+
+const SIGNAL_VALUE: Record<SignalColor, string> = {
+  neutral: 'text-foreground',
+  green:   'text-green-600',
+  amber:   'text-amber-600',
+  red:     'text-red-600',
+}
+
 interface StatCardProps {
   icon: React.ReactNode
   label: string
   value: string | number
   sub?: string
-  soon?: boolean
+  signal?: SignalColor
 }
 
-function StatCard({ icon, label, value, sub, soon }: StatCardProps) {
+function StatCard({ icon, label, value, sub, signal = 'neutral' }: StatCardProps) {
   return (
-    <div className={`rounded-lg border p-5 space-y-3 ${soon ? 'opacity-60' : ''}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          {icon}
-          <span className="text-sm font-medium">{label}</span>
-        </div>
-        {soon && (
-          <span className="text-[10px] italic text-muted-foreground">Coming soon</span>
-        )}
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3`}>
+      <div className="flex items-center gap-2">
+        <span className={SIGNAL_VALUE[signal]}>{icon}</span>
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
       </div>
-      <p className="text-3xl font-bold tracking-tight text-blue-600">{value}</p>
+      <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )
@@ -127,12 +138,18 @@ export default function DashboardPage() {
     queryFn: () => getExpiringCerts(30),
   })
 
-  const hostCount = endpointData?.totalCount ?? null
-  const certCount = certData?.totalCount ?? null
-  const expiring = expiringData?.items ?? null
-  const errorHosts = errorData?.items ?? null
-  const errorCount = errorData?.totalCount ?? null
-  const expiringCount = expiring?.length ?? null
+  const hostCount    = endpointData?.totalCount ?? null
+  const certCount    = certData?.totalCount ?? null
+  const expiring     = expiringData?.items ?? null
+  const errorHosts   = errorData?.items ?? null
+  const errorCount   = errorData?.totalCount ?? null
+  const now = Date.now()
+  const expiredCount = expiring
+    ? new Set(expiring.filter(i => new Date(i.notAfter).getTime() < now).map(i => i.fingerprint)).size
+    : null
+  const expiringCount = expiring
+    ? new Set(expiring.filter(i => new Date(i.notAfter).getTime() >= now).map(i => i.fingerprint)).size
+    : null
 
   return (
     <div className="space-y-6">
@@ -145,30 +162,41 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={<Server className="h-4 w-4" />}
           label="Endpoints Monitored"
           value={hostCount ?? '—'}
           sub="Total configured endpoints"
+          signal="neutral"
         />
         <StatCard
           icon={<Shield className="h-4 w-4" />}
           label="Certificates Tracked"
           value={certCount ?? '—'}
           sub="Unique certificates ingested"
+          signal="neutral"
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
           label="Expiring Within 30 Days"
           value={expiringCount ?? '—'}
           sub="Active certs expiring soon"
+          signal={expiringCount === null ? 'neutral' : expiringCount === 0 ? 'green' : 'amber'}
+        />
+        <StatCard
+          icon={<ShieldOff className="h-4 w-4" />}
+          label="Expired"
+          value={expiredCount ?? '—'}
+          sub={expiredCount === 0 ? 'No expired certificates' : 'Requires immediate action'}
+          signal={expiredCount === null ? 'neutral' : expiredCount === 0 ? 'green' : 'red'}
         />
         <StatCard
           icon={<AlertCircle className="h-4 w-4" />}
           label="Endpoints with Scan Errors"
           value={errorCount ?? '—'}
           sub="Currently failing endpoints"
+          signal={errorCount === null ? 'neutral' : errorCount === 0 ? 'green' : 'red'}
         />
       </div>
 
