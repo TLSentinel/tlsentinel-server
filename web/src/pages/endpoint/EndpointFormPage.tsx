@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
@@ -19,10 +19,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeft, FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
+import { ChevronRight, FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import { useQuery } from '@tanstack/react-query'
+
+// ---------------------------------------------------------------------------
+// Layout primitives (mirrors EndpointDetailPage)
+// ---------------------------------------------------------------------------
+
+function Section({ title, titleClassName, className, bareTitle = false, children }: { title?: string; titleClassName?: string; className?: string; bareTitle?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-xl bg-card overflow-hidden ${className ?? ''}`}>
+      {title && !bareTitle && (
+        <div className="px-5 py-3 bg-muted">
+          <h2 className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</h2>
+        </div>
+      )}
+      <div className={bareTitle ? 'p-6' : 'p-5'}>
+        {title && bareTitle && (
+          <h2 className={`mb-5 ${titleClassName ?? 'text-sm font-medium'}`}>{title}</h2>
+        )}
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const SECTION_TITLE = 'text-2xl font-bold tracking-tight'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -305,16 +329,26 @@ export default function EndpointFormPage() {
 
   const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
 
+  const breadcrumb = (
+    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
+      <ChevronRight className="h-3.5 w-3.5" />
+      <span className="text-foreground">{pageTitle}</span>
+    </nav>
+  )
+
+  const header = (
+    <>
+      {breadcrumb}
+      <h1 className="text-5xl font-bold">{pageTitle}</h1>
+    </>
+  )
+
   // Loading state
   if ((isEdit || isClone) && !formReady && !loadError) {
     return (
-      <div className="space-y-6 max-w-2xl">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCancel}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
-        </div>
+      <div className="space-y-5 max-w-2xl">
+        {header}
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     )
@@ -322,27 +356,16 @@ export default function EndpointFormPage() {
 
   if (loadError) {
     return (
-      <div className="space-y-6 max-w-2xl">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCancel}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
-        </div>
+      <div className="space-y-5 max-w-2xl">
+        {header}
         <p className="text-sm text-destructive">{loadError}</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={handleCancel}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-2xl font-semibold">{pageTitle}</h1>
-      </div>
+    <div className="space-y-5 max-w-2xl">
+      {header}
 
       {/* Inbox source context */}
       {isFromInbox && inboxIP && (
@@ -351,39 +374,38 @@ export default function EndpointFormPage() {
         </div>
       )}
 
-      {/* Common fields */}
-      <div className="space-y-5">
-        <div className="space-y-1.5">
-          <Label htmlFor="ep-name">
-            Name <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="ep-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Production API, Okta IdP, Internal Root CA"
-          />
-        </div>
+      {/* Basics */}
+      <Section title="Basics" titleClassName={SECTION_TITLE} bareTitle>
+        <div className="space-y-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="ep-name">
+              Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="ep-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Production API, Okta IdP, Internal Root CA"
+            />
+          </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="ep-notes">
-            Notes <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <Textarea
-            id="ep-notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={"Owner, support contact, runbook link…\n\nMarkdown is supported."}
-            rows={5}
-          />
-        </div>
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ep-notes">
+              Notes <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              id="ep-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={"Owner, support contact, runbook link…\n\nMarkdown is supported."}
+              rows={5}
+            />
+          </div>
 
-      {/* Tags */}
-      {categories.length > 0 && (
-        <div className="space-y-2">
-          <Label>Tags <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-          <div className="flex flex-wrap items-center gap-1.5">
+          {categories.length > 0 && (
+            <div className="space-y-2">
+              <Label>Tags <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+              <div className="flex flex-wrap items-center gap-1.5">
             {/* Selected tag chips */}
             {Array.from(selectedTagIds).map(tagId => {
               const tag = categories.flatMap(c => c.tags).find(t => t.id === tagId)
@@ -407,19 +429,21 @@ export default function EndpointFormPage() {
                 </span>
               )
             })}
-            {/* Add tags button */}
-            <button
-              type="button"
-              onClick={() => setShowTagPicker(true)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
-            >
-              <Tag className="h-3 w-3" />
-              <Plus className="h-3 w-3" />
-              Add tags
-            </button>
-          </div>
+                {/* Add tags button */}
+                <button
+                  type="button"
+                  onClick={() => setShowTagPicker(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+                >
+                  <Tag className="h-3 w-3" />
+                  <Plus className="h-3 w-3" />
+                  Add tags
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </Section>
 
       {/* Tag picker dialog */}
       <Dialog open={showTagPicker} onOpenChange={setShowTagPicker}>
@@ -475,41 +499,45 @@ export default function EndpointFormPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Type selector — clickable on create, read-only on edit or from_inbox */}
-      {!isFromInbox && (
-        <div>
-          <p className="text-sm font-medium mb-3">Endpoint Type</p>
-          <div className="grid grid-cols-3 gap-3">
-            {TYPE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleTypeChange(opt.value)}
-                disabled={isEdit}
-                className={cn(
-                  'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
-                  type === opt.value
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                    : 'border-border',
-                  isEdit
-                    ? 'cursor-default opacity-60'
-                    : 'hover:border-muted-foreground/40 hover:bg-muted/30',
-                )}
-              >
-                <p className="text-sm font-medium">{opt.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground leading-snug">{opt.description}</p>
-              </button>
-            ))}
-          </div>
-          {isEdit && (
-            <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
-          )}
-        </div>
-      )}
-
-      {/* Type-specific fields */}
-      {type !== 'manual' && (
+      {/* Type & Connection */}
+      <Section title="Type & Connection" titleClassName={SECTION_TITLE} bareTitle>
         <div className="space-y-5">
+          {/* Type selector — clickable on create, read-only on edit or from_inbox */}
+          {!isFromInbox && (
+            <div>
+              <div className="grid grid-cols-3 gap-3">
+                {TYPE_OPTIONS.map((opt) => {
+                  const selected = type === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleTypeChange(opt.value)}
+                      disabled={isEdit}
+                      className={cn(
+                        'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
+                        selected
+                          ? 'border-transparent bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground'
+                          : 'border-border bg-card',
+                        isEdit
+                          ? 'cursor-default opacity-60'
+                          : !selected && 'hover:border-muted-foreground/40 hover:bg-muted/30',
+                      )}
+                    >
+                      <p className="text-sm font-semibold">{opt.label}</p>
+                      <p className={cn('mt-1 text-xs leading-snug', selected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                        {opt.description}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+              {isEdit && (
+                <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
+              )}
+            </div>
+          )}
+
           {/* Host-specific fields */}
           {type === 'host' && (
             <>
@@ -590,84 +618,88 @@ export default function EndpointFormPage() {
             </div>
           )}
 
+          {/* Manual — PEM field */}
+          {type === 'manual' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="ep-pem">
+                Certificate <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Textarea
+                id="ep-pem"
+                value={pem}
+                onChange={(e) => { setPem(e.target.value); setFileName(null) }}
+                placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
+                rows={6}
+                className="font-mono text-xs"
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pem,.crt,.cer,.cert,.der"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                {fileName ?? 'Browse file…'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Paste or browse for a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
+              </p>
+            </div>
+          )}
+
           {/* Scanner — host and saml */}
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-scanner">Scanner</Label>
-            <select
-              id="ep-scanner"
-              value={scannerID}
-              onChange={(e) => setScannerID(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="">Default</option>
-              {scanners.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          {type !== 'manual' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="ep-scanner">Scanner</Label>
+              <select
+                id="ep-scanner"
+                value={scannerID}
+                onChange={(e) => setScannerID(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">Default</option>
+                {scanners.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-      )}
+      </Section>
 
-      {/* Manual — PEM field */}
-      {type === 'manual' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="ep-pem">
-            Certificate <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <Textarea
-            id="ep-pem"
-            value={pem}
-            onChange={(e) => { setPem(e.target.value); setFileName(null) }}
-            placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
-            rows={6}
-            className="font-mono text-xs"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pem,.crt,.cer,.cert,.der"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            {fileName ?? 'Browse file…'}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Paste or browse for a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
-          </p>
-        </div>
-      )}
-
-      {/* Enabled / Scan Exempt toggles — edit mode only */}
+      {/* Status — edit mode only */}
       {isEdit && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="ep-scan-exempt"
-              checked={scanExempt}
-              onCheckedChange={setScanExempt}
-            />
-            <div>
-              <Label htmlFor="ep-scan-exempt" className="cursor-pointer">Exclude from scanning</Label>
-              <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
+        <Section title="Status" titleClassName={SECTION_TITLE} bareTitle>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="ep-scan-exempt"
+                checked={scanExempt}
+                onCheckedChange={setScanExempt}
+              />
+              <div>
+                <Label htmlFor="ep-scan-exempt" className="cursor-pointer">Exclude from scanning</Label>
+                <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="ep-enabled"
+                checked={enabled}
+                onCheckedChange={setEnabled}
+              />
+              <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="ep-enabled"
-              checked={enabled}
-              onCheckedChange={setEnabled}
-            />
-            <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
-          </div>
-        </div>
+        </Section>
       )}
 
       {/* Footer */}
