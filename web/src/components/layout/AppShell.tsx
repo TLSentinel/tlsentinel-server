@@ -149,11 +149,6 @@ export default function AppShell() {
           <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
         </nav>
 
-        {/* Bottom nav — settings (admin only) */}
-        <div className="p-3 space-y-1">
-          {can('settings:view') && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
-        </div>
-
         {/* Footer — version */}
         <div className="p-3">
           {buildInfo && (
@@ -230,6 +225,16 @@ function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }:
         >
           <HelpCircle className="h-5 w-5" />
         </a>
+
+        {can('settings:view') && (
+          <Link
+            to="/settings"
+            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
+        )}
 
         <div className="mx-2 h-8 w-px bg-border" />
 
