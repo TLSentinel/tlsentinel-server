@@ -129,7 +129,7 @@ function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
                 type="button"
                 onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
                 title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
               >
                 <span className="opacity-60">{tag.categoryName}:</span>
                 {tag.name}

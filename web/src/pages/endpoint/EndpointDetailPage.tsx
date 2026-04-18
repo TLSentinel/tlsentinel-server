@@ -117,7 +117,7 @@ const TYPE_LABEL: Record<string, string> = {
 // Endpoint info section
 // ---------------------------------------------------------------------------
 
-function EndpointInfoSection({ endpoint, onToggleEnabled, tags }: { endpoint: Endpoint; onToggleEnabled: (enabled: boolean) => void; tags: TagWithCategory[] }) {
+function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint; onToggleEnabled: (enabled: boolean) => void }) {
   const isHost   = endpoint.type === 'host'
   const isSAML   = endpoint.type === 'saml'
   const isManual = endpoint.type === 'manual'
@@ -159,30 +159,12 @@ function EndpointInfoSection({ endpoint, onToggleEnabled, tags }: { endpoint: En
 
           {isHost && <Field label="Port"><span className="text-base font-semibold">{endpoint.port}</span></Field>}
 
-          {tags.length > 0 && (
-            <Field label="Tags">
-              <div className="flex flex-col items-start gap-1.5">
-                {tags.map(tag => (
-                  <span
-                    key={tag.id}
-                    className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
-                  >
-                    <span className="opacity-60">{tag.categoryName}:</span>
-                    {tag.name}
-                  </span>
-                ))}
-              </div>
-            </Field>
-          )}
-
-          <div className="col-start-2">
-            <Field label="Monitored">
-              <Switch
-                checked={endpoint.enabled}
-                onCheckedChange={onToggleEnabled}
-              />
-            </Field>
-          </div>
+          <Field label="Monitored">
+            <Switch
+              checked={endpoint.enabled}
+              onCheckedChange={onToggleEnabled}
+            />
+          </Field>
 
         </div>
       </div>
@@ -196,7 +178,7 @@ function EndpointInfoSection({ endpoint, onToggleEnabled, tags }: { endpoint: En
 
 function NotesSection({ endpoint }: { endpoint: Endpoint }) {
   return (
-    <Section title="Notes">
+    <Section>
       {endpoint.notes ? (
         <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
           <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
@@ -596,11 +578,20 @@ export default function EndpointDetailPage() {
         </div>
       </div>
 
-      {/* Type badge */}
-      <div>
+      {/* Type badge + tags */}
+      <div className="flex flex-wrap items-center gap-2">
         <Badge className="h-7 rounded-md px-3 text-sm font-semibold uppercase">
           {TYPE_LABEL[endpoint.type] ?? endpoint.type}
         </Badge>
+        {tags.map(tag => (
+          <span
+            key={tag.id}
+            className={`inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+          >
+            <span className="opacity-60">{tag.categoryName}:</span>
+            {tag.name}
+          </span>
+        ))}
       </div>
 
       {/* Two-column body (collapses to single column when there's no TLS Profile) */}
@@ -608,9 +599,9 @@ export default function EndpointDetailPage() {
 
         {/* ── Left column ── */}
         <div className="space-y-5">
-          <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} tags={tags} />
           <ActiveCertsSection certs={endpoint.activeCerts} />
           {endpoint.notes && <NotesSection endpoint={endpoint} />}
+          <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} />
           <ScanStatusSection endpoint={endpoint} onToggleScanning={(on) => toggleScanning(!on)} />
           <ScanHistorySection items={history} />
         </div>

@@ -392,7 +392,7 @@ export default function EndpointFormPage() {
               return (
                 <span
                   key={tagId}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                 >
                   <span className="opacity-60">{cat?.name}:</span>
                   {tag.name}
