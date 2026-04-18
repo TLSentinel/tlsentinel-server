@@ -551,7 +551,7 @@ export default function EndpointDetailPage() {
         <div>
           <h1 className="text-5xl font-bold">{endpoint.name}</h1>
         </div>
-        <Button variant="outline" onClick={() => navigate(`/endpoints/${id}/edit`)} className="shrink-0 mt-1">
+        <Button onClick={() => navigate(`/endpoints/${id}/edit`)} className="shrink-0 mt-1">
           <Pencil className="mr-1.5 h-3.5 w-3.5" />
           Edit
         </Button>
