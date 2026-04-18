@@ -4,7 +4,6 @@ import { ChevronRight, Copy, Check, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
-import { ExpiryStatus } from '@/components/CertCard'
 import { CertProgressCard } from '@/components/CertProgressCard'
 import { fmtDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -128,33 +127,6 @@ function SubjectSection({ cert }: { cert: CertificateDetail }) {
 // Issuer
 // ---------------------------------------------------------------------------
 
-function IssuerSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <Section title="Issuer">
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <Field label="Common Name">
-            <span className="text-base font-semibold">{cert.issuerCn || '—'}</span>
-          </Field>
-          <Field label="Organization">
-            <span className="text-base font-semibold">{cert.issuerOrg || '—'}</span>
-          </Field>
-        </div>
-        {cert.issuerFingerprint && (
-          <Field label="Issuer Certificate">
-            <Link
-              to={`/certificates/${cert.issuerFingerprint}`}
-              className="font-mono text-xs text-primary hover:underline"
-            >
-              {cert.issuerFingerprint.slice(0, 32)}…
-            </Link>
-          </Field>
-        )}
-      </div>
-    </Section>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Key & Signature
 // ---------------------------------------------------------------------------
@@ -265,15 +237,7 @@ interface ChainCert {
 
 
 function ChainSection({ cert }: { cert: CertificateDetail }) {
-  const [chain, setChain] = useState<ChainCert[]>([
-    {
-      fingerprint: cert.fingerprint,
-      commonName: cert.commonName,
-      notBefore: cert.notBefore,
-      notAfter: cert.notAfter,
-      issuerFingerprint: cert.issuerFingerprint,
-    },
-  ])
+  const [chain, setChain] = useState<ChainCert[]>([])
   const [loading, setLoading] = useState(!!cert.issuerFingerprint)
 
   useEffect(() => {
@@ -281,15 +245,7 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
     let cancelled = false
 
     async function traverse() {
-      const result: ChainCert[] = [
-        {
-          fingerprint: cert.fingerprint,
-          commonName: cert.commonName,
-          notBefore: cert.notBefore,
-          notAfter: cert.notAfter,
-          issuerFingerprint: cert.issuerFingerprint,
-        },
-      ]
+      const result: ChainCert[] = []
       const seen = new Set([cert.fingerprint])
       let nextFp = cert.issuerFingerprint
 
@@ -322,14 +278,19 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
   }, [cert.fingerprint, cert.issuerFingerprint, cert.commonName, cert.notBefore, cert.notAfter])
 
   function certRole(index: number, total: number) {
-    if (index === 0) return 'Leaf'
     if (index === total - 1) return 'Root'
     return 'Intermediate'
   }
 
   return (
-    <Section title={`Certificate Chain (${chain.length}${loading ? '+' : ''})`}>
+    <Section title="Issuer">
       <div className="space-y-2">
+        {loading && chain.length === 0 && (
+          <p className="text-xs italic text-muted-foreground">Loading chain…</p>
+        )}
+        {!loading && chain.length === 0 && (
+          <p className="text-sm italic text-muted-foreground">No issuer chain available.</p>
+        )}
         {chain.map((c, i) => (
           <CertProgressCard
             key={c.fingerprint}
@@ -338,10 +299,11 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
             notBefore={c.notBefore}
             notAfter={c.notAfter}
             label={certRole(i, chain.length)}
-            isViewing={i === 0}
           />
         ))}
-        {loading && <p className="text-xs italic text-muted-foreground">Loading chain…</p>}
+        {loading && chain.length > 0 && (
+          <p className="text-xs italic text-muted-foreground">Loading chain…</p>
+        )}
       </div>
     </Section>
   )
@@ -459,7 +421,7 @@ export default function CertificateDetailPage() {
       <div className="flex items-start justify-between gap-4">
         <h1 className="text-5xl font-bold">{cert.commonName || '—'}</h1>
         <div className="shrink-0 mt-2">
-          <ExpiryStatus notAfter={cert.notAfter} />
+          <PEMActions pem={cert.pem} commonName={cert.commonName} />
         </div>
       </div>
 
@@ -469,13 +431,11 @@ export default function CertificateDetailPage() {
         {/* ── Left column ── */}
         <div className="space-y-5">
           <SubjectSection cert={cert} />
-          <IssuerSection cert={cert} />
           <ValiditySection cert={cert} />
           <KeySection cert={cert} />
           <UsageSection cert={cert} />
           <IdentifiersSection cert={cert} />
           <RevocationSection cert={cert} />
-          <PEMActions pem={cert.pem} commonName={cert.commonName} />
         </div>
 
         {/* ── Right column ── */}
