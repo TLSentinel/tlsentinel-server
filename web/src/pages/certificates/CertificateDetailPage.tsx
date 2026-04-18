@@ -16,7 +16,7 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
   return (
     <div className="rounded-xl bg-card overflow-hidden">
       {title && (
-        <div className="px-5 py-3 bg-surface-container-high">
+        <div className="px-5 py-3 bg-muted">
           <p className="text-sm font-medium">{title}</p>
         </div>
       )}

@@ -191,7 +191,7 @@ export default function AppShell() {
 
             {popoverOpen && (
               <div className="absolute bottom-full left-0 mb-1 w-52 rounded-xl bg-popover shadow-lg text-popover-foreground text-sm overflow-hidden">
-                <div className="px-3 py-2 bg-surface-container-high">
+                <div className="px-3 py-2 bg-muted">
                   {(identity?.given_name || identity?.family_name) && (
                     <p className="font-medium truncate">
                       {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}

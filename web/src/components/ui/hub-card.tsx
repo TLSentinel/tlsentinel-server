@@ -16,7 +16,7 @@ export function HubCard({ icon, title, description, to, soon }: HubCardProps) {
       className={[
         'group rounded-xl bg-card p-5 flex flex-col gap-3 h-full transition-colors',
         to
-          ? 'cursor-pointer hover:bg-surface-container-high'
+          ? 'cursor-pointer hover:bg-muted'
           : 'opacity-60',
       ].join(' ')}
     >
