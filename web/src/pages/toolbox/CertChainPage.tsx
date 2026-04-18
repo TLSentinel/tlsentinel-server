@@ -379,12 +379,10 @@ export default function CertChainPage() {
               <div />
             )}
             <Button
-              variant="outline"
-              size="sm"
               className="shrink-0"
               onClick={() => downloadChain(result.chain)}
             >
-              <Download className="h-3.5 w-3.5 mr-1.5" />
+              <Download className="h-4 w-4 mr-1.5" />
               Download PEM
             </Button>
           </div>

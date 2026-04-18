@@ -184,9 +184,9 @@ function PemToDerPanel() {
             </div>
             <div className="flex items-center gap-2">
               <CopyButton value={result.hexFull} />
-              <Button variant="outline" size="sm" className="gap-1.5"
+              <Button className="gap-1.5"
                 onClick={() => download(`${result.tag.toLowerCase().replace(/\s+/g, '_')}.der`, result.der, 'application/octet-stream')}>
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
                 Download .der
               </Button>
             </div>
@@ -336,9 +336,9 @@ function DerToPemPanel() {
             <p className="text-xs text-muted-foreground">PEM output</p>
             <div className="flex items-center gap-2">
               <CopyButton value={pem} />
-              <Button variant="outline" size="sm" className="gap-1.5"
+              <Button className="gap-1.5"
                 onClick={() => download(`${tag.toLowerCase().replace(/\s+/g, '_')}.pem`, pem, 'text/plain')}>
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
                 Download .pem
               </Button>
             </div>
