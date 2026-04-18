@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
-import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
 import { CertCard } from '@/components/CertCard'
@@ -15,13 +15,15 @@ import { useQuery } from '@tanstack/react-query'
 // Layout primitives
 // ---------------------------------------------------------------------------
 
-function SectionHeader({ title }: { title: string }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        {title}
-      </p>
-      <Separator />
+    <div className="rounded-lg border">
+      <div className="px-5 py-3 border-b bg-muted/40">
+        <p className="text-sm font-medium">{title}</p>
+      </div>
+      <div className="p-5">
+        {children}
+      </div>
     </div>
   )
 }
@@ -39,11 +41,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Severity primitives
 // ---------------------------------------------------------------------------
 
-const severityColor: Record<TLSSeverity, string> = {
-  ok:       'text-green-600 dark:text-green-400',
-  warning:  'text-amber-600 dark:text-amber-400',
-  critical: 'text-red-600 dark:text-red-400',
-}
 
 const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
   ok:       <ShieldCheck className="h-4 w-4 text-green-600" />,
@@ -51,29 +48,50 @@ const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
   critical: <ShieldX     className="h-4 w-4 text-red-600"   />,
 }
 
-function SeverityLabel({ severity }: { severity: TLSSeverity }) {
-  const label = severity === 'ok' ? 'OK' : severity === 'warning' ? 'Warning' : 'Critical'
-  return <span className={`text-sm font-medium ${severityColor[severity]}`}>{label}</span>
-}
-
 // ---------------------------------------------------------------------------
 // Finding row
 // ---------------------------------------------------------------------------
 
+const FINDING_ACCENT: Record<TLSSeverity, string> = {
+  ok:       'border-l-green-500',
+  warning:  'border-l-amber-500',
+  critical: 'border-l-red-500',
+}
+
+function FindingBadge({ severity, preferred }: { severity: TLSSeverity; preferred: boolean }) {
+  if (preferred) {
+    return (
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded border border-green-500 text-green-600 dark:text-green-400">
+        Preferred
+      </span>
+    )
+  }
+  if (severity === 'warning') {
+    return (
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        Weakness
+      </span>
+    )
+  }
+  if (severity === 'critical') {
+    return (
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        Critical
+      </span>
+    )
+  }
+  return null
+}
+
 function FindingRow({ finding, preferred = false }: { finding: TLSFinding; preferred?: boolean }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border px-3 py-2">
-      <div className="mt-0.5 shrink-0">{SeverityIcon[finding.severity]}</div>
+    <div className={`flex items-center gap-3 rounded-md border border-l-4 ${FINDING_ACCENT[finding.severity]} px-3 py-3`}>
+      <div className="shrink-0">{SeverityIcon[finding.severity]}</div>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm font-medium">{finding.name}</span>
-          <SeverityLabel severity={finding.severity} />
-          {preferred && (
-            <span className="text-xs italic text-muted-foreground">Preferred</span>
-          )}
-        </div>
+        <p className="font-mono text-sm font-semibold">{finding.name}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{finding.reason}</p>
       </div>
+      <FindingBadge severity={finding.severity} preferred={preferred} />
     </div>
   )
 }
@@ -88,10 +106,6 @@ const TYPE_LABEL: Record<string, string> = {
   manual: 'Manual',
 }
 
-function TypeLabel({ type }: { type: string }) {
-  return <span className="text-sm text-muted-foreground">{TYPE_LABEL[type] ?? type}</span>
-}
-
 // ---------------------------------------------------------------------------
 // Endpoint info section
 // ---------------------------------------------------------------------------
@@ -102,59 +116,65 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
   const isManual = endpoint.type === 'manual'
 
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Endpoint" />
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+    <Section title="Endpoint">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
 
-        {isHost && (
-          <>
-            <Field label="DNS Name">
-              <span className="font-mono">{endpoint.dnsName}</span>
-            </Field>
-            <Field label="Port">{endpoint.port}</Field>
-            <Field label="IP Address">
-              <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
-            </Field>
-            <div />
-          </>
-        )}
-
-        {isSAML && (
-          <div className="col-span-2">
-            <Field label="Metadata URL">
-              <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
-            </Field>
-          </div>
-        )}
-
-        {isManual && (
-          <div className="col-span-2">
-            <p className="text-sm text-muted-foreground italic">
-              Manually tracked — certificate is linked directly, no scanning.
-            </p>
-          </div>
-        )}
-
-        {!isManual && (
-          <Field label="Scanner">
-            {endpoint.scanExempt ? (
-              <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                Excluded from scanning
-              </span>
-            ) : (
-              endpoint.scannerName ?? 'Default'
-            )}
+          <Field label="Type">
+            <span className="text-sm font-medium">{TYPE_LABEL[endpoint.type] ?? endpoint.type}</span>
           </Field>
-        )}
-        <Field label="Enabled">
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-            {endpoint.enabled ? 'Enabled' : 'Disabled'}
-          </span>
-        </Field>
+
+          <Field label="Enabled">
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+              {endpoint.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </Field>
+
+          {isHost && (
+            <>
+              <Field label="DNS Name">
+                <span className="font-mono">{endpoint.dnsName}</span>
+              </Field>
+              <Field label="Port">{endpoint.port}</Field>
+              <Field label="IP Address">
+                <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
+              </Field>
+              <div />
+            </>
+          )}
+
+          {isSAML && (
+            <div className="col-span-2">
+              <Field label="Metadata URL">
+                <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
+              </Field>
+            </div>
+          )}
+
+          {isManual && (
+            <div className="col-span-2">
+              <p className="text-sm text-muted-foreground italic">
+                Manually tracked — certificate is linked directly, no scanning.
+              </p>
+            </div>
+          )}
+
+          {!isManual && (
+            <Field label="Scanner">
+              {endpoint.scanExempt ? (
+                <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                  <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                  Excluded from scanning
+                </span>
+              ) : (
+                endpoint.scannerName ?? 'Default'
+              )}
+            </Field>
+          )}
+        </div>
       </div>
-    </div>
+    </Section>
   )
 }
 
@@ -164,8 +184,7 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
 
 function NotesSection({ endpoint }: { endpoint: Endpoint }) {
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Notes" />
+    <Section title="Notes">
       {endpoint.notes ? (
         <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
           <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
@@ -173,7 +192,7 @@ function NotesSection({ endpoint }: { endpoint: Endpoint }) {
       ) : (
         <p className="text-sm italic text-muted-foreground">No notes.</p>
       )}
-    </div>
+    </Section>
   )
 }
 
@@ -183,47 +202,91 @@ function NotesSection({ endpoint }: { endpoint: Endpoint }) {
 
 function ScanStatusSection({ endpoint }: { endpoint: Endpoint }) {
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Scan Status" />
-      <Field label="Last Scanned">
-        {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
-      </Field>
-      {endpoint.lastScanError && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{endpoint.lastScanError}</span>
-        </div>
-      )}
-    </div>
+    <Section title="Scan Status">
+      <div className="space-y-3">
+        <Field label="Last Scanned">
+          {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
+        </Field>
+        {endpoint.lastScanError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{endpoint.lastScanError}</span>
+          </div>
+        )}
+      </div>
+    </Section>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Security posture description
+// Security posture banner
 // ---------------------------------------------------------------------------
 
-function postureDescription(c: TLSClassification): string {
-  if (c.overallSeverity === 'ok') return 'No known weaknesses detected — strong TLS configuration.'
+// Formal summary shown below the compliance score.
+// TODO: finalise copy for each severity tier.
+function postureSummary(c: TLSClassification): string {
+  if (c.overallSeverity === 'ok')
+    return 'This endpoint meets current TLS security standards. All negotiated cipher suites and protocol versions are considered acceptable.'
+  if (c.overallSeverity === 'warning')
+    return 'This endpoint does not fully comply with modern TLS best practices. Review the findings below and consider upgrading the affected configuration.'
+  return 'This endpoint fails to meet minimum TLS security standards and presents a significant risk. Immediate remediation is required.'
+}
 
+// Specific detail shown inside the coloured posture banner.
+// TODO: finalise copy for each severity tier.
+function postureDetail(c: TLSClassification): string {
+  const criticalCiphers = c.cipherSuites.filter((f) => f.severity === 'critical')
+  const warnCiphers     = c.cipherSuites.filter((f) => f.severity === 'warning')
   const criticalVersions = c.versions.filter((f) => f.severity === 'critical').map((f) => f.name)
-  const criticalCiphers  = c.cipherSuites.filter((f) => f.severity === 'critical')
-  const warnVersions     = c.versions.filter((f) => f.severity === 'warning').map((f) => f.name)
-  const warnCiphers      = c.cipherSuites.filter((f) => f.severity === 'warning')
 
-  const issues: string[] = []
+  if (c.overallSeverity === 'ok')
+    return 'No insecure protocol versions or cipher suites were detected.'
   if (criticalVersions.length > 0)
-    issues.push(`${criticalVersions.join(' and ')} ${criticalVersions.length > 1 ? 'are' : 'is'} enabled`)
+    return `${criticalVersions.join(' and ')} ${criticalVersions.length > 1 ? 'are' : 'is'} enabled and must be disabled immediately.`
   if (criticalCiphers.length > 0)
-    issues.push(`${criticalCiphers.length} critically weak cipher${criticalCiphers.length > 1 ? 's' : ''} accepted`)
-  if (warnVersions.length > 0)
-    issues.push(`${warnVersions.join(' and ')} ${warnVersions.length > 1 ? 'are' : 'is'} enabled`)
+    return `${criticalCiphers.length} critically weak cipher${criticalCiphers.length > 1 ? 's' : ''} ${criticalCiphers.length > 1 ? 'are' : 'is'} currently accepted by this endpoint.`
   if (warnCiphers.length > 0)
-    issues.push(`${warnCiphers.length} cipher${warnCiphers.length > 1 ? 's' : ''} lacking forward secrecy accepted`)
+    return `${warnCiphers.length} cipher${warnCiphers.length > 1 ? 's' : ''} lacking Elliptic Curve Diffie-Hellman (ECDHE) forward secrecy ${warnCiphers.length > 1 ? 'are' : 'is'} currently accepted.`
+  return 'Weaknesses detected — review the findings below.'
+}
 
-  const summary = issues.length > 0 ? issues.join('; ') + '.' : 'Weaknesses detected — see findings below.'
-  return c.overallSeverity === 'critical'
-    ? `${summary} Immediate remediation recommended.`
-    : `${summary} Consider upgrading to stronger settings.`
+const POSTURE_STYLE: Record<TLSSeverity, {
+  wrapper: string; icon: React.ReactNode; title: string; label: string; body: string
+}> = {
+  ok: {
+    wrapper: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
+    icon:    <ShieldCheck className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />,
+    title:   'text-green-800 dark:text-green-300',
+    label:   'Strong Configuration',
+    body:    'text-green-700 dark:text-green-400',
+  },
+  warning: {
+    wrapper: 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800',
+    icon:    <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+    title:   'text-amber-800 dark:text-amber-300',
+    label:   'Weaknesses Detected',
+    body:    'text-amber-700 dark:text-amber-400',
+  },
+  critical: {
+    wrapper: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
+    icon:    <ShieldX className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />,
+    title:   'text-red-800 dark:text-red-300',
+    label:   'Insecure Configuration',
+    body:    'text-red-700 dark:text-red-400',
+  },
+}
+
+function PostureBanner({ classification }: { classification: TLSClassification }) {
+  const s = POSTURE_STYLE[classification.overallSeverity]
+  return (
+    <div className={`flex items-start gap-3 rounded-md border p-3 ${s.wrapper}`}>
+      {s.icon}
+      <div className="min-w-0">
+        <p className={`text-sm font-semibold ${s.title}`}>{s.label}</p>
+        <p className={`mt-0.5 text-xs ${s.body}`}>{postureDetail(classification)}</p>
+      </div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -239,26 +302,23 @@ type TLSState =
 function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status === 'loading') {
     return (
-      <div className="space-y-3">
-        <SectionHeader title="TLS Profile" />
+      <Section title="TLS Profile">
         <p className="text-xs italic text-muted-foreground">Loading…</p>
-      </div>
+      </Section>
     )
   }
   if (tlsState.status === 'none') {
     return (
-      <div className="space-y-3">
-        <SectionHeader title="TLS Profile" />
+      <Section title="TLS Profile">
         <p className="text-sm italic text-muted-foreground">No TLS profile yet — will be populated on the next scan cycle.</p>
-      </div>
+      </Section>
     )
   }
   if (tlsState.status === 'error') {
     return (
-      <div className="space-y-3">
-        <SectionHeader title="TLS Profile" />
+      <Section title="TLS Profile">
         <p className="text-sm text-destructive">{tlsState.message}</p>
-      </div>
+      </Section>
     )
   }
 
@@ -266,45 +326,53 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   const { classification } = profile
 
   return (
-    <div className="space-y-5">
-      <SectionHeader title="TLS Profile" />
-      <div className="space-y-3">
-        <div>
-          <p className="text-xs text-muted-foreground">Security Posture</p>
-          <div className="mt-1 space-y-1.5">
-            <SeverityLabel severity={classification.overallSeverity} />
-            <p className="text-sm text-muted-foreground">{postureDescription(classification)}</p>
+    <Section title="TLS Profile">
+      <div className="space-y-5">
+        {/* Security posture subsection */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Security Posture</p>
+
+          {/* Compliance score — placeholder until scoring logic is implemented */}
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-5xl font-bold tracking-tight">00%</span>
+            <span className="text-sm font-medium text-muted-foreground">Compliance Score</span>
           </div>
+
+          <p className="text-sm text-muted-foreground">{postureSummary(classification)}</p>
+
+          <PostureBanner classification={classification} />
         </div>
-        <Field label="Last Scanned">{fmtDateTime(profile.scannedAt)}</Field>
+
+        {profile.scanError && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{profile.scanError}</span>
+          </div>
+        )}
+
+        {classification.versions.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Supported Versions</p>
+            <div className="space-y-1.5">
+              {classification.versions.map((f) => <FindingRow key={f.name} finding={f} />)}
+            </div>
+          </div>
+        )}
+
+        {classification.cipherSuites.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Cipher Suites ({classification.cipherSuites.length})
+            </p>
+            <div className="space-y-1.5">
+              {classification.cipherSuites.map((f) => (
+                <FindingRow key={f.name} finding={f} preferred={f.name === profile.selectedCipher} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      {profile.scanError && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{profile.scanError}</span>
-        </div>
-      )}
-      {classification.versions.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Supported Versions</p>
-          <div className="space-y-1.5">
-            {classification.versions.map((f) => <FindingRow key={f.name} finding={f} />)}
-          </div>
-        </div>
-      )}
-      {classification.cipherSuites.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Supported Cipher Suites ({classification.cipherSuites.length})
-          </p>
-          <div className="space-y-1.5">
-            {classification.cipherSuites.map((f) => (
-              <FindingRow key={f.name} finding={f} preferred={f.name === profile.selectedCipher} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    </Section>
   )
 }
 
@@ -320,34 +388,30 @@ const CERT_USE_LABEL: Record<string, string> = {
 }
 
 function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
-  if (certs.length === 0) {
-    return (
-      <div className="space-y-3">
-        <SectionHeader title="Active Certificates" />
-        <p className="text-sm italic text-muted-foreground">No certificates recorded yet.</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Active Certificates" />
-      {certs.map((cert) => (
-        <div key={`${cert.fingerprint}-${cert.certUse}`} className="space-y-1.5">
-          {(certs.length > 1 || cert.certUse === 'signing' || cert.certUse === 'encryption') && (
-            <p className="text-xs font-medium text-muted-foreground">
-              {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
-            </p>
-          )}
-          <CertCard
-            fingerprint={cert.fingerprint}
-            commonName={cert.commonName}
-            notAfter={cert.notAfter}
-            notBefore={cert.notBefore}
-          />
+    <Section title="Active Certificates">
+      {certs.length === 0 ? (
+        <p className="text-sm italic text-muted-foreground">No certificates recorded yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {certs.map((cert) => (
+            <div key={`${cert.fingerprint}-${cert.certUse}`} className="space-y-1.5">
+              {(certs.length > 1 || cert.certUse === 'signing' || cert.certUse === 'encryption') && (
+                <p className="text-xs font-medium text-muted-foreground">
+                  {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
+                </p>
+              )}
+              <CertCard
+                fingerprint={cert.fingerprint}
+                commonName={cert.commonName}
+                notAfter={cert.notAfter}
+                notBefore={cert.notBefore}
+              />
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </Section>
   )
 }
 
@@ -358,7 +422,7 @@ function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
 function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
   const ok = !item.scanError
   return (
-    <div className="flex items-start gap-3 px-1 py-2">
+    <div className="flex items-start gap-3 py-2.5 border-b border-border/40 last:border-0">
       <div className="mt-0.5 shrink-0">
         {ok ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-600" />}
       </div>
@@ -384,8 +448,7 @@ function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
 
 function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null }) {
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Scan History" />
+    <Section title="Scan History">
       {items === null ? (
         <p className="text-xs italic text-muted-foreground">Loading…</p>
       ) : items.length === 0 ? (
@@ -393,7 +456,7 @@ function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null
       ) : (
         <div>{items.map((item) => <ScanHistoryRow key={item.id} item={item} />)}</div>
       )}
-    </div>
+    </Section>
   )
 }
 
@@ -432,7 +495,6 @@ export default function EndpointDetailPage() {
   const history: EndpointScanHistoryItem[] | null = historyData?.items ?? null
   const tags: TagWithCategory[] = tagsData ?? []
 
-  // Derive TLS state from query result
   let tlsState: TLSState
   if (tlsLoading) {
     tlsState = { status: 'loading' }
@@ -472,54 +534,46 @@ export default function EndpointDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <h1 className="text-2xl font-bold">{endpoint.name}</h1>
-        <button
-          onClick={() => navigate(`/endpoints/${id}/edit`)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground mt-1"
-        >
-          <Pencil className="h-3.5 w-3.5" />
+        <div>
+          <h1 className="text-2xl font-semibold">{endpoint.name}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {endpoint.type === 'host' ? `${endpoint.dnsName}:${endpoint.port}` : endpoint.type === 'saml' ? 'SAML endpoint' : 'Manual endpoint'}
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => navigate(`/endpoints/${id}/edit`)} className="shrink-0 mt-1">
+          <Pencil className="mr-1.5 h-3.5 w-3.5" />
           Edit
-        </button>
+        </Button>
       </div>
 
+      {/* Tags */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map(tag => (
+            <span
+              key={tag.id}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+            >
+              <span className="opacity-60">{tag.categoryName}:</span>
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Two-column body */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
         {/* ── Left column ── */}
-        <div className="space-y-6">
-          <NotesSection endpoint={endpoint} />
-
-          {/* Endpoint Type */}
-          <div className="space-y-3">
-            <SectionHeader title="Endpoint Type" />
-            <TypeLabel type={endpoint.type} />
-          </div>
-
-          {/* Tags */}
-          {tags.length > 0 && (
-            <div className="space-y-3">
-              <SectionHeader title="Tags" />
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map(tag => (
-                  <span
-                    key={tag.id}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
-                  >
-                    <span className="opacity-60">{tag.categoryName}:</span>
-                    {tag.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <div className="space-y-5">
           <EndpointInfoSection endpoint={endpoint} />
           <ScanStatusSection endpoint={endpoint} />
+          {endpoint.notes && <NotesSection endpoint={endpoint} />}
           {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
         </div>
 
         {/* ── Right column ── */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           <ActiveCertsSection certs={endpoint.activeCerts} />
           <ScanHistorySection items={history} />
         </div>
