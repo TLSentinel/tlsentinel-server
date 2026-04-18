@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Search, Bell, HelpCircle } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
+import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
 import type { BuildInfo } from '@/types/api'
@@ -148,22 +149,13 @@ export default function AppShell() {
           <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
         </nav>
 
-        {/* Bottom nav — settings (admin only) + API docs */}
+        {/* Bottom nav — settings (admin only) */}
         <div className="p-3 space-y-1">
           {can('settings:view') && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
-          <a
-            href="/api-docs/index.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <BookOpen className="h-4 w-4" />
-            API Docs
-          </a>
         </div>
 
-        {/* Footer — user avatar + version */}
-        <div className="p-3 space-y-1">
+        {/* Footer — version */}
+        <div className="p-3">
           {buildInfo && (
             <p
               className="px-3 py-1 font-mono text-[11px] leading-tight text-sidebar-foreground/40"
@@ -172,61 +164,124 @@ export default function AppShell() {
               {buildInfo.version}
             </p>
           )}
-
-          {/* Avatar button + popover */}
-          <div className="relative" ref={popoverRef}>
-            <button
-              onClick={() => setPopoverOpen(v => !v)}
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                {initials(identity?.given_name, identity?.family_name, identity?.sub)}
-              </span>
-              <span className="truncate">
-                {identity?.given_name
-                  ? `${identity.given_name}${identity.family_name ? ' ' + identity.family_name : ''}`
-                  : identity?.sub ?? 'Account'}
-              </span>
-            </button>
-
-            {popoverOpen && (
-              <div className="absolute bottom-full left-0 mb-1 w-52 rounded-xl bg-popover shadow-lg text-popover-foreground text-sm overflow-hidden">
-                <div className="px-3 py-2 bg-muted">
-                  {(identity?.given_name || identity?.family_name) && (
-                    <p className="font-medium truncate">
-                      {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}
-                    </p>
-                  )}
-                  <p className="text-muted-foreground truncate text-xs">{identity?.sub}</p>
-                  <p className="mt-1 text-xs capitalize text-muted-foreground/60">{identity?.role}</p>
-                </div>
-                <div className="p-1">
-                  <Link
-                    to="/account"
-                    onClick={() => setPopoverOpen(false)}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <User className="h-4 w-4" />
-                    My Account
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto p-6">
-        <Outlet />
-      </main>
+      {/* Main pane (top bar + content) */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <TopBar
+          identity={identity}
+          popoverOpen={popoverOpen}
+          setPopoverOpen={setPopoverOpen}
+          popoverRef={popoverRef}
+          onLogout={handleLogout}
+        />
+        <main className="flex-1 overflow-auto px-6 pb-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// TopBar — global search + notifications + help + user menu
+// ---------------------------------------------------------------------------
+interface TopBarProps {
+  identity: TokenIdentity | null
+  popoverOpen: boolean
+  setPopoverOpen: (v: boolean | ((p: boolean) => boolean)) => void
+  popoverRef: React.RefObject<HTMLDivElement | null>
+  onLogout: () => void
+}
+
+function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }: TopBarProps) {
+  const fullName = identity?.given_name
+    ? `${identity.given_name}${identity.family_name ? ' ' + identity.family_name : ''}`
+    : identity?.sub ?? 'Account'
+
+  return (
+    <header className="flex items-center gap-3 px-6 py-4">
+      {/* Global search (placeholder — wiring TBD) */}
+      <div className="relative flex-1 max-w-2xl">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          type="search"
+          placeholder="Search endpoints, hosts, or scanners…"
+          className="w-full rounded-full bg-card py-2.5 pl-10 pr-4 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="ml-auto flex items-center gap-1">
+        <button
+          type="button"
+          className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title="Notifications"
+        >
+          <Bell className="h-5 w-5" />
+        </button>
+
+        <a
+          href="/api-docs/index.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title="API Docs"
+        >
+          <HelpCircle className="h-5 w-5" />
+        </a>
+
+        <div className="mx-2 h-8 w-px bg-border" />
+
+        {/* User menu */}
+        <div className="relative" ref={popoverRef}>
+          <button
+            onClick={() => setPopoverOpen(v => !v)}
+            className="flex items-center gap-3 rounded-full py-1 pl-3 pr-1 transition-colors hover:bg-muted"
+          >
+            <div className="text-right leading-tight hidden sm:block">
+              <p className="text-sm font-semibold">{fullName}</p>
+              {identity?.role && (
+                <p className="text-xs capitalize text-muted-foreground">{identity.role}</p>
+              )}
+            </div>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+              {initials(identity?.given_name, identity?.family_name, identity?.sub)}
+            </span>
+          </button>
+
+          {popoverOpen && (
+            <div className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-popover shadow-lg text-popover-foreground text-sm overflow-hidden z-50">
+              <div className="px-3 py-2 bg-muted">
+                {(identity?.given_name || identity?.family_name) && (
+                  <p className="font-medium truncate">
+                    {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}
+                  </p>
+                )}
+                <p className="text-muted-foreground truncate text-xs">{identity?.sub}</p>
+                <p className="mt-1 text-xs capitalize text-muted-foreground/60">{identity?.role}</p>
+              </div>
+              <div className="p-1">
+                <Link
+                  to="/account"
+                  onClick={() => setPopoverOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <User className="h-4 w-4" />
+                  My Account
+                </Link>
+                <button
+                  onClick={onLogout}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
   )
 }
