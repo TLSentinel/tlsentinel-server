@@ -156,7 +156,23 @@ function EndpointInfoSection({ endpoint, onToggleEnabled, tags }: { endpoint: En
 
           {isHost && <Field label="Port"><span className="text-base font-semibold">{endpoint.port}</span></Field>}
 
-          <div className="col-span-2">
+          {tags.length > 0 && (
+            <Field label="Tags">
+              <div className="flex flex-col items-start gap-1.5">
+                {tags.map(tag => (
+                  <span
+                    key={tag.id}
+                    className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+                  >
+                    <span className="opacity-60">{tag.categoryName}:</span>
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          <div className="col-start-2">
             <Field label="Monitored">
               <Switch
                 checked={endpoint.enabled}
@@ -164,24 +180,6 @@ function EndpointInfoSection({ endpoint, onToggleEnabled, tags }: { endpoint: En
               />
             </Field>
           </div>
-
-          {tags.length > 0 && (
-            <div className="col-span-2">
-              <Field label="Tags">
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map(tag => (
-                    <span
-                      key={tag.id}
-                      className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
-                    >
-                      <span className="opacity-60">{tag.categoryName}:</span>
-                      {tag.name}
-                    </span>
-                  ))}
-                </div>
-              </Field>
-            </div>
-          )}
 
         </div>
       </div>
@@ -577,7 +575,7 @@ export default function EndpointDetailPage() {
 
       {/* Type badge */}
       <div>
-        <Badge className="text-xs uppercase tracking-wider">
+        <Badge className="rounded-md text-xs uppercase tracking-wider">
           {TYPE_LABEL[endpoint.type] ?? endpoint.type}
         </Badge>
       </div>
