@@ -163,7 +163,6 @@ function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint
             <Switch
               checked={endpoint.enabled}
               onCheckedChange={onToggleEnabled}
-              className="data-[state=checked]:bg-green-500"
             />
           </Field>
 
@@ -209,7 +208,6 @@ function ScanStatusSection({ endpoint, onToggleScanning }: { endpoint: Endpoint;
               <Switch
                 checked={scanningOn}
                 onCheckedChange={onToggleScanning}
-                className="data-[state=checked]:bg-green-500"
               />
             </Field>
           </div>
