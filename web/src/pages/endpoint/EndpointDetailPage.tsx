@@ -421,25 +421,24 @@ const CERT_USE_LABEL: Record<string, string> = {
 }
 
 function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
+  if (certs.length === 0) {
+    return (
+      <p className="px-5 text-sm italic text-muted-foreground">No certificates recorded yet.</p>
+    )
+  }
   return (
-    <Section title="Certificates">
-      {certs.length === 0 ? (
-        <p className="text-sm italic text-muted-foreground">No certificates recorded yet.</p>
-      ) : (
-        <div className="space-y-3">
-          {certs.map((cert) => (
-            <CertProgressCard
-              key={`${cert.fingerprint}-${cert.certUse}`}
-              fingerprint={cert.fingerprint}
-              commonName={cert.commonName}
-              notBefore={cert.notBefore}
-              notAfter={cert.notAfter}
-              label={CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
-            />
-          ))}
-        </div>
-      )}
-    </Section>
+    <div className="space-y-3">
+      {certs.map((cert) => (
+        <CertProgressCard
+          key={`${cert.fingerprint}-${cert.certUse}`}
+          fingerprint={cert.fingerprint}
+          commonName={cert.commonName}
+          notBefore={cert.notBefore}
+          notAfter={cert.notAfter}
+          label={CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
+        />
+      ))}
+    </div>
   )
 }
 
