@@ -580,8 +580,8 @@ export default function EndpointDetailPage() {
         </Badge>
       </div>
 
-      {/* Two-column body */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* Two-column body (collapses to single column when there's no TLS Profile) */}
+      <div className={`grid grid-cols-1 gap-5 ${endpoint.type === 'host' ? 'lg:grid-cols-2' : ''}`}>
 
         {/* ── Left column ── */}
         <div className="space-y-5">
@@ -592,10 +592,12 @@ export default function EndpointDetailPage() {
           <ScanHistorySection items={history} />
         </div>
 
-        {/* ── Right column ── */}
-        <div className="space-y-5">
-          {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
-        </div>
+        {/* ── Right column (only when TLS Profile has content) ── */}
+        {endpoint.type === 'host' && (
+          <div className="space-y-5">
+            <TLSProfileSection tlsState={tlsState} />
+          </div>
+        )}
 
       </div>
     </div>
