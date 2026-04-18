@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource-variable/geist": "^5.2.8",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/manrope": "^5.2.8",
     "@peculiar/asn1-schema": "^2.6.0",
     "@peculiar/x509": "^2.0.0",
     "@radix-ui/react-select": "^2.2.6",
