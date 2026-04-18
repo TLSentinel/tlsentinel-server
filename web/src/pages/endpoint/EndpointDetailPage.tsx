@@ -575,7 +575,7 @@ export default function EndpointDetailPage() {
 
       {/* Type badge */}
       <div>
-        <Badge className="rounded-md text-xs uppercase tracking-wider">
+        <Badge className="h-7 rounded-md px-3 text-sm font-semibold uppercase">
           {TYPE_LABEL[endpoint.type] ?? endpoint.type}
         </Badge>
       </div>
