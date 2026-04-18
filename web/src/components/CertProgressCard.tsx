@@ -33,7 +33,7 @@ export function CertProgressCard({
   const barClass    = isExpired ? 'bg-error'           : isWarning ? 'bg-warning'           : 'bg-tertiary'
 
   return (
-    <div className={`rounded-xl bg-card border-l-4 ${accentClass} px-4 py-3 space-y-3`}>
+    <div className={`rounded-xl bg-card border border-l-4 border-border ${accentClass} px-4 py-3 space-y-3`}>
       {/* Label */}
       <div className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <KeyRound className="h-3.5 w-3.5" />
