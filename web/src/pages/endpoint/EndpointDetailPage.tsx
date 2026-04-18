@@ -571,7 +571,7 @@ export default function EndpointDetailPage() {
           <Button
             variant="outline"
             onClick={() => navigate(`/endpoints/${id}/edit`)}
-            className="h-10 px-4 text-base font-semibold"
+            className="h-12 px-4 text-base font-semibold"
           >
             <Pencil className="mr-1.5 h-4 w-4" />
             Edit Endpoint
@@ -579,7 +579,7 @@ export default function EndpointDetailPage() {
           {endpoint.type === 'host' && (
             <Button
               onClick={() => { /* TODO: wire up force scan */ }}
-              className="h-10 px-4 text-base font-semibold"
+              className="h-12 px-4 text-base font-semibold"
             >
               <RefreshCw className="mr-1.5 h-4 w-4" />
               Force Scan
