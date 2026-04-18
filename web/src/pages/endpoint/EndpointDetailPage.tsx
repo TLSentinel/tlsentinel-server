@@ -586,15 +586,15 @@ export default function EndpointDetailPage() {
         {/* ── Left column ── */}
         <div className="space-y-5">
           <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} tags={tags} />
+          <ActiveCertsSection certs={endpoint.activeCerts} />
           <ScanStatusSection endpoint={endpoint} onToggleScanning={(on) => toggleScanning(!on)} />
+          <ScanHistorySection items={history} />
           {endpoint.notes && <NotesSection endpoint={endpoint} />}
-          {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
         </div>
 
         {/* ── Right column ── */}
         <div className="space-y-5">
-          <ActiveCertsSection certs={endpoint.activeCerts} />
-          <ScanHistorySection items={history} />
+          {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
         </div>
 
       </div>
