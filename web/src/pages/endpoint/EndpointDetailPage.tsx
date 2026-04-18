@@ -341,12 +341,13 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Security Posture</p>
 
           {/* Compliance score — placeholder until scoring logic is implemented */}
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-5xl font-bold tracking-tight">00%</span>
-            <span className="text-sm font-medium text-muted-foreground">Compliance Score</span>
+          <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-2">
+            <div className="flex items-baseline gap-2.5">
+              <span className="text-5xl font-bold tracking-tight">00%</span>
+              <span className="text-sm font-medium text-primary-foreground/70">Compliance Score</span>
+            </div>
+            <p className="text-sm text-primary-foreground/80">{postureSummary(classification)}</p>
           </div>
-
-          <p className="text-sm text-muted-foreground">{postureSummary(classification)}</p>
 
           <PostureBanner classification={classification} />
         </div>
