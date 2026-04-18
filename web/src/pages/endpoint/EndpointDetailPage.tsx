@@ -1,6 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
@@ -113,7 +114,7 @@ const TYPE_LABEL: Record<string, string> = {
 // Endpoint info section
 // ---------------------------------------------------------------------------
 
-function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint; onToggleEnabled: (enabled: boolean) => void }) {
+function EndpointInfoSection({ endpoint, onToggleEnabled, tags }: { endpoint: Endpoint; onToggleEnabled: (enabled: boolean) => void; tags: TagWithCategory[] }) {
   const isHost   = endpoint.type === 'host'
   const isSAML   = endpoint.type === 'saml'
   const isManual = endpoint.type === 'manual'
@@ -155,16 +156,32 @@ function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint
 
           {isHost && <Field label="Port"><span className="text-base font-semibold">{endpoint.port}</span></Field>}
 
-          <Field label="Type">
-            <span className="text-sm font-medium">{TYPE_LABEL[endpoint.type] ?? endpoint.type}</span>
-          </Field>
+          <div className="col-span-2">
+            <Field label="Monitored">
+              <Switch
+                checked={endpoint.enabled}
+                onCheckedChange={onToggleEnabled}
+              />
+            </Field>
+          </div>
 
-          <Field label="Monitored">
-            <Switch
-              checked={endpoint.enabled}
-              onCheckedChange={onToggleEnabled}
-            />
-          </Field>
+          {tags.length > 0 && (
+            <div className="col-span-2">
+              <Field label="Tags">
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map(tag => (
+                    <span
+                      key={tag.id}
+                      className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+                    >
+                      <span className="opacity-60">{tag.categoryName}:</span>
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              </Field>
+            </div>
+          )}
 
         </div>
       </div>
@@ -558,27 +575,19 @@ export default function EndpointDetailPage() {
         </Button>
       </div>
 
-      {/* Tags */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {tags.map(tag => (
-            <span
-              key={tag.id}
-              className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
-            >
-              <span className="opacity-60">{tag.categoryName}:</span>
-              {tag.name}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Type badge */}
+      <div>
+        <Badge className="text-xs uppercase tracking-wider">
+          {TYPE_LABEL[endpoint.type] ?? endpoint.type}
+        </Badge>
+      </div>
 
       {/* Two-column body */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
         {/* ── Left column ── */}
         <div className="space-y-5">
-          <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} />
+          <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} tags={tags} />
           <ScanStatusSection endpoint={endpoint} onToggleScanning={(on) => toggleScanning(!on)} />
           {endpoint.notes && <NotesSection endpoint={endpoint} />}
           {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
