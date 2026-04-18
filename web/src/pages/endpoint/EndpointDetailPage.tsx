@@ -587,9 +587,9 @@ export default function EndpointDetailPage() {
         <div className="space-y-5">
           <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} tags={tags} />
           <ActiveCertsSection certs={endpoint.activeCerts} />
+          {endpoint.notes && <NotesSection endpoint={endpoint} />}
           <ScanStatusSection endpoint={endpoint} onToggleScanning={(on) => toggleScanning(!on)} />
           <ScanHistorySection items={history} />
-          {endpoint.notes && <NotesSection endpoint={endpoint} />}
         </div>
 
         {/* ── Right column ── */}
