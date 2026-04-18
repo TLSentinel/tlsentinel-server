@@ -322,6 +322,28 @@ type TLSState =
   | { status: 'error'; message: string }
   | { status: 'ready'; profile: EndpointTLSProfile }
 
+function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
+  if (tlsState.status !== 'ready') return null
+  const { classification } = tlsState.profile
+
+  return (
+    <Section title="Security Posture">
+      <div className="space-y-3">
+        {/* Compliance score — placeholder until scoring logic is implemented */}
+        <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-2">
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-5xl font-bold tracking-tight">00%</span>
+            <span className="text-sm font-medium text-primary-foreground/70">Compliance Score</span>
+          </div>
+          <p className="text-sm text-primary-foreground/80">{postureSummary(classification)}</p>
+        </div>
+
+        <PostureBanner classification={classification} />
+      </div>
+    </Section>
+  )
+}
+
 function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status === 'loading') {
     return (
@@ -351,22 +373,6 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   return (
     <Section title="TLS Profile">
       <div className="space-y-5">
-        {/* Security posture subsection */}
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Security Posture</p>
-
-          {/* Compliance score — placeholder until scoring logic is implemented */}
-          <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-2">
-            <div className="flex items-baseline gap-2.5">
-              <span className="text-5xl font-bold tracking-tight">00%</span>
-              <span className="text-sm font-medium text-primary-foreground/70">Compliance Score</span>
-            </div>
-            <p className="text-sm text-primary-foreground/80">{postureSummary(classification)}</p>
-          </div>
-
-          <PostureBanner classification={classification} />
-        </div>
-
         {profile.scanError && (
           <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -610,6 +616,7 @@ export default function EndpointDetailPage() {
         {/* ── Right column (only when TLS Profile has content) ── */}
         {endpoint.type === 'host' && (
           <div className="space-y-5">
+            <SecurityPostureSection tlsState={tlsState} />
             <TLSProfileSection tlsState={tlsState} />
           </div>
         )}
