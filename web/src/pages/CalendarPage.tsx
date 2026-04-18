@@ -122,113 +122,115 @@ export default function CalendarPage() {
         </Button>
       </div>
 
-      {/* Day-of-week header */}
-      <div className="grid grid-cols-7 border-b">
-        {DOW.map(d => (
-          <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      {isLoading ? (
-        <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
-          Loading…
+      <div className="rounded-xl bg-card overflow-hidden">
+        {/* Day-of-week header */}
+        <div className="grid grid-cols-7 border-b">
+          {DOW.map(d => (
+            <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">
+              {d}
+            </div>
+          ))}
         </div>
-      ) : (
-        <div className="grid grid-cols-7 border-l border-t">
-          {grid.flat().map((dateStr, idx) => {
-            if (!dateStr) {
+
+        {/* Calendar grid */}
+        {isLoading ? (
+          <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
+            Loading…
+          </div>
+        ) : (
+          <div className="grid grid-cols-7">
+            {grid.flat().map((dateStr, idx) => {
+              if (!dateStr) {
+                return (
+                  <div
+                    key={idx}
+                    className="min-h-[100px] border-b border-r last:border-r-0 bg-muted/20"
+                  />
+                )
+              }
+
+              const endpoints = (byDate.get(dateStr) ?? [])
+                .slice()
+                .sort((a, b) => a.daysRemaining - b.daysRemaining)
+              const isToday    = dateStr === today_
+              const day        = Number(dateStr.slice(8))
+              const isExpanded = expanded[dateStr] ?? false
+              const visible    = isExpanded ? endpoints : endpoints.slice(0, MAX_VISIBLE)
+              const overflow   = endpoints.length - MAX_VISIBLE
+
               return (
                 <div
-                  key={idx}
-                  className="min-h-[100px] border-b border-r bg-muted/20"
-                />
-              )
-            }
+                  key={dateStr}
+                  className="min-h-[100px] border-b border-r p-1.5 flex flex-col gap-1"
+                >
+                  {/* Day number */}
+                  <div className="flex items-center justify-end">
+                    <span className={cn(
+                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
+                      isToday && 'bg-primary text-primary-foreground',
+                      !isToday && 'text-muted-foreground',
+                    )}>
+                      {day}
+                    </span>
+                  </div>
 
-            const endpoints = (byDate.get(dateStr) ?? [])
-              .slice()
-              .sort((a, b) => a.daysRemaining - b.daysRemaining)
-            const isToday    = dateStr === today_
-            const day        = Number(dateStr.slice(8))
-            const isExpanded = expanded[dateStr] ?? false
-            const visible    = isExpanded ? endpoints : endpoints.slice(0, MAX_VISIBLE)
-            const overflow   = endpoints.length - MAX_VISIBLE
+                  {/* Endpoint chips */}
+                  {visible.map((cert, i) => {
+                    const days = cert.daysRemaining
+                    const daysLabel = days < 0
+                      ? `Expired ${Math.abs(days)}d ago`
+                      : days === 0
+                        ? 'Expires today'
+                        : `${days}d remaining`
 
-            return (
-              <div
-                key={dateStr}
-                className="min-h-[100px] border-b border-r p-1.5 flex flex-col gap-1"
-              >
-                {/* Day number */}
-                <div className="flex items-center justify-end">
-                  <span className={cn(
-                    'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
-                    isToday && 'bg-primary text-primary-foreground',
-                    !isToday && 'text-muted-foreground',
-                  )}>
-                    {day}
-                  </span>
+                    return (
+                      <Tooltip key={`${cert.endpointId}-${cert.fingerprint}-${i}`}>
+                        <TooltipTrigger asChild>
+                          <Link
+                            to={`/endpoints/${cert.endpointId}`}
+                            className={cn(
+                              'truncate rounded border px-1.5 py-0.5 text-[11px] font-medium leading-tight transition-opacity hover:opacity-75',
+                              urgencyChip(days),
+                            )}
+                          >
+                            {cert.endpointName}
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="min-w-48 p-3">
+                          <div className="flex flex-col gap-1.5">
+                            <p className="font-semibold">{cert.endpointName}</p>
+                            <p className="text-xs text-muted-foreground">{cert.commonName}</p>
+                            <p className="text-xs text-muted-foreground">{fmtDate(cert.notAfter)}</p>
+                            <p className="text-xs text-muted-foreground">{daysLabel}</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  })}
+
+                  {/* Overflow toggle */}
+                  {!isExpanded && overflow > 0 && (
+                    <button
+                      onClick={e => toggleExpand(dateStr, e)}
+                      className="text-left text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      +{overflow} more
+                    </button>
+                  )}
+                  {isExpanded && overflow > 0 && (
+                    <button
+                      onClick={e => toggleExpand(dateStr, e)}
+                      className="text-left text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      Show less
+                    </button>
+                  )}
                 </div>
-
-                {/* Endpoint chips */}
-                {visible.map((cert, i) => {
-                  const days = cert.daysRemaining
-                  const daysLabel = days < 0
-                    ? `Expired ${Math.abs(days)}d ago`
-                    : days === 0
-                      ? 'Expires today'
-                      : `${days}d remaining`
-
-                  return (
-                    <Tooltip key={`${cert.endpointId}-${cert.fingerprint}-${i}`}>
-                      <TooltipTrigger asChild>
-                        <Link
-                          to={`/endpoints/${cert.endpointId}`}
-                          className={cn(
-                            'truncate rounded border px-1.5 py-0.5 text-[11px] font-medium leading-tight transition-opacity hover:opacity-75',
-                            urgencyChip(days),
-                          )}
-                        >
-                          {cert.endpointName}
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="min-w-48 p-3">
-                        <div className="flex flex-col gap-1.5">
-                          <p className="font-semibold">{cert.endpointName}</p>
-                          <p className="text-xs text-muted-foreground">{cert.commonName}</p>
-                          <p className="text-xs text-muted-foreground">{fmtDate(cert.notAfter)}</p>
-                          <p className="text-xs text-muted-foreground">{daysLabel}</p>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                })}
-
-                {/* Overflow toggle */}
-                {!isExpanded && overflow > 0 && (
-                  <button
-                    onClick={e => toggleExpand(dateStr, e)}
-                    className="text-left text-[11px] text-muted-foreground hover:text-foreground"
-                  >
-                    +{overflow} more
-                  </button>
-                )}
-                {isExpanded && overflow > 0 && (
-                  <button
-                    onClick={e => toggleExpand(dateStr, e)}
-                    className="text-left text-[11px] text-muted-foreground hover:text-foreground"
-                  >
-                    Show less
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
 
     </div>
   )

@@ -321,7 +321,7 @@ export default function ActivePage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-lg border">
+      <div className="rounded-xl bg-card overflow-hidden">
 
         {/* Toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b">
