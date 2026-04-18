@@ -426,33 +426,32 @@ function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
 function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
   const ok = !item.scanError
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-border/40 last:border-0">
-      <div className="mt-0.5 shrink-0">
-        {ok ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-600" />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{fmtDateTime(item.scannedAt)}</p>
-        {item.tlsVersion && <p className="text-xs font-medium">{item.tlsVersion}</p>}
-        {item.fingerprint && (
-          <div>
-            <p className="text-xs text-muted-foreground">Fingerprint</p>
-            <Link
-              to={`/certificates/${item.fingerprint}`}
-              className="block truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
-            >
-              {item.fingerprint}
-            </Link>
-          </div>
+    <div className="py-2.5 border-b border-border/40 last:border-0">
+      <div className="flex items-center gap-3 min-w-0">
+        {ok
+          ? <CheckCircle2 className="h-4 w-4 shrink-0 text-tertiary" />
+          : <XCircle      className="h-4 w-4 shrink-0 text-error" />}
+        <span className="shrink-0 text-sm font-medium">{fmtDateTime(item.scannedAt)}</span>
+        {item.tlsVersion && (
+          <span className="shrink-0 text-xs text-muted-foreground">{item.tlsVersion}</span>
         )}
-        {item.scanError && <p className="text-xs text-destructive">{item.scanError}</p>}
+        {item.fingerprint && (
+          <Link
+            to={`/certificates/${item.fingerprint}`}
+            className="min-w-0 truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
+          >
+            {item.fingerprint}
+          </Link>
+        )}
       </div>
+      {item.scanError && <p className="mt-1 pl-7 text-xs text-destructive">{item.scanError}</p>}
     </div>
   )
 }
 
 function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null }) {
   return (
-    <Section title="Scan History">
+    <Section title="Scan History" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
       {items === null ? (
         <p className="text-xs italic text-muted-foreground">Loading…</p>
       ) : items.length === 0 ? (
