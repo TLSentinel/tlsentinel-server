@@ -117,13 +117,22 @@ const TYPE_LABEL: Record<string, string> = {
 // Endpoint info section
 // ---------------------------------------------------------------------------
 
-function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint; onToggleEnabled: (enabled: boolean) => void }) {
+function ConfigurationSection({
+  endpoint,
+  onToggleEnabled,
+  onToggleScanning,
+}: {
+  endpoint: Endpoint
+  onToggleEnabled: (enabled: boolean) => void
+  onToggleScanning: (enabled: boolean) => void
+}) {
   const isHost   = endpoint.type === 'host'
   const isSAML   = endpoint.type === 'saml'
   const isManual = endpoint.type === 'manual'
+  const scanningOn = !endpoint.scanExempt
 
   return (
-    <Section title="Endpoint">
+    <Section title="Configuration" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
 
@@ -159,14 +168,36 @@ function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint
 
           {isHost && <Field label="Port"><span className="text-base font-semibold">{endpoint.port}</span></Field>}
 
-          <Field label="Monitored">
-            <Switch
-              checked={endpoint.enabled}
-              onCheckedChange={onToggleEnabled}
-            />
-          </Field>
+          <div className="col-start-2">
+            <Field label="Monitored">
+              <Switch checked={endpoint.enabled} onCheckedChange={onToggleEnabled} />
+            </Field>
+          </div>
+
+          {!isManual && (
+            <>
+              <Field label="Scanner">
+                <span className="text-base font-semibold">{endpoint.scannerName ?? 'Default'}</span>
+              </Field>
+              <Field label="Scanning">
+                <Switch checked={scanningOn} onCheckedChange={onToggleScanning} />
+              </Field>
+              <Field label="Last Scanned">
+                <span className="text-base font-semibold">
+                  {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
+                </span>
+              </Field>
+            </>
+          )}
 
         </div>
+
+        {endpoint.lastScanError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{endpoint.lastScanError}</span>
+          </div>
+        )}
       </div>
     </Section>
   )
@@ -186,42 +217,6 @@ function NotesSection({ endpoint }: { endpoint: Endpoint }) {
       ) : (
         <p className="text-sm italic text-muted-foreground">No notes.</p>
       )}
-    </Section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Scan status section
-// ---------------------------------------------------------------------------
-
-function ScanStatusSection({ endpoint, onToggleScanning }: { endpoint: Endpoint; onToggleScanning: (enabled: boolean) => void }) {
-  const isManual = endpoint.type === 'manual'
-  const scanningOn = !endpoint.scanExempt
-
-  return (
-    <Section className="bg-muted/40">
-      <div className="space-y-3">
-        {!isManual && (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-            <Field label="Scanner"><span className="text-base font-semibold">{endpoint.scannerName ?? 'Default'}</span></Field>
-            <Field label="Scanning">
-              <Switch
-                checked={scanningOn}
-                onCheckedChange={onToggleScanning}
-              />
-            </Field>
-          </div>
-        )}
-        <Field label="Last Scanned">
-          <span className="text-base font-semibold">{endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}</span>
-        </Field>
-        {endpoint.lastScanError && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{endpoint.lastScanError}</span>
-          </div>
-        )}
-      </div>
     </Section>
   )
 }
@@ -601,8 +596,11 @@ export default function EndpointDetailPage() {
         <div className="space-y-5">
           <ActiveCertsSection certs={endpoint.activeCerts} />
           {endpoint.notes && <NotesSection endpoint={endpoint} />}
-          <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} />
-          <ScanStatusSection endpoint={endpoint} onToggleScanning={(on) => toggleScanning(!on)} />
+          <ConfigurationSection
+            endpoint={endpoint}
+            onToggleEnabled={toggleEnabled}
+            onToggleScanning={(on) => toggleScanning(!on)}
+          />
           <ScanHistorySection items={history} />
         </div>
 
