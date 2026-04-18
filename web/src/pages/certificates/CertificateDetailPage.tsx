@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ChevronRight, Copy, Check, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
-import { CertCard, ExpiryStatus } from '@/components/CertCard'
+import { CertProgressCard } from '@/components/CertProgressCard'
 import { fmtDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 
@@ -13,13 +12,15 @@ import { useQuery } from '@tanstack/react-query'
 // Layout primitives
 // ---------------------------------------------------------------------------
 
-function SectionHeader({ title }: { title: string }) {
+function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        {title}
-      </p>
-      <Separator />
+    <div className="rounded-lg border">
+      {title && (
+        <div className="px-5 py-3 border-b bg-muted/40">
+          <p className="text-sm font-medium">{title}</p>
+        </div>
+      )}
+      <div className="p-5">{children}</div>
     </div>
   )
 }
@@ -27,7 +28,7 @@ function SectionHeader({ title }: { title: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
       <div className="mt-0.5 text-sm font-medium">{children}</div>
     </div>
   )
@@ -47,172 +48,196 @@ function UrlList({ urls }: { urls: string[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-sections
+// Validity progress bar
+// ---------------------------------------------------------------------------
+
+function ValiditySection({ cert }: { cert: CertificateDetail }) {
+  const now      = Date.now()
+  const issued   = new Date(cert.notBefore).getTime()
+  const expiry   = new Date(cert.notAfter).getTime()
+  const daysLeft = Math.floor((expiry - now) / 86_400_000)
+  const isExpired  = daysLeft < 0
+  const isWarning  = !isExpired && daysLeft <= 30
+  const pct        = Math.round(Math.min(Math.max((now - issued) / (expiry - issued), 0), 1) * 100)
+
+  const barClass = isExpired ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-green-500'
+
+  return (
+    <Section title="Validity">
+      <div className="space-y-3">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+        </div>
+        <div className="flex justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <span>Issued: {fmtDate(cert.notBefore)}</span>
+          <span>{isExpired ? 'Expired' : `Days remaining: ${daysLeft}`}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-1">
+          <Field label="Not Before">
+            <span className="text-base font-semibold">{fmtDate(cert.notBefore)}</span>
+          </Field>
+          <Field label="Not After">
+            <span className="text-base font-semibold">{fmtDate(cert.notAfter)}</span>
+          </Field>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Subject
 // ---------------------------------------------------------------------------
 
 function SubjectSection({ cert }: { cert: CertificateDetail }) {
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Subject" />
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <Field label="Common Name">{cert.commonName || '—'}</Field>
-        <Field label="Organization">{cert.subjectOrg || '—'}</Field>
-        <Field label="Org Unit">{cert.subjectOrgUnit || '—'}</Field>
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">Subject Alternative Names</p>
-        {cert.sans.length > 0 ? (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {cert.sans.map((san) => (
-              <span key={san} className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
-                {san}
-              </span>
-            ))}
+    <Section title="Subject">
+      <div className="space-y-3">
+        <div className="col-span-2">
+          <Field label="Common Name">
+            <span className="text-base font-semibold">{cert.commonName || '—'}</span>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+          <Field label="Organization">
+            <span className="text-base font-semibold">{cert.subjectOrg || '—'}</span>
+          </Field>
+          <Field label="Org Unit">
+            <span className="text-base font-semibold">{cert.subjectOrgUnit || '—'}</span>
+          </Field>
+        </div>
+        {cert.sans.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Subject Alternative Names</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {cert.sans.map((san) => (
+                <span key={san} className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">
+                  {san}
+                </span>
+              ))}
+            </div>
           </div>
-        ) : (
-          <p className="mt-0.5 text-sm font-medium">—</p>
         )}
       </div>
-    </div>
+    </Section>
   )
 }
 
-function IssuerSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <div className="space-y-3">
-      <SectionHeader title="Issuer" />
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <Field label="Common Name">{cert.issuerCn || '—'}</Field>
-        <Field label="Organization">{cert.issuerOrg || '—'}</Field>
-      </div>
-      {cert.issuerFingerprint && (
-        <Field label="Issuer Certificate">
-          <Link
-            to={`/certificates/${cert.issuerFingerprint}`}
-            className="font-mono text-xs text-primary hover:underline"
-          >
-            {cert.issuerFingerprint.slice(0, 32)}…
-          </Link>
-        </Field>
-      )}
-    </div>
-  )
-}
+// ---------------------------------------------------------------------------
+// Issuer
+// ---------------------------------------------------------------------------
 
-function ValiditySection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <div className="space-y-3">
-      <SectionHeader title="Validity" />
-      <div className="grid grid-cols-2 gap-x-6">
-        <Field label="Not Before">{fmtDate(cert.notBefore)}</Field>
-        <Field label="Not After">{fmtDate(cert.notAfter)}</Field>
-      </div>
-    </div>
-  )
-}
+// ---------------------------------------------------------------------------
+// Key & Signature
+// ---------------------------------------------------------------------------
 
 function KeySection({ cert }: { cert: CertificateDetail }) {
-  const keyLabel =
-    cert.keySize > 0 ? `${cert.keyAlgorithm} ${cert.keySize}-bit` : cert.keyAlgorithm || '—'
+  const keyLabel = cert.keySize > 0 ? `${cert.keyAlgorithm} ${cert.keySize}-bit` : cert.keyAlgorithm || '—'
 
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Key & Signature" />
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <Field label="Key Algorithm">{cert.keyAlgorithm || '—'}</Field>
-        <Field label="Key Size">{cert.keySize > 0 ? keyLabel : '—'}</Field>
+    <Section title="Key & Signature">
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+          <Field label="Key Algorithm">
+            <span className="text-base font-semibold">{cert.keyAlgorithm || '—'}</span>
+          </Field>
+          <Field label="Key Size">
+            <span className="text-base font-semibold">{cert.keySize > 0 ? keyLabel : '—'}</span>
+          </Field>
+        </div>
+        <Field label="Signature Algorithm">
+          <span className="text-base font-semibold">{cert.signatureAlgorithm || '—'}</span>
+        </Field>
       </div>
-      <Field label="Signature Algorithm">{cert.signatureAlgorithm || '—'}</Field>
+    </Section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Usages
+// ---------------------------------------------------------------------------
+
+function ChipList({ items }: { items: string[] }) {
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <div className="mt-1 flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <span key={item} className="rounded border bg-muted px-2 py-0.5 text-xs font-medium">
+          {item}
+        </span>
+      ))}
     </div>
   )
 }
 
 function UsageSection({ cert }: { cert: CertificateDetail }) {
-  function ChipList({ items }: { items: string[] }) {
-    if (items.length === 0) return <span className="text-muted-foreground">—</span>
-    return (
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        {items.map((item) => (
-          <span
-            key={item}
-            className="rounded bg-muted px-2 py-0.5 text-xs font-medium"
-          >
-            {item}
-          </span>
-        ))}
+  return (
+    <Section title="Usages">
+      <div className="space-y-3">
+        <Field label="Key Usage"><ChipList items={cert.keyUsages} /></Field>
+        <Field label="Extended Key Usage"><ChipList items={cert.extKeyUsages} /></Field>
       </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <SectionHeader title="Usages" />
-      <Field label="Key Usage">
-        <ChipList items={cert.keyUsages} />
-      </Field>
-      <Field label="Extended Key Usage">
-        <ChipList items={cert.extKeyUsages} />
-      </Field>
-    </div>
-  )
-}
-
-function IdentifiersSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <div className="space-y-3">
-      <SectionHeader title="Identifiers" />
-      <Field label="Serial Number">
-        <span className="break-all font-mono text-xs">{cert.serialNumber}</span>
-      </Field>
-      <Field label="Subject Key ID">
-        <span className="break-all font-mono text-xs">{cert.subjectKeyId}</span>
-      </Field>
-      {cert.authorityKeyId && (
-        <Field label="Authority Key ID">
-          <span className="break-all font-mono text-xs">{cert.authorityKeyId}</span>
-        </Field>
-      )}
-      <Field label="SHA-256 Fingerprint">
-        <span className="break-all font-mono text-xs">{cert.fingerprint}</span>
-      </Field>
-    </div>
-  )
-}
-
-function RevocationSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <div className="space-y-3">
-      <SectionHeader title="Revocation" />
-      <Field label="OCSP URL">
-        <UrlList urls={cert.ocspUrls} />
-      </Field>
-      <Field label="CRL Distribution Points">
-        <UrlList urls={cert.crlDistributionPoints} />
-      </Field>
-    </div>
+    </Section>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Chain section — walks issuerFingerprint links up to 5 levels
+// Identifiers
+// ---------------------------------------------------------------------------
+
+function IdentifiersSection({ cert }: { cert: CertificateDetail }) {
+  return (
+    <Section title="Identifiers">
+      <div className="space-y-3">
+        <Field label="SHA-256 Fingerprint">
+          <span className="break-all font-mono text-xs">{cert.fingerprint}</span>
+        </Field>
+        <Field label="Serial Number">
+          <span className="break-all font-mono text-xs">{cert.serialNumber}</span>
+        </Field>
+        <Field label="Subject Key ID">
+          <span className="break-all font-mono text-xs">{cert.subjectKeyId}</span>
+        </Field>
+        {cert.authorityKeyId && (
+          <Field label="Authority Key ID">
+            <span className="break-all font-mono text-xs">{cert.authorityKeyId}</span>
+          </Field>
+        )}
+      </div>
+    </Section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Revocation
+// ---------------------------------------------------------------------------
+
+function RevocationSection({ cert }: { cert: CertificateDetail }) {
+  return (
+    <Section title="Revocation">
+      <div className="space-y-3">
+        <Field label="OCSP URL"><UrlList urls={cert.ocspUrls} /></Field>
+        <Field label="CRL Distribution Points"><UrlList urls={cert.crlDistributionPoints} /></Field>
+      </div>
+    </Section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Certificate chain
 // ---------------------------------------------------------------------------
 
 interface ChainCert {
   fingerprint: string
   commonName: string
+  notBefore: string
   notAfter: string
   issuerFingerprint: string | null
 }
 
+
 function ChainSection({ cert }: { cert: CertificateDetail }) {
-  const [chain, setChain] = useState<ChainCert[]>([
-    {
-      fingerprint: cert.fingerprint,
-      commonName: cert.commonName,
-      notAfter: cert.notAfter,
-      issuerFingerprint: cert.issuerFingerprint,
-    },
-  ])
+  const [chain, setChain] = useState<ChainCert[]>([])
   const [loading, setLoading] = useState(!!cert.issuerFingerprint)
 
   useEffect(() => {
@@ -220,14 +245,7 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
     let cancelled = false
 
     async function traverse() {
-      const result: ChainCert[] = [
-        {
-          fingerprint: cert.fingerprint,
-          commonName: cert.commonName,
-          notAfter: cert.notAfter,
-          issuerFingerprint: cert.issuerFingerprint,
-        },
-      ]
+      const result: ChainCert[] = []
       const seen = new Set([cert.fingerprint])
       let nextFp = cert.issuerFingerprint
 
@@ -239,6 +257,7 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
           result.push({
             fingerprint: parent.fingerprint,
             commonName: parent.commonName,
+            notBefore: parent.notBefore,
             notAfter: parent.notAfter,
             issuerFingerprint: parent.issuerFingerprint,
           })
@@ -255,44 +274,43 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
     }
 
     traverse()
-    return () => {
-      cancelled = true
-    }
-  }, [cert.fingerprint, cert.issuerFingerprint, cert.commonName, cert.notAfter])
+    return () => { cancelled = true }
+  }, [cert.fingerprint, cert.issuerFingerprint, cert.commonName, cert.notBefore, cert.notAfter])
 
   function certRole(index: number, total: number) {
-    if (index === 0) return 'Leaf'
     if (index === total - 1) return 'Root'
     return 'Intermediate'
   }
 
   return (
-    <div className="space-y-3">
-      <SectionHeader title={`Certificate Chain (${chain.length}${loading ? '+' : ''})`} />
-
+    <Section title="Issuer">
       <div className="space-y-2">
+        {loading && chain.length === 0 && (
+          <p className="text-xs italic text-muted-foreground">Loading chain…</p>
+        )}
+        {!loading && chain.length === 0 && (
+          <p className="text-sm italic text-muted-foreground">No issuer chain available.</p>
+        )}
         {chain.map((c, i) => (
-          <CertCard
+          <CertProgressCard
             key={c.fingerprint}
             fingerprint={c.fingerprint}
             commonName={c.commonName}
+            notBefore={c.notBefore}
             notAfter={c.notAfter}
-            role={certRole(i, chain.length)}
-            isViewing={i === 0}
-            truncate
+            label={certRole(i, chain.length)}
           />
         ))}
-
-        {loading && (
+        {loading && chain.length > 0 && (
           <p className="text-xs italic text-muted-foreground">Loading chain…</p>
         )}
       </div>
-    </div>
+    </Section>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Endpoints section
+// Endpoints using this certificate
 // ---------------------------------------------------------------------------
 
 function EndpointsSection({ fingerprint }: { fingerprint: string }) {
@@ -302,41 +320,28 @@ function EndpointsSection({ fingerprint }: { fingerprint: string }) {
   })
 
   const endpointList: EndpointListItem[] = endpoints ?? []
-
   const title = isLoading
-    ? 'Endpoints Using This Certificate'
-    : `Endpoints Using This Certificate (${endpointList.length})`
+    ? 'Endpoints'
+    : `Endpoints (${endpointList.length})`
 
   return (
-    <div className="space-y-3">
-      <SectionHeader title={title} />
-
+    <Section title={title}>
       {isLoading && <p className="text-xs italic text-muted-foreground">Loading…</p>}
 
       {!isLoading && endpointList.length === 0 && (
-        <p className="text-sm italic text-muted-foreground">
-          No endpoints are currently using this certificate.
-        </p>
+        <p className="text-sm italic text-muted-foreground">No endpoints are currently using this certificate.</p>
       )}
 
       {!isLoading && endpointList.length > 0 && (
         <div className="space-y-1.5">
           {endpointList.map((h) => (
-            <div
-              key={h.id}
-              className="flex items-center rounded-md border px-3 py-2 text-sm"
-            >
-              <Link
-                to={`/endpoints/${h.id}`}
-                className="font-medium hover:underline"
-              >
-                {h.name}
-              </Link>
+            <div key={h.id} className="flex items-center rounded-md border px-3 py-2 text-sm">
+              <Link to={`/endpoints/${h.id}`} className="font-medium hover:underline">{h.name}</Link>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Section>
   )
 }
 
@@ -366,11 +371,7 @@ function PEMActions({ pem, commonName }: { pem: string; commonName: string }) {
   return (
     <div className="flex gap-2">
       <Button variant="outline" size="sm" onClick={handleCopy}>
-        {copied ? (
-          <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-        ) : (
-          <Copy className="mr-1.5 h-3.5 w-3.5" />
-        )}
+        {copied ? <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
         {copied ? 'Copied!' : 'Copy PEM'}
       </Button>
       <Button variant="outline" size="sm" onClick={handleDownload}>
@@ -403,21 +404,11 @@ export default function CertificateDetailPage() {
   )
 
   if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {backLink}
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      </div>
-    )
+    return <div className="space-y-4">{backLink}<p className="text-sm text-muted-foreground">Loading…</p></div>
   }
 
   if (fetchError) {
-    return (
-      <div className="space-y-4">
-        {backLink}
-        <p className="text-sm text-destructive">{fetchError.message}</p>
-      </div>
-    )
+    return <div className="space-y-4">{backLink}<p className="text-sm text-destructive">{fetchError.message}</p></div>
   }
 
   if (!cert) return null
@@ -428,34 +419,31 @@ export default function CertificateDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold">{cert.commonName || '—'}</h1>
-          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-            {cert.fingerprint}
-          </p>
+        <h1 className="text-5xl font-bold">{cert.commonName || '—'}</h1>
+        <div className="shrink-0 mt-2">
+          <PEMActions pem={cert.pem} commonName={cert.commonName} />
         </div>
-        <ExpiryStatus notAfter={cert.notAfter} />
       </div>
 
       {/* Two-column body */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
         {/* ── Left column ── */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           <SubjectSection cert={cert} />
-          <IssuerSection cert={cert} />
           <ValiditySection cert={cert} />
           <KeySection cert={cert} />
           <UsageSection cert={cert} />
           <IdentifiersSection cert={cert} />
-          <PEMActions pem={cert.pem} commonName={cert.commonName} />
           <RevocationSection cert={cert} />
         </div>
 
         {/* ── Right column ── */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           <ChainSection cert={cert} />
           <EndpointsSection fingerprint={cert.fingerprint} />
         </div>
+
       </div>
     </div>
   )

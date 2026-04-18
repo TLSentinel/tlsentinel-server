@@ -27,7 +27,6 @@ const BACKEND_LIBS: LibEntry[] = [
   { name: 'netresearch/go-cron',      license: 'MIT',          url: 'https://github.com/netresearch/go-cron' },
   { name: 'arran4/golang-ical',       license: 'MIT',          url: 'https://github.com/arran4/golang-ical' },
   { name: 'joho/godotenv',            license: 'MIT',          url: 'https://github.com/joho/godotenv' },
-  { name: 'uber-go/zap',              license: 'MIT',          url: 'https://github.com/uber-go/zap' },
   { name: 'golang.org/x/crypto',      license: 'BSD-3-Clause', url: 'https://cs.opensource.google/go/x/crypto' },
   { name: 'github.com/caarlos0/env',  license: 'MIT',          url: 'https://github.com/caarlos0/env' },
 ]
@@ -44,7 +43,8 @@ const FRONTEND_LIBS: LibEntry[] = [
   { name: 'tailwind-merge',              license: 'MIT',     url: 'https://github.com/dcastil/tailwind-merge' },
   { name: 'clsx',                        license: 'MIT',     url: 'https://github.com/lukeed/clsx' },
   { name: 'Lucide React',                license: 'ISC',     url: 'https://lucide.dev' },
-  { name: 'Geist',                       license: 'OFL-1.1', url: 'https://vercel.com/font' },
+  { name: '@fontsource-variable/geist',   license: 'OFL-1.1', url: 'https://fontsource.org/fonts/geist' },
+  { name: '@tanstack/react-query',        license: 'MIT',     url: 'https://tanstack.com/query' },
   { name: 'react-markdown',              license: 'MIT',     url: 'https://github.com/remarkjs/react-markdown' },
   { name: '@peculiar/x509',              license: 'MIT',     url: 'https://github.com/PeculiarVentures/x509' },
 ]
