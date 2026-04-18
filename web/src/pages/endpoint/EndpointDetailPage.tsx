@@ -22,12 +22,12 @@ function Section({ title, titleClassName, className, bareTitle = false, children
     <div className={`rounded-xl bg-card overflow-hidden ${className ?? ''}`}>
       {title && !bareTitle && (
         <div className="px-5 py-3 bg-muted">
-          <p className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</p>
+          <h2 className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</h2>
         </div>
       )}
       <div className={bareTitle ? 'p-6' : 'p-5'}>
         {title && bareTitle && (
-          <p className={`mb-5 ${titleClassName ?? 'text-sm font-medium'}`}>{title}</p>
+          <h2 className={`mb-5 ${titleClassName ?? 'text-sm font-medium'}`}>{title}</h2>
         )}
         {children}
       </div>
