@@ -14,9 +14,9 @@ import { useQuery } from '@tanstack/react-query'
 
 function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border">
+    <div className="rounded-xl bg-card overflow-hidden">
       {title && (
-        <div className="px-5 py-3 border-b bg-muted/40">
+        <div className="px-5 py-3 bg-surface-container-high">
           <p className="text-sm font-medium">{title}</p>
         </div>
       )}

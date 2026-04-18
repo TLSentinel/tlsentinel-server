@@ -123,9 +123,9 @@ export default function AppShell() {
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <aside className="flex w-56 flex-col border-r bg-sidebar">
+      <aside className="flex w-56 flex-col bg-sidebar">
         {/* Brand */}
-        <div className="flex items-center justify-center border-b px-4 py-1">
+        <div className="flex items-center justify-center px-4 py-1">
           <img src="/logo_light_horizontal.png" alt="TLSentinel" className="h-32 w-auto object-contain" />
         </div>
 
@@ -149,7 +149,7 @@ export default function AppShell() {
         </nav>
 
         {/* Bottom nav — settings (admin only) + API docs */}
-        <div className="border-t p-3 space-y-1">
+        <div className="p-3 space-y-1">
           {can('settings:view') && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
           <a
             href="/api-docs/index.html"
@@ -163,7 +163,7 @@ export default function AppShell() {
         </div>
 
         {/* Footer — user avatar + version */}
-        <div className="border-t p-3 space-y-1">
+        <div className="p-3 space-y-1">
           {buildInfo && (
             <p
               className="px-3 py-1 font-mono text-[11px] leading-tight text-sidebar-foreground/40"
@@ -190,8 +190,8 @@ export default function AppShell() {
             </button>
 
             {popoverOpen && (
-              <div className="absolute bottom-full left-0 mb-1 w-52 rounded-md border bg-popover shadow-md text-popover-foreground text-sm">
-                <div className="px-3 py-2 border-b">
+              <div className="absolute bottom-full left-0 mb-1 w-52 rounded-xl bg-popover shadow-lg text-popover-foreground text-sm overflow-hidden">
+                <div className="px-3 py-2 bg-surface-container-high">
                   {(identity?.given_name || identity?.family_name) && (
                     <p className="font-medium truncate">
                       {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}

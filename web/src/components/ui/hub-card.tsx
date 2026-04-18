@@ -14,9 +14,9 @@ export function HubCard({ icon, title, description, to, soon }: HubCardProps) {
   const inner = (
     <div
       className={[
-        'group rounded-lg border p-5 flex flex-col gap-3 h-full transition-colors',
+        'group rounded-xl bg-card p-5 flex flex-col gap-3 h-full transition-colors',
         to
-          ? 'cursor-pointer hover:border-foreground/30 hover:bg-accent/30'
+          ? 'cursor-pointer hover:bg-surface-container-high'
           : 'opacity-60',
       ].join(' ')}
     >

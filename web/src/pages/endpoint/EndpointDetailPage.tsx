@@ -18,9 +18,9 @@ import { Switch } from '@/components/ui/switch'
 
 function Section({ title, className, children }: { title?: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className={`rounded-lg border ${className ?? ''}`}>
+    <div className={`rounded-xl bg-card overflow-hidden ${className ?? ''}`}>
       {title && (
-        <div className="px-5 py-3 border-b bg-muted/40">
+        <div className="px-5 py-3 bg-surface-container-high">
           <p className="text-sm font-medium">{title}</p>
         </div>
       )}
