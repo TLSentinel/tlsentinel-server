@@ -18,14 +18,14 @@
  * ------------------------------------------------------------------------- */
 :root {
     /* Surface hierarchy (tonal stacking replaces borders) */
-    --surface:                     #f7f9fb;   /* L0 page background */
+    --surface:                     #e8ebee;   /* L0 page background */
     --surface-container-lowest:    #ffffff;   /* L2 inner cards / inputs */
-    --surface-container-low:       #f1f3f5;
-    --surface-container:           #eceef0;   /* L1 primary card surface */
-    --surface-container-high:      #e6e9eb;
-    --surface-container-highest:   #e0e3e5;
-    --surface-bright:              #f7f9fb;
-    --surface-dim:                 #d7d9db;
+    --surface-container-low:       #eef1f3;
+    --surface-container:           #dee1e4;   /* L1 primary card surface (sidebar, muted bands) */
+    --surface-container-high:      #d4d7da;
+    --surface-container-highest:   #cacdd0;
+    --surface-bright:              #f3f5f7;
+    --surface-dim:                 #c0c3c6;
 
     /* Primary — deep navy */
     --primary-color:               #000e24;
