@@ -1,12 +1,13 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, KeyRound } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
 import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
-import { fmtDateTime, fmtDate } from '@/lib/utils'
+import { fmtDateTime } from '@/lib/utils'
+import { CertProgressCard } from '@/components/CertProgressCard'
 import { categoryColor } from '@/lib/tag-colors'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Switch } from '@/components/ui/switch'
@@ -396,62 +397,6 @@ const CERT_USE_LABEL: Record<string, string> = {
   manual:     'Manually Added Certificate',
 }
 
-function EndpointCertCard({ cert }: { cert: EndpointCert }) {
-  const now          = Date.now()
-  const issued       = new Date(cert.notBefore).getTime()
-  const expiry       = new Date(cert.notAfter).getTime()
-  const daysLeft     = Math.floor((expiry - now) / 86_400_000)
-  const isExpired    = daysLeft < 0
-  const isWarning    = !isExpired && daysLeft <= 30
-  const pct          = Math.round(Math.min(Math.max((now - issued) / (expiry - issued), 0), 1) * 100)
-
-  const accentClass = isExpired ? 'border-l-red-500'   : isWarning ? 'border-l-amber-500'   : 'border-l-green-500'
-  const barClass    = isExpired ? 'bg-red-500'          : isWarning ? 'bg-amber-500'          : 'bg-green-500'
-
-  return (
-    <div className={`rounded-md border border-l-4 ${accentClass} px-4 py-3 space-y-3`}>
-      {/* Icon + cert type */}
-      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <KeyRound className="h-3.5 w-3.5" />
-        {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
-      </div>
-
-      {/* Common name + expiry */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Common Name</p>
-          <p className="mt-0.5 font-semibold truncate">{cert.commonName || '—'}</p>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Expiry</p>
-          <p className="mt-0.5 font-semibold">{fmtDate(cert.notAfter)}</p>
-        </div>
-      </div>
-
-      {/* Lifetime progress */}
-      <div className="space-y-1.5">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
-        </div>
-        <div className="flex justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <span>Issued: {fmtDate(cert.notBefore)}</span>
-          <span>{isExpired ? 'Expired' : `Days remaining: ${daysLeft}`}</span>
-        </div>
-      </div>
-
-      {/* Fingerprint link */}
-      <div className="border-t border-border/40 pt-2">
-        <Link
-          to={`/certificates/${cert.fingerprint}`}
-          className="min-w-0 truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
-        >
-          {cert.fingerprint}
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
   return (
     <Section title="Certificates">
@@ -460,7 +405,14 @@ function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
       ) : (
         <div className="space-y-3">
           {certs.map((cert) => (
-            <EndpointCertCard key={`${cert.fingerprint}-${cert.certUse}`} cert={cert} />
+            <CertProgressCard
+              key={`${cert.fingerprint}-${cert.certUse}`}
+              fingerprint={cert.fingerprint}
+              commonName={cert.commonName}
+              notBefore={cert.notBefore}
+              notAfter={cert.notAfter}
+              label={CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
+            />
           ))}
         </div>
       )}
