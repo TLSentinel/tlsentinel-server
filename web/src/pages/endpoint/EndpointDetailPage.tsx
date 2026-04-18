@@ -17,12 +17,12 @@ import { Switch } from '@/components/ui/switch'
 // Layout primitives
 // ---------------------------------------------------------------------------
 
-function Section({ title, className, children }: { title?: string; className?: string; children: React.ReactNode }) {
+function Section({ title, titleClassName, className, children }: { title?: string; titleClassName?: string; className?: string; children: React.ReactNode }) {
   return (
     <div className={`rounded-xl bg-card overflow-hidden ${className ?? ''}`}>
       {title && (
         <div className="px-5 py-3 bg-muted">
-          <p className="text-sm font-medium">{title}</p>
+          <p className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</p>
         </div>
       )}
       <div className="p-5">
@@ -347,21 +347,21 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
 function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status === 'loading') {
     return (
-      <Section title="TLS Profile">
+      <Section title="TLS Profile & Cipher Suites" titleClassName="text-lg font-semibold">
         <p className="text-xs italic text-muted-foreground">Loading…</p>
       </Section>
     )
   }
   if (tlsState.status === 'none') {
     return (
-      <Section title="TLS Profile">
+      <Section title="TLS Profile & Cipher Suites" titleClassName="text-lg font-semibold">
         <p className="text-sm italic text-muted-foreground">No TLS profile yet — will be populated on the next scan cycle.</p>
       </Section>
     )
   }
   if (tlsState.status === 'error') {
     return (
-      <Section title="TLS Profile">
+      <Section title="TLS Profile & Cipher Suites" titleClassName="text-lg font-semibold">
         <p className="text-sm text-destructive">{tlsState.message}</p>
       </Section>
     )
@@ -371,7 +371,7 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   const { classification } = profile
 
   return (
-    <Section title="TLS Profile">
+    <Section title="TLS Profile & Cipher Suites" titleClassName="text-lg font-semibold">
       <div className="space-y-5">
         {profile.scanError && (
           <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
