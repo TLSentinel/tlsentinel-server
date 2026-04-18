@@ -46,9 +46,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 
 const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
-  ok:       <ShieldCheck className="h-8 w-8 text-green-600" />,
-  warning:  <ShieldAlert className="h-8 w-8 text-amber-500" />,
-  critical: <ShieldX     className="h-8 w-8 text-red-600"   />,
+  ok:       <ShieldCheck className="h-8 w-8 text-tertiary" />,
+  warning:  <ShieldAlert className="h-8 w-8 text-warning"  />,
+  critical: <ShieldX     className="h-8 w-8 text-error"    />,
 }
 
 // ---------------------------------------------------------------------------
@@ -56,29 +56,29 @@ const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
 // ---------------------------------------------------------------------------
 
 const FINDING_ACCENT: Record<TLSSeverity, string> = {
-  ok:       'border-l-green-500',
-  warning:  'border-l-amber-500',
-  critical: 'border-l-red-500',
+  ok:       'border-l-tertiary',
+  warning:  'border-l-warning',
+  critical: 'border-l-error',
 }
 
 function FindingBadge({ severity, preferred }: { severity: TLSSeverity; preferred: boolean }) {
   if (preferred) {
     return (
-      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded border border-green-500 text-green-600 dark:text-green-400">
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md bg-tertiary-container text-on-tertiary-container">
         Preferred
       </span>
     )
   }
   if (severity === 'warning') {
     return (
-      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md bg-warning-container text-on-warning-container">
         Weakness
       </span>
     )
   }
   if (severity === 'critical') {
     return (
-      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md bg-error-container text-on-error-container">
         Critical
       </span>
     )
@@ -264,32 +264,32 @@ const POSTURE_STYLE: Record<TLSSeverity, {
   wrapper: string; icon: React.ReactNode; title: string; label: string; body: string
 }> = {
   ok: {
-    wrapper: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
-    icon:    <ShieldCheck className="h-8 w-8 shrink-0 text-green-600 dark:text-green-400" />,
-    title:   'text-green-800 dark:text-green-300',
+    wrapper: 'bg-tertiary-container/40',
+    icon:    <ShieldCheck className="h-8 w-8 shrink-0 text-tertiary" />,
+    title:   'text-on-tertiary-container',
     label:   'Strong Configuration',
-    body:    'text-green-700 dark:text-green-400',
+    body:    'text-on-tertiary-container/80',
   },
   warning: {
-    wrapper: 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800',
-    icon:    <ShieldAlert className="h-8 w-8 shrink-0 text-amber-600 dark:text-amber-400" />,
-    title:   'text-amber-800 dark:text-amber-300',
+    wrapper: 'bg-warning-container/40',
+    icon:    <ShieldAlert className="h-8 w-8 shrink-0 text-warning" />,
+    title:   'text-on-warning-container',
     label:   'Weaknesses Detected',
-    body:    'text-amber-700 dark:text-amber-400',
+    body:    'text-on-warning-container/80',
   },
   critical: {
-    wrapper: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
-    icon:    <ShieldX className="h-8 w-8 shrink-0 text-red-600 dark:text-red-400" />,
-    title:   'text-red-800 dark:text-red-300',
+    wrapper: 'bg-error-container/40',
+    icon:    <ShieldX className="h-8 w-8 shrink-0 text-error" />,
+    title:   'text-on-error-container',
     label:   'Insecure Configuration',
-    body:    'text-red-700 dark:text-red-400',
+    body:    'text-on-error-container/80',
   },
 }
 
 function PostureBanner({ classification }: { classification: TLSClassification }) {
   const s = POSTURE_STYLE[classification.overallSeverity]
   return (
-    <div className={`flex items-start gap-3 rounded-md border p-3 ${s.wrapper}`}>
+    <div className={`flex items-start gap-3 rounded-lg p-3 ${s.wrapper}`}>
       {s.icon}
       <div className="min-w-0">
         <p className={`text-sm font-semibold ${s.title}`}>{s.label}</p>

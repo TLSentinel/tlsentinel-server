@@ -15,17 +15,17 @@ import { fmtDate } from '@/lib/utils'
 type SignalColor = 'neutral' | 'green' | 'amber' | 'red'
 
 const SIGNAL_BORDER: Record<SignalColor, string> = {
-  neutral: 'border-l-foreground',
-  green:   'border-l-green-500',
-  amber:   'border-l-amber-500',
-  red:     'border-l-red-500',
+  neutral: 'border-l-primary',
+  green:   'border-l-tertiary',
+  amber:   'border-l-warning',
+  red:     'border-l-error',
 }
 
 const SIGNAL_VALUE: Record<SignalColor, string> = {
   neutral: 'text-foreground',
-  green:   'text-green-600',
-  amber:   'text-amber-600',
-  red:     'text-red-600',
+  green:   'text-tertiary',
+  amber:   'text-warning',
+  red:     'text-error',
 }
 
 interface StatCardProps {
@@ -38,7 +38,7 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, sub, signal = 'neutral' }: StatCardProps) {
   return (
-    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3`}>
+    <div className={`rounded-xl bg-card border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3`}>
       <div className="flex items-start gap-2 min-h-[2.5rem]">
         <span className={`shrink-0 mt-0.5 ${SIGNAL_VALUE[signal]}`}>{icon}</span>
         <span className="text-sm font-medium text-muted-foreground leading-snug">{label}</span>
@@ -57,20 +57,20 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
   const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
   if (days < 0) {
     return (
-      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
+      <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-error-container text-on-error-container whitespace-nowrap">
         EXPIRED
       </span>
     )
   }
   if (days <= 7) {
     return (
-      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
+      <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-error-container text-on-error-container whitespace-nowrap">
         {days} DAYS
       </span>
     )
   }
   return (
-    <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 whitespace-nowrap">
+    <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-warning-container text-on-warning-container whitespace-nowrap">
       {days} DAYS
     </span>
   )
@@ -144,7 +144,7 @@ function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
       </div>
       {/* Error age */}
       <div className="shrink-0">
-        <span className="inline-flex items-center gap-1 text-sm font-medium text-red-600 dark:text-red-400">
+        <span className="inline-flex items-center gap-1 text-sm font-medium text-error">
           <XCircle className="h-4 w-4 shrink-0" />
           {endpoint.errorSince ? errorAge(endpoint.errorSince) : '?'}
         </span>
@@ -279,7 +279,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
 
         {/* Left: TLS Distribution */}
-        <div className="rounded-lg border p-5 space-y-4 self-start">
+        <div className="rounded-xl bg-card p-5 space-y-4 self-start">
           <h2 className="font-semibold">TLS Distribution</h2>
           {!tlsReport ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -320,8 +320,8 @@ export default function DashboardPage() {
         {/* Right: Expiring soon + Scan errors stacked */}
         <div className="space-y-6 lg:col-span-3">
           {/* Expiring soon */}
-          <div className="rounded-lg border">
-            <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="rounded-xl bg-card overflow-hidden">
+            <div className="flex items-center justify-between bg-muted px-5 py-4">
               <h2 className="font-semibold">Certificates Expiring Soon</h2>
               <Link to="/certificates" className="text-sm font-medium text-primary hover:underline">
                 View All Certificates
@@ -350,8 +350,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Scan errors */}
-          <div className="rounded-lg border">
-            <div className="flex items-center border-b px-5 py-4">
+          <div className="rounded-xl bg-card overflow-hidden">
+            <div className="flex items-center bg-muted px-5 py-4">
               <h2 className="font-semibold">Scan Errors</h2>
             </div>
             {errorHosts === null ? (
