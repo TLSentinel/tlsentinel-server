@@ -237,7 +237,7 @@ function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }:
         <div className="relative" ref={popoverRef}>
           <button
             onClick={() => setPopoverOpen(v => !v)}
-            className="flex items-center gap-3 rounded-full py-1 pl-3 pr-1 transition-colors hover:bg-muted"
+            className="flex items-center gap-3 rounded-lg py-1 pl-3 pr-1 transition-colors hover:bg-muted"
           >
             <div className="text-right leading-tight hidden sm:block">
               <p className="text-sm font-semibold">{fullName}</p>
@@ -245,7 +245,7 @@ function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }:
                 <p className="text-xs capitalize text-muted-foreground">{identity.role}</p>
               )}
             </div>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-semibold">
               {initials(identity?.given_name, identity?.family_name, identity?.sub)}
             </span>
           </button>
