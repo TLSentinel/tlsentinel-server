@@ -330,7 +330,7 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
   const { classification } = tlsState.profile
 
   return (
-    <Section title="Security Posture">
+    <Section title="Security Posture" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
       <div className="space-y-3">
         {/* Compliance score — placeholder until scoring logic is implemented */}
         <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-2">
