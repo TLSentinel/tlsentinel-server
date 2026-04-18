@@ -1,26 +1,28 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getEndpoint, getTLSProfile, getScanHistory } from '@/api/endpoints'
+import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
-import { CertCard } from '@/components/CertCard'
 import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
-import { fmtDateTime } from '@/lib/utils'
+import { fmtDateTime, fmtDate } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Switch } from '@/components/ui/switch'
 
 // ---------------------------------------------------------------------------
 // Layout primitives
 // ---------------------------------------------------------------------------
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, className, children }: { title?: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border">
-      <div className="px-5 py-3 border-b bg-muted/40">
-        <p className="text-sm font-medium">{title}</p>
-      </div>
+    <div className={`rounded-lg border ${className ?? ''}`}>
+      {title && (
+        <div className="px-5 py-3 border-b bg-muted/40">
+          <p className="text-sm font-medium">{title}</p>
+        </div>
+      )}
       <div className="p-5">
         {children}
       </div>
@@ -31,7 +33,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
       <div className="mt-0.5 text-sm font-medium">{children}</div>
     </div>
   )
@@ -43,9 +45,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 
 const SeverityIcon: Record<TLSSeverity, React.ReactNode> = {
-  ok:       <ShieldCheck className="h-4 w-4 text-green-600" />,
-  warning:  <ShieldAlert className="h-4 w-4 text-amber-500" />,
-  critical: <ShieldX     className="h-4 w-4 text-red-600"   />,
+  ok:       <ShieldCheck className="h-8 w-8 text-green-600" />,
+  warning:  <ShieldAlert className="h-8 w-8 text-amber-500" />,
+  critical: <ShieldX     className="h-8 w-8 text-red-600"   />,
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +90,7 @@ function FindingRow({ finding, preferred = false }: { finding: TLSFinding; prefe
     <div className={`flex items-center gap-3 rounded-md border border-l-4 ${FINDING_ACCENT[finding.severity]} px-3 py-3`}>
       <div className="shrink-0">{SeverityIcon[finding.severity]}</div>
       <div className="min-w-0 flex-1">
-        <p className="font-mono text-sm font-semibold">{finding.name}</p>
+        <p className="text-sm font-semibold">{finding.name}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{finding.reason}</p>
       </div>
       <FindingBadge severity={finding.severity} preferred={preferred} />
@@ -110,7 +112,7 @@ const TYPE_LABEL: Record<string, string> = {
 // Endpoint info section
 // ---------------------------------------------------------------------------
 
-function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
+function EndpointInfoSection({ endpoint, onToggleEnabled }: { endpoint: Endpoint; onToggleEnabled: (enabled: boolean) => void }) {
   const isHost   = endpoint.type === 'host'
   const isSAML   = endpoint.type === 'saml'
   const isManual = endpoint.type === 'manual'
@@ -120,28 +122,12 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
 
-          <Field label="Type">
-            <span className="text-sm font-medium">{TYPE_LABEL[endpoint.type] ?? endpoint.type}</span>
-          </Field>
-
-          <Field label="Enabled">
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-              {endpoint.enabled ? 'Enabled' : 'Disabled'}
-            </span>
-          </Field>
-
           {isHost && (
-            <>
+            <div className="col-span-2">
               <Field label="DNS Name">
-                <span className="font-mono">{endpoint.dnsName}</span>
+                <span className="text-base font-semibold">{endpoint.dnsName}</span>
               </Field>
-              <Field label="Port">{endpoint.port}</Field>
-              <Field label="IP Address">
-                <span className="font-mono">{endpoint.ipAddress ?? 'Auto'}</span>
-              </Field>
-              <div />
-            </>
+            </div>
           )}
 
           {isSAML && (
@@ -160,18 +146,26 @@ function EndpointInfoSection({ endpoint }: { endpoint: Endpoint }) {
             </div>
           )}
 
-          {!isManual && (
-            <Field label="Scanner">
-              {endpoint.scanExempt ? (
-                <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                  <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                  Excluded from scanning
-                </span>
-              ) : (
-                endpoint.scannerName ?? 'Default'
-              )}
+          {isHost && (
+            <Field label="IP Address">
+              <span className="text-base font-semibold">{endpoint.ipAddress ?? 'Auto'}</span>
             </Field>
           )}
+
+          {isHost && <Field label="Port"><span className="text-base font-semibold">{endpoint.port}</span></Field>}
+
+          <Field label="Type">
+            <span className="text-sm font-medium">{TYPE_LABEL[endpoint.type] ?? endpoint.type}</span>
+          </Field>
+
+          <Field label="Monitored">
+            <Switch
+              checked={endpoint.enabled}
+              onCheckedChange={onToggleEnabled}
+              className="data-[state=checked]:bg-green-500"
+            />
+          </Field>
+
         </div>
       </div>
     </Section>
@@ -200,12 +194,27 @@ function NotesSection({ endpoint }: { endpoint: Endpoint }) {
 // Scan status section
 // ---------------------------------------------------------------------------
 
-function ScanStatusSection({ endpoint }: { endpoint: Endpoint }) {
+function ScanStatusSection({ endpoint, onToggleScanning }: { endpoint: Endpoint; onToggleScanning: (enabled: boolean) => void }) {
+  const isManual = endpoint.type === 'manual'
+  const scanningOn = !endpoint.scanExempt
+
   return (
-    <Section title="Scan Status">
+    <Section className="bg-muted/40">
       <div className="space-y-3">
+        {!isManual && (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <Field label="Scanner"><span className="text-base font-semibold">{endpoint.scannerName ?? 'Default'}</span></Field>
+            <Field label="Scanning">
+              <Switch
+                checked={scanningOn}
+                onCheckedChange={onToggleScanning}
+                className="data-[state=checked]:bg-green-500"
+              />
+            </Field>
+          </div>
+        )}
         <Field label="Last Scanned">
-          {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
+          <span className="text-base font-semibold">{endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}</span>
         </Field>
         {endpoint.lastScanError && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
@@ -255,21 +264,21 @@ const POSTURE_STYLE: Record<TLSSeverity, {
 }> = {
   ok: {
     wrapper: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
-    icon:    <ShieldCheck className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />,
+    icon:    <ShieldCheck className="h-8 w-8 shrink-0 text-green-600 dark:text-green-400" />,
     title:   'text-green-800 dark:text-green-300',
     label:   'Strong Configuration',
     body:    'text-green-700 dark:text-green-400',
   },
   warning: {
     wrapper: 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800',
-    icon:    <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />,
+    icon:    <ShieldAlert className="h-8 w-8 shrink-0 text-amber-600 dark:text-amber-400" />,
     title:   'text-amber-800 dark:text-amber-300',
     label:   'Weaknesses Detected',
     body:    'text-amber-700 dark:text-amber-400',
   },
   critical: {
     wrapper: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
-    icon:    <ShieldX className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />,
+    icon:    <ShieldX className="h-8 w-8 shrink-0 text-red-600 dark:text-red-400" />,
     title:   'text-red-800 dark:text-red-300',
     label:   'Insecure Configuration',
     body:    'text-red-700 dark:text-red-400',
@@ -387,27 +396,71 @@ const CERT_USE_LABEL: Record<string, string> = {
   manual:     'Manually Added Certificate',
 }
 
+function EndpointCertCard({ cert }: { cert: EndpointCert }) {
+  const now          = Date.now()
+  const issued       = new Date(cert.notBefore).getTime()
+  const expiry       = new Date(cert.notAfter).getTime()
+  const daysLeft     = Math.floor((expiry - now) / 86_400_000)
+  const isExpired    = daysLeft < 0
+  const isWarning    = !isExpired && daysLeft <= 30
+  const pct          = Math.round(Math.min(Math.max((now - issued) / (expiry - issued), 0), 1) * 100)
+
+  const accentClass = isExpired ? 'border-l-red-500'   : isWarning ? 'border-l-amber-500'   : 'border-l-green-500'
+  const barClass    = isExpired ? 'bg-red-500'          : isWarning ? 'bg-amber-500'          : 'bg-green-500'
+
+  return (
+    <div className={`rounded-md border border-l-4 ${accentClass} px-4 py-3 space-y-3`}>
+      {/* Icon + cert type */}
+      <div className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <KeyRound className="h-3.5 w-3.5" />
+        {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
+      </div>
+
+      {/* Common name + expiry */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Common Name</p>
+          <p className="mt-0.5 font-semibold truncate">{cert.commonName || '—'}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Expiry</p>
+          <p className="mt-0.5 font-semibold">{fmtDate(cert.notAfter)}</p>
+        </div>
+      </div>
+
+      {/* Lifetime progress */}
+      <div className="space-y-1.5">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+        </div>
+        <div className="flex justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <span>Issued: {fmtDate(cert.notBefore)}</span>
+          <span>{isExpired ? 'Expired' : `Days remaining: ${daysLeft}`}</span>
+        </div>
+      </div>
+
+      {/* Fingerprint link */}
+      <div className="border-t border-border/40 pt-2">
+        <Link
+          to={`/certificates/${cert.fingerprint}`}
+          className="min-w-0 truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
+        >
+          {cert.fingerprint}
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
   return (
-    <Section title="Active Certificates">
+    <Section title="Certificates">
       {certs.length === 0 ? (
         <p className="text-sm italic text-muted-foreground">No certificates recorded yet.</p>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {certs.map((cert) => (
-            <div key={`${cert.fingerprint}-${cert.certUse}`} className="space-y-1.5">
-              {(certs.length > 1 || cert.certUse === 'signing' || cert.certUse === 'encryption') && (
-                <p className="text-xs font-medium text-muted-foreground">
-                  {CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
-                </p>
-              )}
-              <CertCard
-                fingerprint={cert.fingerprint}
-                commonName={cert.commonName}
-                notAfter={cert.notAfter}
-                notBefore={cert.notBefore}
-              />
-            </div>
+            <EndpointCertCard key={`${cert.fingerprint}-${cert.certUse}`} cert={cert} />
           ))}
         </div>
       )}
@@ -492,6 +545,17 @@ export default function EndpointDetailPage() {
     enabled: !!id,
   })
 
+  const queryClient = useQueryClient()
+  const { mutate: toggleScanning } = useMutation({
+    mutationFn: (scanExempt: boolean) => patchEndpoint(id!, { scanExempt }),
+    onSuccess: (updated) => queryClient.setQueryData(['endpoint', id], updated),
+  })
+
+  const { mutate: toggleEnabled } = useMutation({
+    mutationFn: (enabled: boolean) => patchEndpoint(id!, { enabled }),
+    onSuccess: (updated) => queryClient.setQueryData(['endpoint', id], updated),
+  })
+
   const history: EndpointScanHistoryItem[] | null = historyData?.items ?? null
   const tags: TagWithCategory[] = tagsData ?? []
 
@@ -535,10 +599,7 @@ export default function EndpointDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{endpoint.name}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {endpoint.type === 'host' ? `${endpoint.dnsName}:${endpoint.port}` : endpoint.type === 'saml' ? 'SAML endpoint' : 'Manual endpoint'}
-          </p>
+          <h1 className="text-5xl font-bold">{endpoint.name}</h1>
         </div>
         <Button variant="outline" onClick={() => navigate(`/endpoints/${id}/edit`)} className="shrink-0 mt-1">
           <Pencil className="mr-1.5 h-3.5 w-3.5" />
@@ -552,7 +613,7 @@ export default function EndpointDetailPage() {
           {tags.map(tag => (
             <span
               key={tag.id}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+              className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
             >
               <span className="opacity-60">{tag.categoryName}:</span>
               {tag.name}
@@ -566,8 +627,8 @@ export default function EndpointDetailPage() {
 
         {/* ── Left column ── */}
         <div className="space-y-5">
-          <EndpointInfoSection endpoint={endpoint} />
-          <ScanStatusSection endpoint={endpoint} />
+          <EndpointInfoSection endpoint={endpoint} onToggleEnabled={toggleEnabled} />
+          <ScanStatusSection endpoint={endpoint} onToggleScanning={(on) => toggleScanning(!on)} />
           {endpoint.notes && <NotesSection endpoint={endpoint} />}
           {endpoint.type === 'host' && <TLSProfileSection tlsState={tlsState} />}
         </div>
