@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
@@ -567,10 +567,25 @@ export default function EndpointDetailPage() {
         <div>
           <h1 className="text-5xl font-bold">{endpoint.name}</h1>
         </div>
-        <Button onClick={() => navigate(`/endpoints/${id}/edit`)} className="shrink-0 mt-1">
-          <Pencil className="mr-1.5 h-3.5 w-3.5" />
-          Edit
-        </Button>
+        <div className="flex shrink-0 gap-2 mt-1">
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/endpoints/${id}/edit`)}
+            className="h-10 px-4 text-base font-semibold"
+          >
+            <Pencil className="mr-1.5 h-4 w-4" />
+            Edit Endpoint
+          </Button>
+          {endpoint.type === 'host' && (
+            <Button
+              onClick={() => { /* TODO: wire up force scan */ }}
+              className="h-10 px-4 text-base font-semibold"
+            >
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              Force Scan
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Type badge */}
