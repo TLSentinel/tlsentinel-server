@@ -269,6 +269,23 @@ func (h *Handler) SAMLResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Persist parsed metadata + raw XML + sha256 when the scan succeeded and the
+	// scanner supplied them. History row append is O(1) deduped on (endpoint_id, sha256).
+	if req.Error == nil && req.MetadataXML != nil && req.MetadataXMLSha256 != nil {
+		var metaJSON json.RawMessage
+		if req.Metadata != nil {
+			if buf, err := json.Marshal(req.Metadata); err == nil {
+				metaJSON = buf
+			} else {
+				slog.Warn("failed to marshal SAML metadata payload", "endpoint_id", endpointID, "error", err)
+			}
+		}
+		if err := h.store.UpsertSAMLMetadata(r.Context(), endpointID, metaJSON, *req.MetadataXML, *req.MetadataXMLSha256); err != nil {
+			slog.Error("failed to persist SAML metadata", "endpoint_id", endpointID, "error", err)
+			// Continue — cert persistence below still useful even if metadata write failed.
+		}
+	}
+
 	// Upsert each certificate and link it to the endpoint with its declared use.
 	for i, entry := range req.Certs {
 		use := entry.Use

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -21,7 +22,9 @@ type endpointWithScanner struct {
 	IPAddress      *string    `bun:"ip_address"`
 	Port           int        `bun:"port"`
 	// SAML-type fields joined from endpoint_saml.
-	URL            *string    `bun:"url"`
+	URL               *string         `bun:"url"`
+	SAMLMetadataJSON  json.RawMessage `bun:"saml_metadata"`
+	SAMLFetchedAt     *time.Time      `bun:"saml_fetched_at"`
 	// EarliestExpiry is the minimum not_after across all current endpoint_certs rows.
 	EarliestExpiry *time.Time `bun:"earliest_expiry"`
 }
@@ -58,7 +61,7 @@ func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
 }
 
 func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
-	return models.Endpoint{
+	ep := models.Endpoint{
 		ID:            r.ID,
 		Name:          r.Name,
 		Type:          r.Type,
@@ -66,6 +69,7 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 		IPAddress:     r.IPAddress,
 		Port:          r.Port,
 		URL:           r.URL,
+		SAMLFetchedAt: r.SAMLFetchedAt,
 		Enabled:       r.Enabled,
 		ScanExempt:    r.ScanExempt,
 		ScannerID:     r.ScannerID,
@@ -78,6 +82,13 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 		CreatedAt:     r.CreatedAt,
 		UpdatedAt:     r.UpdatedAt,
 	}
+	if len(r.SAMLMetadataJSON) > 0 {
+		var parsed models.SAMLMetadataPayload
+		if err := json.Unmarshal(r.SAMLMetadataJSON, &parsed); err == nil {
+			ep.SAMLMetadata = &parsed
+		}
+	}
+	return ep
 }
 
 // selectEndpointWithScanner returns a base query joining endpoints, scanners,
@@ -91,6 +102,8 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 		ColumnExpr("at.name AS scanner_name").
 		ColumnExpr("eh.dns_name, eh.ip_address, eh.port").
 		ColumnExpr("es.url").
+		ColumnExpr("es.metadata AS saml_metadata").
+		ColumnExpr("es.metadata_fetched_at AS saml_fetched_at").
 		ColumnExpr("exp.earliest_expiry").
 		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
 		Join("LEFT JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id").
@@ -350,14 +363,21 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 			return ErrNotFound
 		}
 
-		// Clear all type-specific rows first so a type change never leaves orphans.
-		if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_hosts").
-			Where("endpoint_id = ?", id).Exec(ctx); err != nil {
-			return fmt.Errorf("failed to clear endpoint_hosts: %w", err)
+		// Clear type-specific rows that don't match the new type so a type
+		// change never leaves orphans. Same-type rows are preserved so user
+		// edits (rename, scanner change) don't wipe scanner-owned fields like
+		// endpoint_saml.metadata / metadata_xml.
+		if rec.Type != "host" && rec.Type != "" {
+			if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_hosts").
+				Where("endpoint_id = ?", id).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to clear endpoint_hosts: %w", err)
+			}
 		}
-		if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_saml").
-			Where("endpoint_id = ?", id).Exec(ctx); err != nil {
-			return fmt.Errorf("failed to clear endpoint_saml: %w", err)
+		if rec.Type != "saml" {
+			if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_saml").
+				Where("endpoint_id = ?", id).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to clear endpoint_saml: %w", err)
+			}
 		}
 
 		switch rec.Type {
@@ -368,16 +388,25 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 				IPAddress:  rec.IPAddress,
 				Port:       rec.Port,
 			}
-			if _, err = tx.NewInsert().Model(eh).Exec(ctx); err != nil {
-				return fmt.Errorf("failed to insert endpoint_hosts: %w", err)
+			if _, err = tx.NewInsert().Model(eh).
+				On("CONFLICT (endpoint_id) DO UPDATE").
+				Set("dns_name = EXCLUDED.dns_name").
+				Set("ip_address = EXCLUDED.ip_address").
+				Set("port = EXCLUDED.port").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to upsert endpoint_hosts: %w", err)
 			}
 		case "saml":
+			// Upsert only the user-editable URL; preserve scanner-owned metadata.
 			es := &EndpointSAML{
 				EndpointID: id,
 				URL:        *rec.URL,
 			}
-			if _, err = tx.NewInsert().Model(es).Exec(ctx); err != nil {
-				return fmt.Errorf("failed to insert endpoint_saml: %w", err)
+			if _, err = tx.NewInsert().Model(es).
+				On("CONFLICT (endpoint_id) DO UPDATE").
+				Set("url = EXCLUDED.url").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to upsert endpoint_saml: %w", err)
 			}
 			// manual: no type-specific row needed
 		}
@@ -650,4 +679,41 @@ func upsertEndpointCert(ctx context.Context, tx bun.Tx, endpointID, fingerprint,
 		return fmt.Errorf("failed to upsert endpoint cert: %w", err)
 	}
 	return nil
+}
+
+// UpsertSAMLMetadata writes the scanner-supplied SAML metadata payload to
+// endpoint_saml (parsed JSON + raw XML + sha256 + fetched_at) and appends a
+// row to saml_metadata_history when the sha256 has not been seen for this
+// endpoint before. xml and sha256 are always updated on the endpoint row so
+// fetched_at tracks the last successful fetch even when the document is
+// unchanged.
+func (s *Store) UpsertSAMLMetadata(ctx context.Context, endpointID string, metadataJSON json.RawMessage, xml, sha256 string) error {
+	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		_, err := tx.NewUpdate().
+			TableExpr("tlsentinel.endpoint_saml").
+			Set("metadata = ?", metadataJSON).
+			Set("metadata_xml = ?", xml).
+			Set("metadata_xml_sha256 = ?", sha256).
+			Set("metadata_fetched_at = NOW()").
+			Where("endpoint_id = ?", endpointID).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to update endpoint_saml metadata: %w", err)
+		}
+
+		h := &SAMLMetadataHistory{
+			EndpointID: endpointID,
+			Sha256:     sha256,
+			XML:        xml,
+			Metadata:   metadataJSON,
+		}
+		if _, err := tx.NewInsert().
+			Model(h).
+			ExcludeColumn("id", "captured_at").
+			On("CONFLICT (endpoint_id, sha256) DO NOTHING").
+			Exec(ctx); err != nil {
+			return fmt.Errorf("failed to append saml_metadata_history: %w", err)
+		}
+		return nil
+	})
 }

@@ -77,6 +77,47 @@ export interface EndpointListItem {
   tags: TagWithCategory[]
 }
 
+/** One SSO/SLO/ACS endpoint element from SAML metadata. */
+export interface SAMLMetadataEndpoint {
+  binding: string
+  location: string
+  index?: number
+  isDefault?: boolean
+}
+
+/** One ContactPerson from SAML metadata. */
+export interface SAMLMetadataContact {
+  type: string
+  givenName?: string
+  surname?: string
+  emailAddress?: string
+  company?: string
+}
+
+/** The Organization element from SAML metadata. */
+export interface SAMLMetadataOrganization {
+  name?: string
+  displayName?: string
+  url?: string
+}
+
+/** Parsed SAML metadata bag — all fields are optional. */
+export interface SAMLMetadata {
+  entityId?: string
+  validUntil?: string
+  cacheDuration?: string
+  /** "idp", "sp", or "both". */
+  role?: string
+  singleSignOn?: SAMLMetadataEndpoint[]
+  singleLogout?: SAMLMetadataEndpoint[]
+  assertionConsumer?: SAMLMetadataEndpoint[]
+  nameIdFormats?: string[]
+  organization?: SAMLMetadataOrganization
+  contacts?: SAMLMetadataContact[]
+  wantAssertionsSigned?: boolean
+  authnRequestsSigned?: boolean
+}
+
 /** Returned by GET/POST/PUT /endpoints/{id} (full detail). */
 export interface Endpoint {
   id: string
@@ -88,6 +129,8 @@ export interface Endpoint {
   port: number
   // saml-type fields
   url?: string | null
+  samlMetadata?: SAMLMetadata
+  samlFetchedAt?: string
   // common fields
   enabled: boolean
   scanExempt: boolean

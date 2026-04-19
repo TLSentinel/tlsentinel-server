@@ -49,7 +49,9 @@ type Endpoint struct {
 	IPAddress   *string    `json:"ipAddress"`
 	Port        int        `json:"port"`
 	// SAML-type fields.
-	URL         *string    `json:"url,omitempty"`
+	URL               *string              `json:"url,omitempty"`
+	SAMLMetadata      *SAMLMetadataPayload `json:"samlMetadata,omitempty"`
+	SAMLFetchedAt     *time.Time           `json:"samlFetchedAt,omitempty"`
 	// Common fields.
 	Enabled       bool           `json:"enabled"`
 	ScanExempt    bool           `json:"scanExempt"`
@@ -110,13 +112,62 @@ type ScannerSAMLEndpoint struct {
 	URL string `json:"url"`
 }
 
+// SAMLEndpointPayload is one SSO/SLO/ACS endpoint declared in the metadata.
+type SAMLEndpointPayload struct {
+	Binding  string `json:"binding"`
+	Location string `json:"location"`
+	// Index is set for AssertionConsumerService entries; nil otherwise.
+	Index *int `json:"index,omitempty"`
+	// IsDefault is set for AssertionConsumerService entries; nil otherwise.
+	IsDefault *bool `json:"isDefault,omitempty"`
+}
+
+// SAMLContactPayload is one ContactPerson element from the metadata.
+type SAMLContactPayload struct {
+	Type         string  `json:"type"`
+	GivenName    *string `json:"givenName,omitempty"`
+	Surname      *string `json:"surname,omitempty"`
+	EmailAddress *string `json:"emailAddress,omitempty"`
+	Company      *string `json:"company,omitempty"`
+}
+
+// SAMLOrganizationPayload is the Organization element from the metadata.
+type SAMLOrganizationPayload struct {
+	Name        *string `json:"name,omitempty"`
+	DisplayName *string `json:"displayName,omitempty"`
+	URL         *string `json:"url,omitempty"`
+}
+
+// SAMLMetadataPayload is the parsed SAML metadata bag. All fields are optional
+// because metadata documents in the wild are inconsistent.
+type SAMLMetadataPayload struct {
+	EntityID      *string                  `json:"entityId,omitempty"`
+	ValidUntil    *time.Time               `json:"validUntil,omitempty"`
+	CacheDuration *string                  `json:"cacheDuration,omitempty"`
+	// Role is "idp", "sp", or "both".
+	Role                  *string                  `json:"role,omitempty"`
+	SingleSignOn          []SAMLEndpointPayload    `json:"singleSignOn,omitempty"`
+	SingleLogout          []SAMLEndpointPayload    `json:"singleLogout,omitempty"`
+	AssertionConsumer     []SAMLEndpointPayload    `json:"assertionConsumer,omitempty"`
+	NameIDFormats         []string                 `json:"nameIdFormats,omitempty"`
+	Organization          *SAMLOrganizationPayload `json:"organization,omitempty"`
+	Contacts              []SAMLContactPayload     `json:"contacts,omitempty"`
+	WantAssertionsSigned  *bool                    `json:"wantAssertionsSigned,omitempty"`
+	AuthnRequestsSigned   *bool                    `json:"authnRequestsSigned,omitempty"`
+}
+
 // SAMLScanResultRequest is the payload a scanner POSTs after fetching SAML metadata.
 // ResolvedIP and TLSVersion do not apply to metadata fetches.
 type SAMLScanResultRequest struct {
-	Error *string           `json:"error"`
+	Error *string `json:"error"`
 	// Certs contains all certificates extracted from the metadata, each paired
 	// with its declared use (signing or encryption).
 	Certs []SAMLCertPayload `json:"certs"`
+	// MetadataXML is the verbatim document received from the endpoint's URL.
+	// Paired with MetadataXMLSha256 so the server can detect no-op reposts in O(1).
+	MetadataXML       *string              `json:"metadataXml,omitempty"`
+	MetadataXMLSha256 *string              `json:"metadataXmlSha256,omitempty"`
+	Metadata          *SAMLMetadataPayload `json:"metadata,omitempty"`
 }
 
 // ScanResultRequest is the payload a scanner POSTs after scanning a host.

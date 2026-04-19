@@ -68,11 +68,31 @@ type EndpointHost struct {
 }
 
 // EndpointSAML maps to tlsentinel.endpoint_saml.
+// URL is user-owned (set via create/update). Metadata, MetadataXML,
+// MetadataXMLSha256, and MetadataFetchedAt are scanner-owned — written on
+// each successful scan and preserved across user edits.
 type EndpointSAML struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoint_saml,alias:es"`
 
-	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
-	URL        string  `bun:"url"`
+	EndpointID        string          `bun:"endpoint_id,pk,type:uuid"`
+	URL               string          `bun:"url"`
+	Metadata          json.RawMessage `bun:"metadata,type:jsonb"`
+	MetadataXML       *string         `bun:"metadata_xml"`
+	MetadataXMLSha256 *string         `bun:"metadata_xml_sha256"`
+	MetadataFetchedAt *time.Time      `bun:"metadata_fetched_at"`
+}
+
+// SAMLMetadataHistory maps to tlsentinel.saml_metadata_history — one row
+// per distinct metadata document ever observed for an endpoint.
+type SAMLMetadataHistory struct {
+	bun.BaseModel `bun:"table:tlsentinel.saml_metadata_history"`
+
+	ID         string          `bun:"id,pk,type:uuid"`
+	EndpointID string          `bun:"endpoint_id,type:uuid"`
+	Sha256     string          `bun:"sha256"`
+	XML        string          `bun:"xml"`
+	Metadata   json.RawMessage `bun:"metadata,type:jsonb"`
+	CapturedAt time.Time       `bun:"captured_at"`
 }
 
 // Scanner maps to tlsentinel.scanners.

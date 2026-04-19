@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, XCircle, RefreshCw, FileEdit, ExternalLink, Key, Lock } from 'lucide-react'
+import { RefreshCw, FileEdit, ExternalLink, ShieldCheck, BadgeCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getScanHistory, patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
 import type { Endpoint, EndpointCert, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
-import { fmtDate } from '@/lib/utils'
 import {
   Section,
   Row,
@@ -19,109 +18,143 @@ import {
 } from './shared'
 
 // ---------------------------------------------------------------------------
-// Metadata URL card — prominent, top of page
+// SAML certificate cards (one per use, shown side-by-side)
 // ---------------------------------------------------------------------------
 
-function MetadataUrlCard({ url }: { url: string | null | undefined }) {
-  return (
-    <Section title="Metadata URL" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
-      {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 font-mono text-sm text-primary hover:underline break-all"
-        >
-          {url}
-          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-        </a>
-      ) : (
-        <p className="text-sm italic text-muted-foreground">No metadata URL configured.</p>
-      )}
-    </Section>
-  )
-}
+type CertKind = 'encryption' | 'signing'
 
-// ---------------------------------------------------------------------------
-// SAML certificates (grouped by use)
-// ---------------------------------------------------------------------------
-
-const CERT_GROUP_META: Record<string, { label: string; icon: React.ReactNode; empty: string }> = {
-  signing: {
-    label: 'Signing',
-    icon:  <Key className="h-4 w-4 text-muted-foreground" />,
-    empty: 'No signing certificate extracted yet.',
-  },
+const CERT_KIND_META: Record<CertKind, { title: string; icon: React.ComponentType<{ className?: string }>; empty: string }> = {
   encryption: {
-    label: 'Encryption',
-    icon:  <Lock className="h-4 w-4 text-muted-foreground" />,
+    title: 'Encryption Certificate',
+    icon:  ShieldCheck,
     empty: 'No encryption certificate extracted yet.',
   },
+  signing: {
+    title: 'Signing Certificate',
+    icon:  BadgeCheck,
+    empty: 'No signing certificate extracted yet.',
+  },
 }
 
-function CertRow({ cert }: { cert: EndpointCert }) {
-  const days = Math.floor((new Date(cert.notAfter).getTime() - Date.now()) / 86_400_000)
+function pickCert(certs: EndpointCert[], kind: CertKind): EndpointCert | null {
+  const ofKind = certs.filter((c) => c.certUse === kind)
+  return ofKind.find((c) => c.isCurrent) ?? ofKind[0] ?? null
+}
+
+function SAMLCertCard({ kind, cert }: { kind: CertKind; cert: EndpointCert | null }) {
+  const meta = CERT_KIND_META[kind]
+  const Icon = meta.icon
+
+  if (!cert) {
+    return (
+      <div className="rounded-xl bg-card border border-border p-6">
+        <div className="w-14 h-14 rounded-xl bg-muted/60 flex items-center justify-center">
+          <Icon className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <h3 className="mt-6 text-lg font-semibold">{meta.title}</h3>
+        <p className="mt-3 text-sm italic text-muted-foreground">{meta.empty}</p>
+      </div>
+    )
+  }
+
+  const days    = Math.floor((new Date(cert.notAfter).getTime() - Date.now()) / 86_400_000)
   const expired = days < 0
   const warning = !expired && days <= 30
-  const statusIcon = expired
-    ? <XCircle className="h-4 w-4 shrink-0 text-error" />
-    : warning
-    ? <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-    : <CheckCircle2 className="h-4 w-4 shrink-0 text-tertiary" />
-  const statusText = expired
-    ? `Expired ${Math.abs(days)}d ago`
-    : warning
-    ? `Expires in ${days}d`
-    : `Valid · ${fmtDate(cert.notAfter)}`
+
+  const iconBg =
+    expired ? 'bg-error-container/40'   :
+    warning ? 'bg-warning-container/40' :
+              'bg-primary-container/30'
+  const iconColor =
+    expired ? 'text-error'   :
+    warning ? 'text-warning' :
+              'text-foreground/70'
+
+  const badgeLabel =
+    expired ? 'Expired' :
+    warning ? 'Warning' :
+              'Active'
+  const badgeClass =
+    expired ? 'bg-error-container text-on-error-container'       :
+    warning ? 'bg-warning-container text-on-warning-container'   :
+              'bg-tertiary-container text-on-tertiary-container'
+
+  const statusWord =
+    expired ? `Expired ${Math.abs(days)}d ago` :
+    warning ? 'Expiring Soon' :
+              'Valid'
+  const statusColor =
+    expired ? 'text-error'    :
+    warning ? 'text-warning'  :
+              'text-tertiary'
+  const daysText = expired ? '' : `Expires in ${days} ${days === 1 ? 'day' : 'days'}`
 
   return (
-    <Link
-      to={`/certificates/${cert.fingerprint}`}
-      className="block rounded-md border border-border bg-surface-container-low px-3 py-2.5 hover:bg-muted/50"
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        {statusIcon}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate">{cert.commonName || '—'}</p>
-          <p className="mt-0.5 font-mono text-xs text-muted-foreground truncate">{cert.fingerprint}</p>
+    <div className="rounded-xl bg-card border border-border p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${iconBg}`}>
+          <Icon className={`h-7 w-7 ${iconColor}`} />
         </div>
-        <span className="shrink-0 text-xs text-muted-foreground">{statusText}</span>
+        <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${badgeClass}`}>
+          {badgeLabel}
+        </span>
       </div>
-    </Link>
+
+      <h3 className="mt-6 text-lg font-semibold">{meta.title}</h3>
+
+      <dl className="mt-5 space-y-4">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Common Name</dt>
+          <dd className="mt-1 text-sm font-medium truncate">{cert.commonName || '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Expiry Status</dt>
+          <dd className="mt-1 text-sm">
+            <span className={`font-semibold ${statusColor}`}>{statusWord}</span>
+            {daysText && <span className="ml-2 text-muted-foreground">{daysText}</span>}
+          </dd>
+        </div>
+      </dl>
+
+      <Link
+        to={`/certificates/${cert.fingerprint}`}
+        className="mt-6 block w-full rounded-md bg-muted/60 hover:bg-muted py-2.5 text-center text-sm font-medium"
+      >
+        View Details
+      </Link>
+    </div>
   )
 }
 
-function SAMLCertificatesSection({ certs }: { certs: EndpointCert[] }) {
-  const groups: Array<{ key: string; certs: EndpointCert[] }> = [
-    { key: 'signing',    certs: certs.filter((c) => c.certUse === 'signing') },
-    { key: 'encryption', certs: certs.filter((c) => c.certUse === 'encryption') },
-  ]
-
+function SAMLCertCards({ certs }: { certs: EndpointCert[] }) {
   return (
-    <Section title="SAML Certificates" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
-      <div className="space-y-5">
-        {groups.map((g) => {
-          const meta = CERT_GROUP_META[g.key]
-          return (
-            <div key={g.key}>
-              <div className="mb-2 flex items-center gap-2">
-                {meta.icon}
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  {meta.label}
-                </h3>
-              </div>
-              {g.certs.length === 0 ? (
-                <p className="text-sm italic text-muted-foreground">{meta.empty}</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {g.certs.map((c) => <CertRow key={c.fingerprint} cert={c} />)}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </Section>
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <SAMLCertCard kind="encryption" cert={pickCert(certs, 'encryption')} />
+      <SAMLCertCard kind="signing"    cert={pickCert(certs, 'signing')}    />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Valid-until value with expiry warning
+// ---------------------------------------------------------------------------
+
+function SAMLValidUntilValue({ validUntil }: { validUntil: string }) {
+  const when = new Date(validUntil)
+  const days = Math.floor((when.getTime() - Date.now()) / 86_400_000)
+  const expired = days < 0
+  const warning = !expired && days <= 30
+  const cls =
+    expired ? 'text-error' :
+    warning ? 'text-warning' :
+              'text-foreground'
+  const suffix =
+    expired ? `expired ${Math.abs(days)}d ago` :
+              `in ${days} ${days === 1 ? 'day' : 'days'}`
+  return (
+    <span className={cls}>
+      {when.toLocaleDateString()} <span className="text-muted-foreground">({suffix})</span>
+    </span>
   )
 }
 
@@ -155,6 +188,36 @@ function ConfigurationSection({
     >
       <div className="space-y-4">
         <dl>
+          <Row label="Metadata URL">
+            {endpoint.url ? (
+              <a
+                href={endpoint.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline break-all text-right"
+              >
+                <span className="break-all">{endpoint.url}</span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            ) : (
+              <span className="italic text-muted-foreground">—</span>
+            )}
+          </Row>
+          {endpoint.samlMetadata?.entityId && (
+            <Row label="Entity ID">
+              <span className="break-all">{endpoint.samlMetadata.entityId}</span>
+            </Row>
+          )}
+          {endpoint.samlMetadata?.role && (
+            <Row label="Role">
+              <span className="uppercase tracking-wide">{endpoint.samlMetadata.role}</span>
+            </Row>
+          )}
+          {endpoint.samlMetadata?.validUntil && (
+            <Row label="Valid Until">
+              <SAMLValidUntilValue validUntil={endpoint.samlMetadata.validUntil} />
+            </Row>
+          )}
           <Row label="Scanner">
             <span className="text-base font-semibold">{endpoint.scannerName ?? 'Default'}</span>
           </Row>
@@ -220,20 +283,21 @@ export default function SAMLEndpointDetailPage({ endpoint }: { endpoint: Endpoin
 
       {endpoint.lastScanError && <LastScanErrorBanner message={endpoint.lastScanError} />}
 
-      <MetadataUrlCard url={endpoint.url} />
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <ConfigurationSection
+            endpoint={endpoint}
+            onToggleEnabled={toggleEnabled}
+            onToggleScanning={(on) => toggleScanning(!on)}
+          />
+          <SAMLCertCards certs={endpoint.activeCerts} />
+        </div>
 
-      <SAMLCertificatesSection certs={endpoint.activeCerts} />
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <ConfigurationSection
-          endpoint={endpoint}
-          onToggleEnabled={toggleEnabled}
-          onToggleScanning={(on) => toggleScanning(!on)}
-        />
-        <NotesSection endpoint={endpoint} />
+        <div className="space-y-5 lg:col-span-1">
+          <NotesSection endpoint={endpoint} />
+          <ScanHistorySection items={history} />
+        </div>
       </div>
-
-      <ScanHistorySection items={history} />
     </div>
   )
 }
