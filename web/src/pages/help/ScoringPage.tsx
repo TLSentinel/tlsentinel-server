@@ -163,9 +163,12 @@ export default function ScoringPage() {
             <span className="text-muted-foreground/40">·</span>
             <span>
               <span className="font-medium text-foreground">Key exchange strength</span> is
-              approximated from the server certificate's public key (RSA modulus, ECDSA curve,
-              Ed25519 = 256), not from a live DHE/ECDHE handshake probe. Servers advertising
-              weaker ephemeral parameters than their cert key will not be flagged.
+              approximated from the server certificate's public key, not from a live DHE/ECDHE
+              handshake probe. RSA keys use modulus bits directly; EC keys and Ed25519 are
+              normalised to their RSA-equivalent strength per NIST SP 800-57 (P-256 / X25519 /
+              Ed25519 ≈ 3072, P-384 ≈ 7680, P-521 ≈ 15360) so the SSL Labs thresholds
+              (&lt; 1024 / 2048 / 4096) compare apples to apples. Servers advertising weaker
+              ephemeral parameters than their cert key will not be flagged.
             </span>
           </li>
           <li className="flex gap-2">
@@ -188,8 +191,9 @@ export default function ScoringPage() {
             <span className="text-muted-foreground/40">·</span>
             <span>
               <span className="font-medium text-foreground">Vulnerability probes</span>{' '}
-              (Heartbleed, POODLE, DROWN, ROBOT) are not run. Their caps and forced-F effects do
-              not apply.
+              (Heartbleed, DROWN, ROBOT) are not run. POODLE is inferred from SSL 3.0 support
+              (any server accepting SSLv3 is treated as POODLE-vulnerable); the TLS variant of
+              POODLE is not probed.
             </span>
           </li>
           <li className="flex gap-2">

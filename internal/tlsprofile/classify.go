@@ -39,6 +39,11 @@ type Result struct {
 // versionClassifications covers every TLS version the scanner probes.
 // Add new versions here as needed.
 var versionClassifications = map[string]Finding{
+	"SSL 3.0": {
+		Name:     "SSL 3.0",
+		Reason:   "Deprecated by RFC 7568 (June 2015). Vulnerable to POODLE with any CBC cipher.",
+		Severity: SeverityCritical,
+	},
 	"TLS 1.0": {
 		Name:     "TLS 1.0",
 		Reason:   "Deprecated by RFC 8996 (March 2021). Vulnerable to POODLE and BEAST attacks.",
@@ -62,20 +67,21 @@ var versionClassifications = map[string]Finding{
 }
 
 // versionOrder defines the display order for version findings.
-var versionOrder = []string{"TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"}
+var versionOrder = []string{"SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"}
 
 // Classify evaluates raw TLS scan data and returns a fully-classified Result.
 // Every version that was probed and every cipher suite the server accepted
 // appears in the output — not just the problematic ones.
 //
-// tls10..tls13 indicate which protocol versions the server accepted.
+// ssl30, tls10..tls13 indicate which protocol versions the server accepted.
 // cipherSuites is the list of TLS 1.2 suite names the server accepted, using
 // the names returned by crypto/tls (e.g. "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256").
-func Classify(tls10, tls11, tls12, tls13 bool, cipherSuites []string) Result {
+func Classify(ssl30, tls10, tls11, tls12, tls13 bool, cipherSuites []string) Result {
 	overall := SeverityOK
 
 	// Build version findings in a consistent oldest-to-newest order.
 	versionEnabled := map[string]bool{
+		"SSL 3.0": ssl30,
 		"TLS 1.0": tls10,
 		"TLS 1.1": tls11,
 		"TLS 1.2": tls12,

@@ -171,6 +171,7 @@ type EndpointTLSProfile struct {
 
 	EndpointID     string    `bun:"endpoint_id,pk,type:uuid"`
 	ScannedAt      time.Time `bun:"scanned_at"`
+	SSL30          bool      `bun:"ssl30"`
 	TLS10          bool      `bun:"tls10"`
 	TLS11          bool      `bun:"tls11"`
 	TLS12          bool      `bun:"tls12"`

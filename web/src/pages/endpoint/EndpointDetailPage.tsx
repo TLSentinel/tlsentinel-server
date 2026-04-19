@@ -462,11 +462,12 @@ function gradeTextColor(grade: TLSGrade): string {
   }
 }
 
-const TLS_VERSION_ROW: Array<{ name: string; key: 'tls13' | 'tls12' | 'tls11' | 'tls10' }> = [
+const TLS_VERSION_ROW: Array<{ name: string; key: 'tls13' | 'tls12' | 'tls11' | 'tls10' | 'ssl30' }> = [
   { name: 'TLS 1.3', key: 'tls13' },
   { name: 'TLS 1.2', key: 'tls12' },
   { name: 'TLS 1.1', key: 'tls11' },
   { name: 'TLS 1.0', key: 'tls10' },
+  { name: 'SSL 3.0', key: 'ssl30' },
 ]
 
 function ActiveTLSProfileSection({ tlsState }: { tlsState: TLSState }) {

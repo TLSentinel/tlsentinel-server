@@ -447,6 +447,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 type tlsProfileResponse struct {
 	EndpointID     string                 `json:"endpointId"`
 	ScannedAt      time.Time              `json:"scannedAt"`
+	SSL30          bool                   `json:"ssl30"`
 	TLS10          bool                   `json:"tls10"`
 	TLS11          bool                   `json:"tls11"`
 	TLS12          bool                   `json:"tls12"`
@@ -499,6 +500,7 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 	resp := tlsProfileResponse{
 		EndpointID:     profile.EndpointID,
 		ScannedAt:      profile.ScannedAt,
+		SSL30:          profile.SSL30,
 		TLS10:          profile.TLS10,
 		TLS11:          profile.TLS11,
 		TLS12:          profile.TLS12,
@@ -507,6 +509,7 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 		SelectedCipher: profile.SelectedCipher,
 		ScanError:      profile.ScanError,
 		Classification: tlsprofile.Classify(
+			profile.SSL30,
 			profile.TLS10,
 			profile.TLS11,
 			profile.TLS12,
@@ -514,6 +517,7 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 			profile.CipherSuites,
 		),
 		Score: tlsprofile.Score(tlsprofile.ScoreInput{
+			SSL30:             profile.SSL30,
 			TLS10:             profile.TLS10,
 			TLS11:             profile.TLS11,
 			TLS12:             profile.TLS12,
@@ -523,6 +527,10 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 			HSTS:              nil, // Not probed yet.
 			HasForwardSecrecy: tlsprofile.HasForwardSecrecy(profile.CipherSuites),
 			HasAEAD:           tlsprofile.HasAEAD(profile.CipherSuites),
+			// SSL 3.0 support implies POODLE (CVE-2014-3566). We don't separately
+			// probe CBC-under-SSLv3; any server accepting SSLv3 is considered
+			// vulnerable, which matches SSL Labs' treatment.
+			VulnPoodle: profile.SSL30,
 		}),
 	}
 

@@ -288,6 +288,7 @@ export default function DashboardPage() {
             const legacyPct = total > 0 ? Math.round((tlsReport.legacyEndpoints / total) * 100) : 0
             const tls11Pct = total > 0 ? Math.round((tlsReport.protocols.tls11 / total) * 100) : 0
             const tls10Pct = total > 0 ? Math.round((tlsReport.protocols.tls10 / total) * 100) : 0
+            const ssl30Pct = total > 0 ? Math.round((tlsReport.protocols.ssl30 / total) * 100) : 0
             return (
               <div className="space-y-4">
                 <TLSBar label="TLS 1.3" count={tlsReport.protocols.tls13} total={total} color="bg-green-500" />
@@ -306,6 +307,15 @@ export default function DashboardPage() {
                   color="bg-red-500"
                   labelColor={tls10Pct > 0 ? 'text-red-600' : undefined}
                 />
+                {tlsReport.protocols.ssl30 > 0 && (
+                  <TLSBar
+                    label="SSL 3.0 (Broken)"
+                    count={tlsReport.protocols.ssl30}
+                    total={total}
+                    color="bg-red-700"
+                    labelColor={ssl30Pct > 0 ? 'text-red-700' : undefined}
+                  />
+                )}
                 {legacyPct > 0 && (
                   <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground">Security Alert:</span>{' '}

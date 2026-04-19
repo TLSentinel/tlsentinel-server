@@ -278,6 +278,7 @@ export interface TLSScore {
 export interface EndpointTLSProfile {
   endpointId: string
   scannedAt: string
+  ssl30: boolean
   tls10: boolean
   tls11: boolean
   tls12: boolean
@@ -477,6 +478,7 @@ export interface TLSProtocolCounts {
   tls12: number
   tls11: number
   tls10: number
+  ssl30: number
 }
 
 export interface TLSCipherCount {

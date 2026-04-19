@@ -15,6 +15,7 @@ import (
 func (s *Store) UpsertEndpointTLSProfile(ctx context.Context, endpointID string, req models.TLSProfileIngestRequest) error {
 	row := &EndpointTLSProfile{
 		EndpointID:     endpointID,
+		SSL30:          req.SSL30,
 		TLS10:          req.TLS10,
 		TLS11:          req.TLS11,
 		TLS12:          req.TLS12,
@@ -28,6 +29,7 @@ func (s *Store) UpsertEndpointTLSProfile(ctx context.Context, endpointID string,
 		ExcludeColumn("scanned_at").
 		On("CONFLICT (endpoint_id) DO UPDATE SET" +
 			" scanned_at = NOW()," +
+			" ssl30 = EXCLUDED.ssl30," +
 			" tls10 = EXCLUDED.tls10," +
 			" tls11 = EXCLUDED.tls11," +
 			" tls12 = EXCLUDED.tls12," +
@@ -59,6 +61,7 @@ func (s *Store) GetEndpointTLSProfile(ctx context.Context, endpointID string) (m
 	return models.EndpointTLSProfile{
 		EndpointID:     row.EndpointID,
 		ScannedAt:      row.ScannedAt,
+		SSL30:          row.SSL30,
 		TLS10:          row.TLS10,
 		TLS11:          row.TLS11,
 		TLS12:          row.TLS12,
