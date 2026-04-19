@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle, FileEdit } from 'lucide-react'
+import { ChevronRight, AlertCircle, AlertTriangle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle, FileEdit } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
@@ -301,15 +301,19 @@ type TLSState =
   | { status: 'error'; message: string }
   | { status: 'ready'; profile: EndpointTLSProfile }
 
-function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
+function SecurityPostureSection({ tlsState, endpoint }: { tlsState: TLSState; endpoint: Endpoint }) {
   if (tlsState.status !== 'ready') return null
   const { classification, score } = tlsState.profile
+  const primaryCert =
+    endpoint.activeCerts.find((c) => c.certUse === 'tls') ??
+    endpoint.activeCerts[0] ??
+    null
 
   return (
-    <Section title="Security Posture" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
+    <Section title="Security Posture Summary" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
       <div className="space-y-4">
+        {/* Grade + sub-score bars */}
         <div className="flex items-stretch gap-6">
-          {/* Grade card */}
           <div className="shrink-0 w-44 flex flex-col items-center justify-center rounded-xl border border-border bg-surface-container-low p-5">
             <span className={`text-7xl font-bold tracking-tight leading-none ${gradeTextColor(score.grade)}`}>
               {score.grade}
@@ -318,8 +322,6 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
               Summary Grade
             </span>
           </div>
-
-          {/* Sub-score bars */}
           <div className="flex-1 flex flex-col justify-center gap-4">
             <ScoreBar label="Protocol Support" value={score.protocolScore} />
             <ScoreBar label="Key Exchange"     value={score.keyExchangeScore} />
@@ -327,16 +329,13 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
           </div>
         </div>
 
-        {score.warnings && score.warnings.length > 0 && (
-          <ul className="space-y-1 text-sm text-muted-foreground">
-            {score.warnings.map((w, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="text-muted-foreground/40">·</span>
-                <span>{w}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <PostureBanner classification={classification} />
+
+        {/* Stat row */}
+        <div className="grid grid-cols-2 gap-3">
+          <CertStatusCard cert={primaryCert} />
+          <OverallScoreCard score={score.score} />
+        </div>
 
         <Link
           to="/help/scoring"
@@ -345,10 +344,56 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
           <HelpCircle className="h-3.5 w-3.5" />
           How is this score calculated?
         </Link>
-
-        <PostureBanner classification={classification} />
       </div>
     </Section>
+  )
+}
+
+function CertStatusCard({ cert }: { cert: EndpointCert | null }) {
+  if (!cert) {
+    return (
+      <div className="rounded-xl bg-surface-container-low p-4 flex items-center gap-3">
+        <XCircle className="h-7 w-7 text-muted-foreground/60 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Certificate</p>
+          <p className="mt-0.5 text-base font-semibold">None</p>
+        </div>
+      </div>
+    )
+  }
+  const days = Math.floor((new Date(cert.notAfter).getTime() - Date.now()) / 86_400_000)
+  const expired = days < 0
+  const warning = !expired && days <= 30
+  const icon = expired
+    ? <XCircle className="h-7 w-7 text-error shrink-0" />
+    : warning
+    ? <AlertTriangle className="h-7 w-7 text-warning shrink-0" />
+    : <CheckCircle2 className="h-7 w-7 text-tertiary shrink-0" />
+  const label = expired
+    ? 'Expired'
+    : warning
+    ? `Expiring (${days}d)`
+    : `Valid (${days}d)`
+  return (
+    <div className="rounded-xl bg-surface-container-low p-4 flex items-center gap-3">
+      {icon}
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Certificate</p>
+        <p className="mt-0.5 text-base font-semibold">{label}</p>
+      </div>
+    </div>
+  )
+}
+
+function OverallScoreCard({ score }: { score: number }) {
+  return (
+    <div className="rounded-xl bg-surface-container-low p-4 flex items-center justify-between gap-3">
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Overall Score</p>
+      <p className="text-2xl font-bold tracking-tight leading-none">
+        {score}
+        <span className="text-base font-medium text-muted-foreground">/100</span>
+      </p>
+    </div>
   )
 }
 
@@ -392,24 +437,102 @@ function gradeTextColor(grade: TLSGrade): string {
   }
 }
 
-function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
+const TLS_VERSION_ROW: Array<{ name: string; key: 'tls13' | 'tls12' | 'tls11' | 'tls10' }> = [
+  { name: 'TLS 1.3', key: 'tls13' },
+  { name: 'TLS 1.2', key: 'tls12' },
+  { name: 'TLS 1.1', key: 'tls11' },
+  { name: 'TLS 1.0', key: 'tls10' },
+]
+
+function ActiveTLSProfileSection({ tlsState }: { tlsState: TLSState }) {
+  if (tlsState.status !== 'ready') return null
+  const { profile } = tlsState
+  const findingByName = new Map(profile.classification.versions.map((v) => [v.name, v]))
+
+  return (
+    <div className="rounded-xl bg-card border border-border overflow-hidden">
+      <div className="p-6">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Active TLS Profile
+          </h2>
+          <a
+            href="#cipher-suites"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            View Cipher Suites
+          </a>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {TLS_VERSION_ROW.map((v) => (
+            <VersionChip
+              key={v.name}
+              name={v.name}
+              enabled={profile[v.key]}
+              severity={findingByName.get(v.name)?.severity}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VersionChip({
+  name,
+  enabled,
+  severity,
+}: {
+  name: string
+  enabled: boolean
+  severity: TLSSeverity | undefined
+}) {
+  if (!enabled) {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-md bg-surface-container-low px-3 py-1.5 text-sm font-medium text-muted-foreground/70">
+        <span className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+        {name} (OFF)
+      </span>
+    )
+  }
+  const dotColor =
+    severity === 'critical' ? 'bg-error' :
+    severity === 'warning'  ? 'bg-warning' :
+                               'bg-tertiary'
+  const ringClass =
+    severity === 'critical' ? 'ring-1 ring-error/60'   :
+    severity === 'warning'  ? 'ring-1 ring-warning/60' :
+                               ''
+  const textColor =
+    severity === 'critical' ? 'text-error'   :
+    severity === 'warning'  ? 'text-warning' :
+                               'text-foreground'
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-md bg-surface-container-low px-3 py-1.5 text-sm font-medium ${textColor} ${ringClass}`}>
+      <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+      {name}
+    </span>
+  )
+}
+
+function CipherSuitesSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status === 'loading') {
     return (
-      <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
+      <Section title="Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
         <p className="text-xs italic text-muted-foreground">Loading…</p>
       </Section>
     )
   }
   if (tlsState.status === 'none') {
     return (
-      <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
+      <Section title="Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
         <p className="text-sm italic text-muted-foreground">No TLS profile yet — will be populated on the next scan cycle.</p>
       </Section>
     )
   }
   if (tlsState.status === 'error') {
     return (
-      <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
+      <Section title="Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
         <p className="text-sm text-destructive">{tlsState.message}</p>
       </Section>
     )
@@ -419,38 +542,31 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   const { classification } = profile
 
   return (
-    <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
-      <div className="space-y-5">
-        {profile.scanError && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{profile.scanError}</span>
-          </div>
-        )}
-
-        {classification.versions.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Supported Versions</p>
-            <div className="space-y-1.5">
-              {classification.versions.map((f) => <FindingRow key={f.name} finding={f} />)}
+    <div id="cipher-suites" className="rounded-xl bg-card border border-border overflow-hidden">
+      <div className="p-6">
+        <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Cipher Suites ({classification.cipherSuites.length})
+        </h2>
+        <div className="space-y-5">
+          {profile.scanError && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{profile.scanError}</span>
             </div>
-          </div>
-        )}
+          )}
 
-        {classification.cipherSuites.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Cipher Suites ({classification.cipherSuites.length})
-            </p>
+          {classification.cipherSuites.length > 0 ? (
             <div className="space-y-1.5">
               {classification.cipherSuites.map((f) => (
                 <FindingRow key={f.name} finding={f} preferred={f.name === profile.selectedCipher} />
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-sm italic text-muted-foreground">No cipher suites recorded.</p>
+          )}
+        </div>
       </div>
-    </Section>
+    </div>
   )
 }
 
@@ -676,15 +792,16 @@ export default function EndpointDetailPage() {
             onToggleScanning={(on) => toggleScanning(!on)}
           />
           <ActiveCertsSection certs={endpoint.activeCerts} />
-          {endpoint.notes && <NotesSection endpoint={endpoint} />}
+          <NotesSection endpoint={endpoint} />
           <ScanHistorySection items={history} />
         </div>
 
         {/* ── Right column (2/3) — only when TLS Profile has content ── */}
         {endpoint.type === 'host' && (
           <div className="space-y-5 lg:col-span-2">
-            <SecurityPostureSection tlsState={tlsState} />
-            <TLSProfileSection tlsState={tlsState} />
+            <SecurityPostureSection tlsState={tlsState} endpoint={endpoint} />
+            <ActiveTLSProfileSection tlsState={tlsState} />
+            <CipherSuitesSection tlsState={tlsState} />
           </div>
         )}
 
