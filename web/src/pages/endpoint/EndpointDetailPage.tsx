@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
@@ -322,6 +322,16 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
             <SubScore label="Protocol" value={score.protocolScore} />
             <SubScore label="Key Exchange" value={score.keyExchangeScore} />
             <SubScore label="Cipher" value={score.cipherScore} />
+          </div>
+
+          <div className="pt-1">
+            <Link
+              to="/help/scoring"
+              className="inline-flex items-center gap-1.5 text-xs text-primary-foreground/70 hover:text-primary-foreground hover:underline"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              How is this score calculated?
+            </Link>
           </div>
         </div>
 
