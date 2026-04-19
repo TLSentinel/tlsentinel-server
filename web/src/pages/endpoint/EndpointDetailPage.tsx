@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, AlertTriangle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle, FileEdit } from 'lucide-react'
+import { ChevronRight, AlertCircle, AlertTriangle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle, FileEdit, Eye } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
@@ -8,7 +8,6 @@ import { getEndpointTags } from '@/api/tags'
 import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSGrade, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
-import { CertProgressCard } from '@/components/CertProgressCard'
 import { categoryColor } from '@/lib/tag-colors'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Switch } from '@/components/ui/switch'
@@ -17,17 +16,21 @@ import { Switch } from '@/components/ui/switch'
 // Layout primitives
 // ---------------------------------------------------------------------------
 
-function Section({ title, titleClassName, className, bareTitle = false, children }: { title?: string; titleClassName?: string; className?: string; bareTitle?: boolean; children: React.ReactNode }) {
+function Section({ title, titleClassName, className, bareTitle = false, action, children }: { title?: string; titleClassName?: string; className?: string; bareTitle?: boolean; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className={`rounded-xl bg-card border border-border overflow-hidden ${className ?? ''}`}>
       {title && !bareTitle && (
-        <div className="px-5 py-3 bg-muted">
+        <div className="px-5 py-3 bg-muted flex items-center justify-between gap-3">
           <h2 className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</h2>
+          {action}
         </div>
       )}
       <div className={bareTitle ? 'p-6' : 'p-5'}>
         {title && bareTitle && (
-          <h2 className={`mb-5 ${titleClassName ?? 'text-sm font-medium'}`}>{title}</h2>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <h2 className={titleClassName ?? 'text-sm font-medium'}>{title}</h2>
+            {action}
+          </div>
         )}
         {children}
       </div>
@@ -123,7 +126,20 @@ function ConfigurationSection({
   const scanningOn = !endpoint.scanExempt
 
   return (
-    <Section title="Configuration" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
+    <Section
+      title="Configuration"
+      titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+      bareTitle
+      action={
+        <Link
+          to={`/endpoints/${endpoint.id}/edit`}
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label="Edit configuration"
+        >
+          <FileEdit className="h-4 w-4" />
+        </Link>
+      }
+    >
       <div className="space-y-4">
         <dl>
 
@@ -377,8 +393,17 @@ function CertStatusCard({ cert }: { cert: EndpointCert | null }) {
   return (
     <div className="rounded-xl bg-surface-container-low p-4 flex items-center gap-3">
       {icon}
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Certificate</p>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Certificate</p>
+          <Link
+            to={`/certificates/${cert.fingerprint}`}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="View certificate"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Link>
+        </div>
         <p className="mt-0.5 text-base font-semibold">{label}</p>
       </div>
     </div>
@@ -571,39 +596,6 @@ function CipherSuitesSection({ tlsState }: { tlsState: TLSState }) {
 }
 
 // ---------------------------------------------------------------------------
-// Active certificate section
-// ---------------------------------------------------------------------------
-
-const CERT_USE_LABEL: Record<string, string> = {
-  tls:        'TLS Certificate',
-  signing:    'Signing Certificate',
-  encryption: 'Encryption Certificate',
-  manual:     'Manually Added Certificate',
-}
-
-function ActiveCertsSection({ certs }: { certs: EndpointCert[] }) {
-  if (certs.length === 0) {
-    return (
-      <p className="px-5 text-sm italic text-muted-foreground">No certificates recorded yet.</p>
-    )
-  }
-  return (
-    <div className="space-y-3">
-      {certs.map((cert) => (
-        <CertProgressCard
-          key={`${cert.fingerprint}-${cert.certUse}`}
-          fingerprint={cert.fingerprint}
-          commonName={cert.commonName}
-          notBefore={cert.notBefore}
-          notAfter={cert.notAfter}
-          label={CERT_USE_LABEL[cert.certUse] ?? cert.certUse}
-        />
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Scan history section
 // ---------------------------------------------------------------------------
 
@@ -791,7 +783,6 @@ export default function EndpointDetailPage() {
             onToggleEnabled={toggleEnabled}
             onToggleScanning={(on) => toggleScanning(!on)}
           />
-          <ActiveCertsSection certs={endpoint.activeCerts} />
           <NotesSection endpoint={endpoint} />
           <ScanHistorySection items={history} />
         </div>
