@@ -166,6 +166,14 @@ func Score(in ScoreInput) ScoreResult {
 		grade = GradeF
 		warnings = append(warnings, "ROBOT vulnerability forces F.")
 	}
+	if in.SSL30 && !in.TLS10 && !in.TLS11 && !in.TLS12 && !in.TLS13 {
+		grade = GradeF
+		warnings = append(warnings, "SSL 3.0 as best protocol forces F.")
+	}
+	if onlyRC4(in.CipherSuites) {
+		grade = GradeF
+		warnings = append(warnings, "Only RC4 cipher suites forces F.")
+	}
 
 	// ─── Step 7: Apply grade caps ───────────────────────────────────────
 	// Only apply caps if we haven't already been forced to F.
@@ -182,6 +190,10 @@ func Score(in ScoreInput) ScoreResult {
 		if hasRC4(in.CipherSuites) && (in.TLS11 || in.TLS12 || in.TLS13) {
 			grade = capGrade(grade, GradeC)
 			warnings = append(warnings, "RC4 with TLS 1.1+ caps grade at C.")
+		}
+		if !in.TLS12 && !in.TLS13 {
+			grade = capGrade(grade, GradeC)
+			warnings = append(warnings, "No TLS 1.2 or 1.3 support caps grade at C.")
 		}
 
 		// B caps
@@ -516,6 +528,20 @@ func hasRC4(suites []string) bool {
 		}
 	}
 	return false
+}
+
+// onlyRC4 reports whether every accepted suite is RC4. An empty list is
+// not "only RC4" — nothing accepted at all is handled elsewhere.
+func onlyRC4(suites []string) bool {
+	if len(suites) == 0 {
+		return false
+	}
+	for _, s := range suites {
+		if !strings.Contains(strings.ToUpper(s), "RC4") {
+			return false
+		}
+	}
+	return true
 }
 
 func has3DES(suites []string) bool {

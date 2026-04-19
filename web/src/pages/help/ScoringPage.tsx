@@ -16,6 +16,8 @@ interface CapRow {
 
 const FORCE_F: CapRow[] = [
   { condition: 'SSL 2.0 support',                         effect: 'F' },
+  { condition: 'SSL 3.0 as best protocol',                effect: 'F' },
+  { condition: 'Only RC4 cipher suites accepted',         effect: 'F' },
   { condition: 'Expired, self-signed, or revoked cert',   effect: 'F' },
   { condition: 'MD2 or MD5 certificate signature',        effect: 'F' },
   { condition: 'Export cipher suites accepted',           effect: 'F' },
@@ -26,6 +28,7 @@ const FORCE_F: CapRow[] = [
 const CAPS: CapRow[] = [
   { condition: 'POODLE vulnerable',                       effect: 'Capped at C' },
   { condition: 'RC4 or 3DES accepted with TLS 1.1+',      effect: 'Capped at C' },
+  { condition: 'No TLS 1.2 or 1.3 support',               effect: 'Capped at C' },
   { condition: 'Key exchange < 2048 bits',                effect: 'Capped at B' },
   { condition: 'RC4 accepted',                            effect: 'Capped at B' },
   { condition: 'Incomplete certificate chain',            effect: 'Capped at B' },
