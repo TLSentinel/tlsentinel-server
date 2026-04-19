@@ -443,18 +443,19 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // tlsProfileResponse is the enriched API response for an endpoint TLS profile.
 // It combines the raw scan data stored in the database with the classification
-// computed by internal/tlsprofile.Classify at query time.
+// and SSL Labs-style score computed by internal/tlsprofile at query time.
 type tlsProfileResponse struct {
-	EndpointID     string            `json:"endpointId"`
-	ScannedAt      time.Time         `json:"scannedAt"`
-	TLS10          bool              `json:"tls10"`
-	TLS11          bool              `json:"tls11"`
-	TLS12          bool              `json:"tls12"`
-	TLS13          bool              `json:"tls13"`
-	CipherSuites   []string          `json:"cipherSuites"`
-	SelectedCipher *string           `json:"selectedCipher,omitempty"`
-	ScanError      *string           `json:"scanError,omitempty"`
-	Classification tlsprofile.Result `json:"classification"`
+	EndpointID     string                 `json:"endpointId"`
+	ScannedAt      time.Time              `json:"scannedAt"`
+	TLS10          bool                   `json:"tls10"`
+	TLS11          bool                   `json:"tls11"`
+	TLS12          bool                   `json:"tls12"`
+	TLS13          bool                   `json:"tls13"`
+	CipherSuites   []string               `json:"cipherSuites"`
+	SelectedCipher *string                `json:"selectedCipher,omitempty"`
+	ScanError      *string                `json:"scanError,omitempty"`
+	Classification tlsprofile.Result      `json:"classification"`
+	Score          tlsprofile.ScoreResult `json:"score"`
 }
 
 // @Summary      Get TLS profile
@@ -501,6 +502,17 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 			profile.TLS13,
 			profile.CipherSuites,
 		),
+		Score: tlsprofile.Score(tlsprofile.ScoreInput{
+			TLS10:             profile.TLS10,
+			TLS11:             profile.TLS11,
+			TLS12:             profile.TLS12,
+			TLS13:             profile.TLS13,
+			CipherSuites:      profile.CipherSuites,
+			KeyExchangeBits:   -1,  // Not probed yet.
+			HSTS:              nil, // Not probed yet.
+			HasForwardSecrecy: tlsprofile.HasForwardSecrecy(profile.CipherSuites),
+			HasAEAD:           tlsprofile.HasAEAD(profile.CipherSuites),
+		}),
 	}
 
 	response.JSON(w, http.StatusOK, resp)

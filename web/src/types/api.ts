@@ -259,6 +259,22 @@ export interface TLSClassification {
   overallSeverity: TLSSeverity
 }
 
+// SSL Labs-style letter grade.
+export type TLSGrade =
+  | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D' | 'E' | 'F'
+  | 'T' // Certificate not trusted.
+  | 'M' // Certificate name mismatch.
+
+export interface TLSScore {
+  protocolScore: number
+  // null when the scanner did not probe key-exchange strength.
+  keyExchangeScore: number | null
+  cipherScore: number
+  score: number
+  grade: TLSGrade
+  warnings?: string[]
+}
+
 export interface EndpointTLSProfile {
   endpointId: string
   scannedAt: string
@@ -270,6 +286,7 @@ export interface EndpointTLSProfile {
   selectedCipher: string | null
   scanError: string | null
   classification: TLSClassification
+  score: TLSScore
 }
 
 // ---------------------------------------------------------------------------

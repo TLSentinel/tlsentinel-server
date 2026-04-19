@@ -225,32 +225,21 @@ function NotesSection({ endpoint }: { endpoint: Endpoint }) {
 // Security posture banner
 // ---------------------------------------------------------------------------
 
-// Formal summary shown below the compliance score.
-// TODO: finalise copy for each severity tier.
-function postureSummary(c: TLSClassification): string {
-  if (c.overallSeverity === 'ok')
-    return 'This endpoint meets current TLS security standards. All negotiated cipher suites and protocol versions are considered acceptable.'
-  if (c.overallSeverity === 'warning')
-    return 'This endpoint does not fully comply with modern TLS best practices. Review the findings below and consider upgrading the affected configuration.'
-  return 'This endpoint fails to meet minimum TLS security standards and presents a significant risk. Immediate remediation is required.'
-}
-
 // Specific detail shown inside the coloured posture banner.
-// TODO: finalise copy for each severity tier.
 function postureDetail(c: TLSClassification): string {
-  const criticalCiphers = c.cipherSuites.filter((f) => f.severity === 'critical')
-  const warnCiphers     = c.cipherSuites.filter((f) => f.severity === 'warning')
+  const criticalCiphers  = c.cipherSuites.filter((f) => f.severity === 'critical')
+  const warnCiphers      = c.cipherSuites.filter((f) => f.severity === 'warning')
   const criticalVersions = c.versions.filter((f) => f.severity === 'critical').map((f) => f.name)
 
   if (c.overallSeverity === 'ok')
-    return 'No insecure protocol versions or cipher suites were detected.'
+    return 'No insecure protocols or cipher suites detected.'
   if (criticalVersions.length > 0)
-    return `${criticalVersions.join(' and ')} ${criticalVersions.length > 1 ? 'are' : 'is'} enabled and must be disabled immediately.`
+    return `${criticalVersions.join(' and ')} ${criticalVersions.length > 1 ? 'are' : 'is'} enabled.`
   if (criticalCiphers.length > 0)
-    return `${criticalCiphers.length} critically weak cipher${criticalCiphers.length > 1 ? 's' : ''} ${criticalCiphers.length > 1 ? 'are' : 'is'} currently accepted by this endpoint.`
+    return `${criticalCiphers.length} critically weak cipher${criticalCiphers.length > 1 ? 's' : ''} ${criticalCiphers.length > 1 ? 'are' : 'is'} accepted.`
   if (warnCiphers.length > 0)
-    return `${warnCiphers.length} cipher${warnCiphers.length > 1 ? 's' : ''} lacking Elliptic Curve Diffie-Hellman (ECDHE) forward secrecy ${warnCiphers.length > 1 ? 'are' : 'is'} currently accepted.`
-  return 'Weaknesses detected — review the findings below.'
+    return `${warnCiphers.length} cipher${warnCiphers.length > 1 ? 's' : ''} without ECDHE forward secrecy ${warnCiphers.length > 1 ? 'are' : 'is'} accepted.`
+  return 'Weaknesses detected.'
 }
 
 const POSTURE_STYLE: Record<TLSSeverity, {
@@ -304,23 +293,50 @@ type TLSState =
 
 function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status !== 'ready') return null
-  const { classification } = tlsState.profile
+  const { classification, score } = tlsState.profile
 
   return (
     <Section title="Security Posture" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
       <div className="space-y-3">
-        {/* Compliance score — placeholder until scoring logic is implemented */}
-        <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-2">
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-5xl font-bold tracking-tight">00%</span>
-            <span className="text-sm font-medium text-primary-foreground/70">Compliance Score</span>
+        <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-4">
+          <div className="flex items-start gap-6">
+            <div className="flex items-baseline gap-3 shrink-0">
+              <span className="text-7xl font-bold tracking-tight leading-none">{score.grade}</span>
+              <span className="text-lg font-medium text-primary-foreground/70">
+                {score.score}/100
+              </span>
+            </div>
+            {score.warnings && score.warnings.length > 0 && (
+              <ul className="flex-1 space-y-1 text-sm text-primary-foreground/75 pt-1">
+                {score.warnings.map((w, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-primary-foreground/40">·</span>
+                    <span>{w}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <p className="text-sm text-primary-foreground/80">{postureSummary(classification)}</p>
+
+          <div className="grid grid-cols-3 gap-4 pt-3 border-t border-primary-foreground/20">
+            <SubScore label="Protocol" value={score.protocolScore} />
+            <SubScore label="Key Exchange" value={score.keyExchangeScore} />
+            <SubScore label="Cipher" value={score.cipherScore} />
+          </div>
         </div>
 
         <PostureBanner classification={classification} />
       </div>
     </Section>
+  )
+}
+
+function SubScore({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-primary-foreground/60">{label}</p>
+      <p className="mt-0.5 text-2xl font-semibold">{value ?? '—'}</p>
+    </div>
   )
 }
 
