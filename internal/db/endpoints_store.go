@@ -246,6 +246,26 @@ func (s *Store) GetEndpoint(ctx context.Context, id string) (models.Endpoint, er
 	return ep, nil
 }
 
+// GetEndpointTLSCertPEM returns the PEM of the endpoint's current TLS cert.
+// Returns ErrNotFound if the endpoint has no current cert with cert_use='tls'.
+func (s *Store) GetEndpointTLSCertPEM(ctx context.Context, endpointID string) (string, error) {
+	var pem string
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.endpoint_certs ec").
+		ColumnExpr("c.pem").
+		Join("JOIN tlsentinel.certificates c ON c.fingerprint = ec.fingerprint").
+		Where("ec.endpoint_id = ? AND ec.cert_use = 'tls' AND ec.is_current = TRUE", endpointID).
+		Limit(1).
+		Scan(ctx, &pem)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("failed to get endpoint tls cert pem: %w", err)
+	}
+	return pem, nil
+}
+
 // GetEndpointByDNSName returns the endpoint whose dns_name matches exactly (case-insensitive).
 // Returns ErrNotFound if no match exists.
 func (s *Store) GetEndpointByDNSName(ctx context.Context, dnsName string) (models.Endpoint, error) {

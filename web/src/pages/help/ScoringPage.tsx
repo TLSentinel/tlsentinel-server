@@ -162,9 +162,10 @@ export default function ScoringPage() {
           <li className="flex gap-2">
             <span className="text-muted-foreground/40">·</span>
             <span>
-              <span className="font-medium text-foreground">Key exchange strength</span> is not
-              probed. The sub-score is omitted and the 30% weight is redistributed across protocol
-              (30/70) and cipher (40/70). Weak-DH grade caps do not apply.
+              <span className="font-medium text-foreground">Key exchange strength</span> is
+              approximated from the server certificate's public key (RSA modulus, ECDSA curve,
+              Ed25519 = 256), not from a live DHE/ECDHE handshake probe. Servers advertising
+              weaker ephemeral parameters than their cert key will not be flagged.
             </span>
           </li>
           <li className="flex gap-2">
@@ -205,8 +206,8 @@ export default function ScoringPage() {
           </li>
         </ul>
         <p className="text-sm text-muted-foreground pt-1">
-          These gaps mean a TLSentinel grade is a floor. An endpoint scoring well here may score
-          lower on a more thorough external scan.
+          What we can't see, we don't penalise. So take this as a generous grade — a more
+          complete scan may lower it, but won't raise it.
         </p>
       </div>
     </div>

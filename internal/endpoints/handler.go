@@ -485,6 +485,17 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 		profile.CipherSuites = []string{}
 	}
 
+	// Cheap-path key-exchange bits: derived from the endpoint's current TLS
+	// cert's public key (RSA modulus / EC curve / Ed25519). This is a proxy
+	// for real key-exchange strength — close enough to populate the sub-score
+	// and activate the weak-key grade caps without adding scanner probes.
+	kexBits := -1
+	if pemData, err := h.store.GetEndpointTLSCertPEM(r.Context(), endpointID); err == nil {
+		if bits, err := tlsprofile.KeyExchangeBitsFromPEM(pemData); err == nil {
+			kexBits = bits
+		}
+	}
+
 	resp := tlsProfileResponse{
 		EndpointID:     profile.EndpointID,
 		ScannedAt:      profile.ScannedAt,
@@ -508,7 +519,7 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 			TLS12:             profile.TLS12,
 			TLS13:             profile.TLS13,
 			CipherSuites:      profile.CipherSuites,
-			KeyExchangeBits:   -1,  // Not probed yet.
+			KeyExchangeBits:   kexBits,
 			HSTS:              nil, // Not probed yet.
 			HasForwardSecrecy: tlsprofile.HasForwardSecrecy(profile.CipherSuites),
 			HasAEAD:           tlsprofile.HasAEAD(profile.CipherSuites),
