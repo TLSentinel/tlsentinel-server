@@ -18,7 +18,7 @@
  * ------------------------------------------------------------------------- */
 :root {
     /* Surface hierarchy (tonal stacking replaces borders) */
-    --surface:                     #e8ebee;   /* L0 page background */
+    --surface:                     #f8fafc;   /* L0 page background */
     --surface-container-lowest:    #ffffff;   /* L2 inner cards / inputs */
     --surface-container-low:       #eef1f3;
     --surface-container:           #dee1e4;   /* L1 primary card surface (sidebar, muted bands) */

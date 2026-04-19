@@ -1,11 +1,11 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle } from 'lucide-react'
+import { ChevronRight, AlertCircle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, Pencil, RefreshCw, HelpCircle, FileEdit } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getEndpoint, getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
-import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
+import type { Endpoint, EndpointCert, EndpointTLSProfile, TLSClassification, TLSFinding, TLSGrade, TLSSeverity, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 import { CertProgressCard } from '@/components/CertProgressCard'
@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch'
 
 function Section({ title, titleClassName, className, bareTitle = false, children }: { title?: string; titleClassName?: string; className?: string; bareTitle?: boolean; children: React.ReactNode }) {
   return (
-    <div className={`rounded-xl bg-card overflow-hidden ${className ?? ''}`}>
+    <div className={`rounded-xl bg-card border border-border overflow-hidden ${className ?? ''}`}>
       {title && !bareTitle && (
         <div className="px-5 py-3 bg-muted">
           <h2 className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</h2>
@@ -31,15 +31,6 @@ function Section({ title, titleClassName, className, bareTitle = false, children
         )}
         {children}
       </div>
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
-      <div className="mt-0.5 text-sm font-medium">{children}</div>
     </div>
   )
 }
@@ -132,28 +123,24 @@ function ConfigurationSection({
   const scanningOn = !endpoint.scanExempt
 
   return (
-    <Section title="Configuration" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
+    <Section title="Configuration" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        <dl>
 
           {isHost && (
-            <div className="col-span-2">
-              <Field label="DNS Name">
-                <span className="text-base font-semibold">{endpoint.dnsName}</span>
-              </Field>
-            </div>
+            <Row label="DNS Name">
+              <span className="text-base font-semibold">{endpoint.dnsName}</span>
+            </Row>
           )}
 
           {isSAML && (
-            <div className="col-span-2">
-              <Field label="Metadata URL">
-                <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
-              </Field>
-            </div>
+            <Row label="Metadata URL">
+              <span className="font-mono break-all">{endpoint.url ?? '—'}</span>
+            </Row>
           )}
 
           {isManual && (
-            <div className="col-span-2">
+            <div className="py-3">
               <p className="text-sm text-muted-foreground italic">
                 Manually tracked — certificate is linked directly, no scanning.
               </p>
@@ -161,36 +148,34 @@ function ConfigurationSection({
           )}
 
           {isHost && (
-            <Field label="IP Address">
+            <Row label="IP Address">
               <span className="text-base font-semibold">{endpoint.ipAddress ?? 'Auto'}</span>
-            </Field>
+            </Row>
           )}
 
-          {isHost && <Field label="Port"><span className="text-base font-semibold">{endpoint.port}</span></Field>}
-
-          <div className="col-start-2">
-            <Field label="Monitored">
-              <Switch checked={endpoint.enabled} onCheckedChange={onToggleEnabled} />
-            </Field>
-          </div>
+          {isHost && (
+            <Row label="Port">
+              <span className="text-base font-semibold">{endpoint.port}</span>
+            </Row>
+          )}
 
           {!isManual && (
-            <>
-              <Field label="Scanner">
-                <span className="text-base font-semibold">{endpoint.scannerName ?? 'Default'}</span>
-              </Field>
-              <Field label="Scanning">
-                <Switch checked={scanningOn} onCheckedChange={onToggleScanning} />
-              </Field>
-              <Field label="Last Scanned">
-                <span className="text-base font-semibold">
-                  {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
-                </span>
-              </Field>
-            </>
+            <Row label="Scanner">
+              <span className="text-base font-semibold">{endpoint.scannerName ?? 'Default'}</span>
+            </Row>
           )}
 
-        </div>
+          <Row label="Monitored">
+            <Switch checked={endpoint.enabled} onCheckedChange={onToggleEnabled} />
+          </Row>
+
+          {!isManual && (
+            <Row label="Scanning">
+              <Switch checked={scanningOn} onCheckedChange={onToggleScanning} />
+            </Row>
+          )}
+
+        </dl>
 
         {endpoint.lastScanError && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
@@ -203,21 +188,46 @@ function ConfigurationSection({
   )
 }
 
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="text-sm font-medium text-right">{children}</dd>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Notes section
 // ---------------------------------------------------------------------------
 
 function NotesSection({ endpoint }: { endpoint: Endpoint }) {
   return (
-    <Section>
-      {endpoint.notes ? (
-        <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
-          <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
+    <div className="rounded-xl bg-surface-container-low border border-border overflow-hidden">
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Internal Notes
+          </h2>
+          <Link
+            to={`/endpoints/${endpoint.id}/edit`}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Edit notes"
+          >
+            <FileEdit className="h-4 w-4" />
+          </Link>
         </div>
-      ) : (
-        <p className="text-sm italic text-muted-foreground">No notes.</p>
-      )}
-    </Section>
+        {endpoint.notes ? (
+          <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-muted-foreground [&_a]:text-primary [&_a]:underline-offset-2">
+            <ReactMarkdown>{endpoint.notes}</ReactMarkdown>
+          </div>
+        ) : (
+          <p className="text-sm italic text-muted-foreground">No notes.</p>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -296,44 +306,45 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
   const { classification, score } = tlsState.profile
 
   return (
-    <Section title="Security Posture" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
-      <div className="space-y-3">
-        <div className="rounded-xl bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground p-5 space-y-4">
-          <div className="flex items-start gap-6">
-            <div className="flex items-baseline gap-3 shrink-0">
-              <span className="text-7xl font-bold tracking-tight leading-none">{score.grade}</span>
-              <span className="text-lg font-medium text-primary-foreground/70">
-                {score.score}/100
-              </span>
-            </div>
-            {score.warnings && score.warnings.length > 0 && (
-              <ul className="flex-1 space-y-1 text-sm text-primary-foreground/75 pt-1">
-                {score.warnings.map((w, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="text-primary-foreground/40">·</span>
-                    <span>{w}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+    <Section title="Security Posture" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
+      <div className="space-y-4">
+        <div className="flex items-stretch gap-6">
+          {/* Grade card */}
+          <div className="shrink-0 w-44 flex flex-col items-center justify-center rounded-xl border border-border bg-surface-container-low p-5">
+            <span className={`text-7xl font-bold tracking-tight leading-none ${gradeTextColor(score.grade)}`}>
+              {score.grade}
+            </span>
+            <span className="mt-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Summary Grade
+            </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 pt-3 border-t border-primary-foreground/20">
-            <SubScore label="Protocol" value={score.protocolScore} />
-            <SubScore label="Key Exchange" value={score.keyExchangeScore} />
-            <SubScore label="Cipher" value={score.cipherScore} />
-          </div>
-
-          <div className="pt-1">
-            <Link
-              to="/help/scoring"
-              className="inline-flex items-center gap-1.5 text-xs text-primary-foreground/70 hover:text-primary-foreground hover:underline"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-              How is this score calculated?
-            </Link>
+          {/* Sub-score bars */}
+          <div className="flex-1 flex flex-col justify-center gap-4">
+            <ScoreBar label="Protocol Support" value={score.protocolScore} />
+            <ScoreBar label="Key Exchange"     value={score.keyExchangeScore} />
+            <ScoreBar label="Cipher Strength"  value={score.cipherScore} />
           </div>
         </div>
+
+        {score.warnings && score.warnings.length > 0 && (
+          <ul className="space-y-1 text-sm text-muted-foreground">
+            {score.warnings.map((w, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-muted-foreground/40">·</span>
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <Link
+          to="/help/scoring"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
+        >
+          <HelpCircle className="h-3.5 w-3.5" />
+          How is this score calculated?
+        </Link>
 
         <PostureBanner classification={classification} />
       </div>
@@ -341,33 +352,64 @@ function SecurityPostureSection({ tlsState }: { tlsState: TLSState }) {
   )
 }
 
-function SubScore({ label, value }: { label: string; value: number | null }) {
+function ScoreBar({ label, value }: { label: string; value: number | null }) {
+  const barClass = value === null
+    ? 'bg-muted-foreground/20'
+    : value >= 80 ? 'bg-tertiary'
+    : value >= 50 ? 'bg-warning'
+    : 'bg-error'
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-primary-foreground/60">{label}</p>
-      <p className="mt-0.5 text-2xl font-semibold">{value ?? '—'}</p>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
+        </span>
+        <span className="text-sm font-semibold">
+          {value !== null ? `${value}/100` : '—'}
+        </span>
+      </div>
+      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full ${barClass}`}
+          style={{ width: `${value ?? 0}%` }}
+        />
+      </div>
     </div>
   )
+}
+
+function gradeTextColor(grade: TLSGrade): string {
+  switch (grade) {
+    case 'A+':
+    case 'A':
+    case 'A-':
+      return 'text-tertiary'
+    case 'B':
+    case 'C':
+      return 'text-warning'
+    default:
+      return 'text-error'
+  }
 }
 
 function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   if (tlsState.status === 'loading') {
     return (
-      <Section title="TLS Profile & Cipher Suites" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
+      <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
         <p className="text-xs italic text-muted-foreground">Loading…</p>
       </Section>
     )
   }
   if (tlsState.status === 'none') {
     return (
-      <Section title="TLS Profile & Cipher Suites" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
+      <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
         <p className="text-sm italic text-muted-foreground">No TLS profile yet — will be populated on the next scan cycle.</p>
       </Section>
     )
   }
   if (tlsState.status === 'error') {
     return (
-      <Section title="TLS Profile & Cipher Suites" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
+      <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
         <p className="text-sm text-destructive">{tlsState.message}</p>
       </Section>
     )
@@ -377,7 +419,7 @@ function TLSProfileSection({ tlsState }: { tlsState: TLSState }) {
   const { classification } = profile
 
   return (
-    <Section title="TLS Profile & Cipher Suites" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
+    <Section title="TLS Profile & Cipher Suites" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
       <div className="space-y-5">
         {profile.scanError && (
           <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
@@ -477,7 +519,7 @@ function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
 
 function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null }) {
   return (
-    <Section title="Scan History" titleClassName="text-2xl font-bold tracking-tight" bareTitle>
+    <Section title="Scan History" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
       {items === null ? (
         <p className="text-xs italic text-muted-foreground">Loading…</p>
       ) : items.length === 0 ? (
@@ -574,8 +616,18 @@ export default function EndpointDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-5xl font-bold">{endpoint.name}</h1>
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <Badge className="h-7 rounded-md px-3 text-sm font-semibold uppercase shrink-0">
+              {TYPE_LABEL[endpoint.type] ?? endpoint.type}
+            </Badge>
+            <h1 className="text-5xl font-bold truncate">{endpoint.name}</h1>
+          </div>
+          {endpoint.type !== 'manual' && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Last scanned {endpoint.lastScannedAt ? fmtDateTime(endpoint.lastScannedAt) : '—'}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 gap-2 mt-1">
           <Button
@@ -598,40 +650,39 @@ export default function EndpointDetailPage() {
         </div>
       </div>
 
-      {/* Type badge + tags */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge className="h-7 rounded-md px-3 text-sm font-semibold uppercase">
-          {TYPE_LABEL[endpoint.type] ?? endpoint.type}
-        </Badge>
-        {tags.map(tag => (
-          <span
-            key={tag.id}
-            className={`inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
-          >
-            <span className="opacity-60">{tag.categoryName}:</span>
-            {tag.name}
-          </span>
-        ))}
-      </div>
+      {/* Tags */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {tags.map(tag => (
+            <span
+              key={tag.id}
+              className={`inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+            >
+              <span className="opacity-60">{tag.categoryName}:</span>
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      )}
 
-      {/* Two-column body (collapses to single column when there's no TLS Profile) */}
-      <div className={`grid grid-cols-1 gap-5 ${endpoint.type === 'host' ? 'lg:grid-cols-2' : ''}`}>
+      {/* 1/3 - 2/3 body (collapses to single column when there's no TLS Profile) */}
+      <div className={`grid grid-cols-1 gap-5 ${endpoint.type === 'host' ? 'lg:grid-cols-3' : ''}`}>
 
-        {/* ── Left column ── */}
-        <div className="space-y-5">
-          <ActiveCertsSection certs={endpoint.activeCerts} />
-          {endpoint.notes && <NotesSection endpoint={endpoint} />}
+        {/* ── Left column (1/3) ── */}
+        <div className="space-y-5 lg:col-span-1">
           <ConfigurationSection
             endpoint={endpoint}
             onToggleEnabled={toggleEnabled}
             onToggleScanning={(on) => toggleScanning(!on)}
           />
+          <ActiveCertsSection certs={endpoint.activeCerts} />
+          {endpoint.notes && <NotesSection endpoint={endpoint} />}
           <ScanHistorySection items={history} />
         </div>
 
-        {/* ── Right column (only when TLS Profile has content) ── */}
+        {/* ── Right column (2/3) — only when TLS Profile has content ── */}
         {endpoint.type === 'host' && (
-          <div className="space-y-5">
+          <div className="space-y-5 lg:col-span-2">
             <SecurityPostureSection tlsState={tlsState} />
             <TLSProfileSection tlsState={tlsState} />
           </div>
