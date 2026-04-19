@@ -206,7 +206,7 @@ function ConfigurationSection({
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-3">
+    <div className="flex items-center justify-between gap-4 py-2">
       <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {label}
       </dt>
