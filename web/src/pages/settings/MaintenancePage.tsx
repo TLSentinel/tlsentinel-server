@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Archive, Bell, ScrollText, BellOff, ShieldCheck } from 'lucide-react'
+import { ChevronRight, Archive, Bell, ScrollText, BellOff, ShieldCheck, Play } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,11 +16,22 @@ import {
   type ScheduledJob,
 } from '@/api/settings'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
+type Tone = 'emerald' | 'amber' | 'blue'
+
+const TONE_CLASSES: Record<Tone, string> = {
+  emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
+  amber:   'bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400',
+  blue:    'bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400',
+}
+
 // ── Reusable job schedule card ────────────────────────────────────────────────
 
 function JobScheduleCard({
   job,
   icon,
+  tone,
   title,
   description,
   onRun,
@@ -28,6 +39,7 @@ function JobScheduleCard({
 }: {
   job: ScheduledJob | null
   icon: React.ReactNode
+  tone: Tone
   title: string
   description: string
   onRun?: () => Promise<string | undefined>
@@ -81,57 +93,108 @@ function JobScheduleCard({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${TONE_CLASSES[tone]}`}>
           {icon}
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
+        </div>
+        <div className="space-y-1 min-w-0 flex-1">
+          <CardTitle className="text-base font-semibold">{title}</CardTitle>
+          <CardDescription className="leading-relaxed">{description}</CardDescription>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Schedule</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{enabled ? 'Enabled' : 'Disabled'}</span>
-              <Switch checked={enabled} onCheckedChange={setEnabled} />
-            </div>
+      <CardContent className="space-y-5">
+        {/* Enable toggle row */}
+        <div className="flex items-center justify-between rounded-md border px-4 py-3">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium">Enabled</Label>
+            <p className="text-xs text-muted-foreground">
+              {enabled ? 'This job runs automatically on its schedule.' : 'This job will not run automatically.'}
+            </p>
           </div>
-          <SchedulePicker value={cronExpr} onChange={setCronExpr} />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {job?.lastRunAt && (
-                <p className="text-xs text-muted-foreground">
-                  Last run: {new Date(job.lastRunAt).toLocaleString()}
-                  {job.lastRunStatus && ` — ${job.lastRunStatus}`}
-                </p>
-              )}
-              {onRun && (
-                <Button variant="ghost" size="sm" onClick={handleRun} disabled={running}
-                  className="text-xs text-muted-foreground hover:text-foreground">
-                  {running ? 'Running…' : 'Run Now'}
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              {error     && <p className="text-sm text-destructive">{error}</p>}
-              {success   && <p className="text-sm text-green-600">Schedule saved.</p>}
-              {runResult && <p className="text-sm text-green-600">{runResult}</p>}
-              <Button variant="outline" size="sm" onClick={handleSave} disabled={saving || !job}>
-                {saving ? 'Saving…' : 'Save Schedule'}
-              </Button>
-            </div>
-          </div>
+          <Switch checked={enabled} onCheckedChange={setEnabled} />
         </div>
 
-        {children && (
-          <>
-            <div className="border-t" />
-            {children}
-          </>
-        )}
+        {/* Schedule picker */}
+        <div className="space-y-2">
+          <Label className={FIELD_LABEL}>Schedule</Label>
+          <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+        </div>
+
+        {/* Retention / custom children */}
+        {children}
+
+        {/* Last run + errors */}
+        <div className="space-y-1">
+          {job?.lastRunAt && (
+            <p className="text-xs text-muted-foreground">
+              Last run: {new Date(job.lastRunAt).toLocaleString()}
+              {job.lastRunStatus && ` — ${job.lastRunStatus}`}
+            </p>
+          )}
+          {error     && <p className="text-sm text-destructive">{error}</p>}
+          {success   && <p className="text-sm text-green-600">Schedule saved.</p>}
+          {runResult && <p className="text-sm text-green-600">{runResult}</p>}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-between gap-2">
+          {onRun ? (
+            <Button variant="outline" onClick={handleRun} disabled={running} className="gap-1.5">
+              <Play className="h-3.5 w-3.5" />
+              {running ? 'Running…' : 'Run Now'}
+            </Button>
+          ) : <span />}
+          <Button onClick={handleSave} disabled={saving || !job}>
+            {saving ? 'Saving…' : 'Save Schedule'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
+  )
+}
+
+// ── Retention sub-field (lives inside a JobScheduleCard) ──────────────────────
+
+function RetentionField({
+  id, label, hint,
+  value, onChange,
+  saving, error, success,
+  onSave,
+}: {
+  id: string
+  label: string
+  hint: string
+  value: number
+  onChange: (n: number) => void
+  saving: boolean
+  error: string | null
+  success: boolean
+  onSave: () => void
+}) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-4 space-y-3">
+      <Label htmlFor={id} className={FIELD_LABEL}>{label}</Label>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 text-sm text-muted-foreground">{hint}</span>
+        <Input
+          id={id}
+          type="number"
+          min={1}
+          max={3650}
+          value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          className="w-24"
+        />
+        <span className="text-sm text-muted-foreground">days</span>
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={onSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+      {error   && <p className="text-sm text-destructive">{error}</p>}
+      {success && <p className="text-sm text-green-600">Saved.</p>}
+    </div>
   )
 }
 
@@ -224,14 +287,16 @@ export default function MaintenancePage() {
 
       <JobScheduleCard
         job={alertsJob}
-        icon={<Bell className="h-4 w-4 text-muted-foreground" />}
+        tone="emerald"
+        icon={<Bell className="h-5 w-5" />}
         title="Certificate Expiry Alerts"
         description="Send email alerts to subscribers when certificates approach their expiry thresholds."
       />
 
       <JobScheduleCard
         job={expiryPurgeJob}
-        icon={<BellOff className="h-4 w-4 text-muted-foreground" />}
+        tone="amber"
+        icon={<BellOff className="h-5 w-5" />}
         title="Purge Expiry Alert Records"
         description="Remove sent-alert tracking records for certificates that are no longer active on any endpoint. Clears the slate for replaced certificates so fresh alerts fire for new ones, while preserving records for active certs to prevent duplicate notifications."
         onRun={async () => {
@@ -242,7 +307,8 @@ export default function MaintenancePage() {
 
       <JobScheduleCard
         job={purgeJob}
-        icon={<Archive className="h-4 w-4 text-muted-foreground" />}
+        tone="amber"
+        icon={<Archive className="h-5 w-5" />}
         title="Purge Scan History"
         description="Remove scan history records older than the retention window. The most recent entry per endpoint is always kept regardless of age."
         onRun={async () => {
@@ -250,35 +316,23 @@ export default function MaintenancePage() {
           return r.deleted === 1 ? 'Removed 1 row.' : `Removed ${r.deleted} rows.`
         }}
       >
-        {/* Retention setting lives inside the purge card */}
-        <div className="space-y-3">
-          <Label className="text-sm font-medium">Retention</Label>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="retention-days" className="shrink-0 text-muted-foreground">Keep history for</Label>
-            <Input
-              id="retention-days"
-              type="number"
-              min={1}
-              max={3650}
-              value={retentionDays}
-              onChange={e => setRetentionDays(Number(e.target.value))}
-              className="w-24"
-            />
-            <span className="text-sm text-muted-foreground">days</span>
-          </div>
-          {retentionError   && <p className="text-sm text-destructive">{retentionError}</p>}
-          {retentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={handleSaveRetention} disabled={savingRetention}>
-              {savingRetention ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </div>
+        <RetentionField
+          id="retention-days"
+          label="Retention"
+          hint="Keep history for"
+          value={retentionDays}
+          onChange={setRetentionDays}
+          saving={savingRetention}
+          error={retentionError}
+          success={retentionSuccess}
+          onSave={handleSaveRetention}
+        />
       </JobScheduleCard>
 
       <JobScheduleCard
         job={auditPurgeJob}
-        icon={<ScrollText className="h-4 w-4 text-muted-foreground" />}
+        tone="amber"
+        icon={<ScrollText className="h-5 w-5" />}
         title="Purge Audit Logs"
         description="Remove audit log entries older than the retention window."
         onRun={async () => {
@@ -286,34 +340,23 @@ export default function MaintenancePage() {
           return r.deleted === 1 ? 'Removed 1 entry.' : `Removed ${r.deleted} entries.`
         }}
       >
-        <div className="space-y-3">
-          <Label className="text-sm font-medium">Retention</Label>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="audit-retention-days" className="shrink-0 text-muted-foreground">Keep logs for</Label>
-            <Input
-              id="audit-retention-days"
-              type="number"
-              min={1}
-              max={3650}
-              value={auditRetentionDays}
-              onChange={e => setAuditRetentionDays(Number(e.target.value))}
-              className="w-24"
-            />
-            <span className="text-sm text-muted-foreground">days</span>
-          </div>
-          {auditRetentionError   && <p className="text-sm text-destructive">{auditRetentionError}</p>}
-          {auditRetentionSuccess && <p className="text-sm text-green-600">Saved.</p>}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={handleSaveAuditRetention} disabled={savingAuditRetention}>
-              {savingAuditRetention ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </div>
+        <RetentionField
+          id="audit-retention-days"
+          label="Retention"
+          hint="Keep logs for"
+          value={auditRetentionDays}
+          onChange={setAuditRetentionDays}
+          saving={savingAuditRetention}
+          error={auditRetentionError}
+          success={auditRetentionSuccess}
+          onSave={handleSaveAuditRetention}
+        />
       </JobScheduleCard>
 
       <JobScheduleCard
         job={rootStoresJob}
-        icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
+        tone="blue"
+        icon={<ShieldCheck className="h-5 w-5" />}
         title="Refresh Root Stores"
         description="Pull the latest Apple, Chrome, Microsoft, and Mozilla root CA bundles from CCADB and update trust anchor membership. Runs weekly by default."
         onRun={async () => {
