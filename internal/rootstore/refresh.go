@@ -69,39 +69,51 @@ func Refresh(ctx context.Context, store *db.Store, log *slog.Logger) error {
 		"mozilla":   {},
 	}
 
-	// Upsert each anchor cert we have a PEM for, then accumulate per-store membership.
-	upserted, missing := 0, 0
+	// Process each matrix row. Preferred path: we have a PEM, so upsert the
+	// cert (inserting if new). Fallback: no PEM but the cert already exists
+	// locally from a prior scan — flip the trust_anchor flag in place. Only
+	// rows resolved to an existing DB cert get per-store membership, since
+	// root_store_anchors.fingerprint FKs certificates.fingerprint.
+	upserted, marked, missing := 0, 0, 0
 	for _, e := range matrix {
-		cert, ok := pems[e.fingerprint]
-		if !ok {
-			missing++
-			continue
+		if cert, ok := pems[e.fingerprint]; ok {
+			rec := certificates.ExtractCertificateRecord(cert)
+			row := &db.Certificate{
+				Fingerprint:    rec.Fingerprint,
+				PEM:            rec.PEM,
+				CommonName:     rec.CommonName,
+				SANs:           rec.SANs,
+				NotBefore:      rec.NotBefore,
+				NotAfter:       rec.NotAfter,
+				SerialNumber:   rec.SerialNumber,
+				SubjectKeyID:   rec.SubjectKeyID,
+				AuthorityKeyID: rec.AuthorityKeyID,
+				SubjectDNHash:  rec.SubjectDNHash,
+				IssuerDNHash:   rec.IssuerDNHash,
+			}
+			if err := store.UpsertTrustAnchor(ctx, row); err != nil {
+				log.Warn("upsert anchor failed", "fingerprint", e.fingerprint, "error", err)
+				continue
+			}
+			upserted++
+		} else {
+			existed, err := store.MarkTrustAnchor(ctx, e.fingerprint)
+			if err != nil {
+				log.Warn("mark trust anchor failed", "fingerprint", e.fingerprint, "error", err)
+				continue
+			}
+			if !existed {
+				missing++
+				continue
+			}
+			marked++
 		}
-		rec := certificates.ExtractCertificateRecord(cert)
-		row := &db.Certificate{
-			Fingerprint:    rec.Fingerprint,
-			PEM:            rec.PEM,
-			CommonName:     rec.CommonName,
-			SANs:           rec.SANs,
-			NotBefore:      rec.NotBefore,
-			NotAfter:       rec.NotAfter,
-			SerialNumber:   rec.SerialNumber,
-			SubjectKeyID:   rec.SubjectKeyID,
-			AuthorityKeyID: rec.AuthorityKeyID,
-			SubjectDNHash:  rec.SubjectDNHash,
-			IssuerDNHash:   rec.IssuerDNHash,
-		}
-		if err := store.UpsertTrustAnchor(ctx, row); err != nil {
-			log.Warn("upsert anchor failed", "fingerprint", e.fingerprint, "error", err)
-			continue
-		}
-		upserted++
 		if e.inApple     { perStore["apple"]     = append(perStore["apple"],     e.fingerprint) }
 		if e.inChrome    { perStore["chrome"]    = append(perStore["chrome"],    e.fingerprint) }
 		if e.inMicrosoft { perStore["microsoft"] = append(perStore["microsoft"], e.fingerprint) }
 		if e.inMozilla   { perStore["mozilla"]   = append(perStore["mozilla"],   e.fingerprint) }
 	}
-	log.Info("anchors processed", "upserted", upserted, "pem_missing", missing)
+	log.Info("anchors processed", "upserted", upserted, "marked_existing", marked, "pem_missing", missing)
 
 	// Apply per-store membership.
 	now := time.Now().UTC()

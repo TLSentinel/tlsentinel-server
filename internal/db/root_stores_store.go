@@ -109,6 +109,24 @@ func (s *Store) UpsertTrustAnchor(ctx context.Context, c *Certificate) error {
 	return nil
 }
 
+// MarkTrustAnchor flips trust_anchor=TRUE on an existing certificate without
+// inserting. Used as a fallback during refresh when CCADB's trust matrix lists
+// an anchor but its per-program PEM bundle doesn't include it — we can still
+// record the flag (and the matrix membership) as long as the cert already
+// exists locally from a prior scan. Returns true if a row was updated.
+func (s *Store) MarkTrustAnchor(ctx context.Context, fingerprint string) (bool, error) {
+	res, err := s.db.NewUpdate().
+		Model((*Certificate)(nil)).
+		Set("trust_anchor = TRUE").
+		Where("fingerprint = ?", fingerprint).
+		Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to mark trust anchor: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // ResetOrphanedTrustAnchorFlags clears trust_anchor=TRUE on any certificate
 // that no longer has a row in root_store_anchors. Call after the refresh job
 // finishes sweeping per-store membership so distrusted/removed anchors lose
