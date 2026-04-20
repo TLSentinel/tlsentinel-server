@@ -86,7 +86,7 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
 function ExpiringRow({ item }: { item: ExpiringCertItem }) {
   const navigate = useNavigate()
   return (
-    <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] items-center gap-6 py-3 border-b border-border/40 last:border-0">
+    <div className="col-span-5 grid grid-cols-subgrid items-center gap-x-6 py-1.5 border-b border-border/40 last:border-0">
       {/* Common name */}
       <div className="min-w-0">
         <Link
@@ -138,7 +138,7 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
 // Scan error panel row
 // ---------------------------------------------------------------------------
 
-function errorAge(since: string): string {
+function relAge(since: string): string {
   const ms = Date.now() - new Date(since).getTime()
   const mins  = Math.floor(ms / 60_000)
   const hours = Math.floor(ms / 3_600_000)
@@ -150,7 +150,7 @@ function errorAge(since: string): string {
 
 function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
   return (
-    <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-6 py-4 border-b border-border/40 last:border-0">
+    <div className="col-span-4 grid grid-cols-subgrid items-center gap-x-6 py-2 border-b border-border/40 last:border-0">
       {/* Endpoint name */}
       <div className="min-w-0">
         <Link
@@ -164,11 +164,17 @@ function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
       <div className="min-w-0">
         <p className="text-sm text-muted-foreground truncate">{endpoint.lastScanError}</p>
       </div>
+      {/* Last attempt */}
+      <div className="shrink-0">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          {endpoint.lastScannedAt ? `${relAge(endpoint.lastScannedAt)} ago` : '—'}
+        </span>
+      </div>
       {/* Error age */}
       <div className="shrink-0">
         <span className="inline-flex items-center gap-1 text-sm font-medium text-error">
           <XCircle className="h-4 w-4 shrink-0" />
-          {endpoint.errorSince ? errorAge(endpoint.errorSince) : '?'}
+          {endpoint.errorSince ? relAge(endpoint.errorSince) : '?'}
         </span>
       </div>
     </div>
@@ -316,14 +322,14 @@ export default function DashboardPage() {
                 <TLSBar label="TLS 1.3" count={tlsReport.protocols.tls13} total={total} color="bg-green-500" />
                 <TLSBar label="TLS 1.2" count={tlsReport.protocols.tls12} total={total} color="bg-blue-900" />
                 <TLSBar
-                  label="TLS 1.1 (Legacy)"
+                  label="TLS 1.1"
                   count={tlsReport.protocols.tls11}
                   total={total}
                   color="bg-orange-500"
                   labelColor={tls11Pct > 0 ? 'text-orange-600' : undefined}
                 />
                 <TLSBar
-                  label="TLS 1.0 (Legacy)"
+                  label="TLS 1.0"
                   count={tlsReport.protocols.tls10}
                   total={total}
                   color="bg-red-500"
@@ -366,14 +372,14 @@ export default function DashboardPage() {
                 No certificates expiring within 30 days.
               </div>
             ) : (
-              <div className="px-5">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_2.5rem] items-center gap-x-6 px-5">
                 {/* Column headers */}
-                <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-6 py-2.5 border-b border-border/40">
+                <div className="col-span-5 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiry Date</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
-                  <span className="w-10" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Expiry Date</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Days Left</span>
+                  <span />
                 </div>
                 {expiring.map((item) => (
                   <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
@@ -394,10 +400,11 @@ export default function DashboardPage() {
                 No scan errors. All endpoints are healthy.
               </div>
             ) : (
-              <div className="px-5">
-                <div className="grid grid-cols-[1fr_2fr_auto] gap-6 py-2.5 border-b border-border/40">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] items-center gap-x-6 px-5">
+                <div className="col-span-4 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Error</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Last Attempt</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Duration</span>
                 </div>
                 {errorHosts.map((h) => (
