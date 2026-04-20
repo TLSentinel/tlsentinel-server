@@ -42,6 +42,7 @@ import CsrGeneratorPage from '@/pages/toolbox/CsrGeneratorPage'
 import CertDiffPage from '@/pages/toolbox/CertDiffPage'
 import PemDerPage from '@/pages/toolbox/PemDerPage'
 import CertChainPage from '@/pages/toolbox/CertChainPage'
+import HelpPage from '@/pages/help/HelpPage'
 import ScoringPage from '@/pages/help/ScoringPage'
 
 // ---------------------------------------------------------------------------
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="toolbox/cert-chain" element={<CertChainPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
+          <Route path="help" element={<HelpPage />} />
           <Route path="help/scoring" element={<ScoringPage />} />
           <Route path="account">
             <Route index element={<AccountPage />} />

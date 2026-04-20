@@ -209,15 +209,13 @@ function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }:
           <Bell className="h-5 w-5" />
         </button>
 
-        <a
-          href="/api-docs/index.html"
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          to="/help"
           className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="API Docs"
+          title="Help"
         >
           <HelpCircle className="h-5 w-5" />
-        </a>
+        </Link>
 
         {can('settings:view') && (
           <Link
