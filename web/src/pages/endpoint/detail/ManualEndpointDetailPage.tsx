@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, XCircle, FileEdit } from 'lucide-react'
+import { FileEdit, ShieldCheck } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
 import type { Endpoint, EndpointCert, TagWithCategory } from '@/types/api'
-import { fmtDate } from '@/lib/utils'
 import {
   Section,
   BackBreadcrumb,
@@ -15,52 +14,97 @@ import {
 } from './shared'
 
 // ---------------------------------------------------------------------------
-// Linked certificate card
+// Linked certificate card (shaped like SAML cert cards — half-column on md+)
 // ---------------------------------------------------------------------------
 
-function LinkedCertificatesSection({ certs }: { certs: EndpointCert[] }) {
-  return (
-    <Section title="Linked Certificate" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
-      {certs.length === 0 ? (
-        <p className="text-sm italic text-muted-foreground">No certificate linked.</p>
-      ) : (
-        <div className="space-y-1.5">
-          {certs.map((c) => <CertRow key={c.fingerprint} cert={c} />)}
+function LinkedCertCard({ cert }: { cert: EndpointCert | null }) {
+  if (!cert) {
+    return (
+      <div className="rounded-xl bg-card border border-border p-6">
+        <div className="w-14 h-14 rounded-xl bg-muted/60 flex items-center justify-center">
+          <ShieldCheck className="h-7 w-7 text-muted-foreground" />
         </div>
-      )}
-    </Section>
+        <h3 className="mt-6 text-lg font-semibold">Certificate</h3>
+        <p className="mt-3 text-sm italic text-muted-foreground">No certificate linked.</p>
+      </div>
+    )
+  }
+
+  const days    = Math.floor((new Date(cert.notAfter).getTime() - Date.now()) / 86_400_000)
+  const expired = days < 0
+  const warning = !expired && days <= 30
+
+  const iconBg =
+    expired ? 'bg-error-container/40'   :
+    warning ? 'bg-warning-container/40' :
+              'bg-primary-container/30'
+  const iconColor =
+    expired ? 'text-error'   :
+    warning ? 'text-warning' :
+              'text-foreground/70'
+
+  const badgeLabel =
+    expired ? 'Expired' :
+    warning ? 'Warning' :
+              'Active'
+  const badgeClass =
+    expired ? 'bg-error-container text-on-error-container'       :
+    warning ? 'bg-warning-container text-on-warning-container'   :
+              'bg-tertiary-container text-on-tertiary-container'
+
+  const statusWord =
+    expired ? `Expired ${Math.abs(days)}d ago` :
+    warning ? 'Expiring Soon' :
+              'Valid'
+  const statusColor =
+    expired ? 'text-error'    :
+    warning ? 'text-warning'  :
+              'text-tertiary'
+  const daysText = expired ? '' : `Expires in ${days} ${days === 1 ? 'day' : 'days'}`
+
+  return (
+    <div className="rounded-xl bg-card border border-border p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${iconBg}`}>
+          <ShieldCheck className={`h-7 w-7 ${iconColor}`} />
+        </div>
+        <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${badgeClass}`}>
+          {badgeLabel}
+        </span>
+      </div>
+
+      <h3 className="mt-6 text-lg font-semibold">Certificate</h3>
+
+      <dl className="mt-5 space-y-4">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Common Name</dt>
+          <dd className="mt-1 text-sm font-medium truncate">{cert.commonName || '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Expiry Status</dt>
+          <dd className="mt-1 text-sm">
+            <span className={`font-semibold ${statusColor}`}>{statusWord}</span>
+            {daysText && <span className="ml-2 text-muted-foreground">{daysText}</span>}
+          </dd>
+        </div>
+      </dl>
+
+      <Link
+        to={`/certificates/${cert.fingerprint}`}
+        className="mt-6 block w-full rounded-md bg-muted/60 hover:bg-muted py-2.5 text-center text-sm font-medium"
+      >
+        View Details
+      </Link>
+    </div>
   )
 }
 
-function CertRow({ cert }: { cert: EndpointCert }) {
-  const days = Math.floor((new Date(cert.notAfter).getTime() - Date.now()) / 86_400_000)
-  const expired = days < 0
-  const warning = !expired && days <= 30
-  const statusIcon = expired
-    ? <XCircle className="h-4 w-4 shrink-0 text-error" />
-    : warning
-    ? <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-    : <CheckCircle2 className="h-4 w-4 shrink-0 text-tertiary" />
-  const statusText = expired
-    ? `Expired ${Math.abs(days)}d ago`
-    : warning
-    ? `Expires in ${days}d`
-    : `Valid · ${fmtDate(cert.notAfter)}`
-
+function LinkedCertCards({ certs }: { certs: EndpointCert[] }) {
+  const cert = certs.find((c) => c.isCurrent) ?? certs[0] ?? null
   return (
-    <Link
-      to={`/certificates/${cert.fingerprint}`}
-      className="block rounded-md border border-border bg-surface-container-low px-3 py-2.5 hover:bg-muted/50"
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        {statusIcon}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate">{cert.commonName || '—'}</p>
-          <p className="mt-0.5 font-mono text-xs text-muted-foreground truncate">{cert.fingerprint}</p>
-        </div>
-        <span className="shrink-0 text-xs text-muted-foreground">{statusText}</span>
-      </div>
-    </Link>
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <LinkedCertCard cert={cert} />
+    </div>
   )
 }
 
@@ -134,11 +178,14 @@ export default function ManualEndpointDetailPage({ endpoint }: { endpoint: Endpo
 
       <TagsRow tags={tags} />
 
-      <LinkedCertificatesSection certs={endpoint.activeCerts} />
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <ConfigurationSection endpoint={endpoint} onToggleEnabled={toggleEnabled} />
-        <NotesSection endpoint={endpoint} />
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <ConfigurationSection endpoint={endpoint} onToggleEnabled={toggleEnabled} />
+          <LinkedCertCards certs={endpoint.activeCerts} />
+        </div>
+        <div className="space-y-5 lg:col-span-1">
+          <NotesSection endpoint={endpoint} />
+        </div>
       </div>
     </div>
   )
