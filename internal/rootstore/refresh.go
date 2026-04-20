@@ -115,6 +115,15 @@ func Refresh(ctx context.Context, store *db.Store, log *slog.Logger) error {
 		}
 		log.Info("store updated", "store", storeID, "anchors", len(fps))
 	}
+
+	// Clear trust_anchor on certs no longer in any store (distrusted / removed).
+	// The row itself stays — a separate orphan-GC job handles deletion.
+	cleared, err := store.ResetOrphanedTrustAnchorFlags(ctx)
+	if err != nil {
+		log.Warn("reset orphaned trust_anchor flags failed", "error", err)
+	} else if cleared > 0 {
+		log.Info("trust_anchor flags cleared for distrusted anchors", "count", cleared)
+	}
 	return nil
 }
 

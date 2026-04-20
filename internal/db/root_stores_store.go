@@ -52,6 +52,27 @@ func (s *Store) UpsertTrustAnchor(ctx context.Context, c *Certificate) error {
 	return nil
 }
 
+// ResetOrphanedTrustAnchorFlags clears trust_anchor=TRUE on any certificate
+// that no longer has a row in root_store_anchors. Call after the refresh job
+// finishes sweeping per-store membership so distrusted/removed anchors lose
+// the flag. Returns the number of rows updated.
+func (s *Store) ResetOrphanedTrustAnchorFlags(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE tlsentinel.certificates
+		SET trust_anchor = FALSE
+		WHERE trust_anchor = TRUE
+		  AND NOT EXISTS (
+		      SELECT 1 FROM tlsentinel.root_store_anchors
+		      WHERE fingerprint = tlsentinel.certificates.fingerprint
+		  )
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reset orphaned trust anchor flags: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // ReplaceRootStoreAnchors atomically swaps the anchor set for a store:
 // inserts all provided (storeID, fingerprint) pairs, then deletes any rows
 // for this store whose fingerprint is not in the new set.
