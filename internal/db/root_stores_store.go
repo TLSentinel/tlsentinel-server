@@ -141,22 +141,37 @@ func (s *Store) MarkTrustAnchor(ctx context.Context, fingerprint string) (bool, 
 	return n > 0, nil
 }
 
-// ResetOrphanedTrustAnchorFlags clears trust_anchor=TRUE on any certificate
-// that no longer has a row in root_store_anchors. Call after the refresh job
-// finishes sweeping per-store membership so distrusted/removed anchors lose
-// the flag. Returns the number of rows updated.
-func (s *Store) ResetOrphanedTrustAnchorFlags(ctx context.Context) (int64, error) {
+// ReconcileTrustAnchorFlags sets trust_anchor=TRUE on every cert whose
+// Subject DN + Subject Key ID match any cert referenced by root_store_anchors,
+// and FALSE everywhere else. Subject+SKI (rather than raw fingerprint) is the
+// RFC 5280 path-building identity — this is what makes cross-signed copies of
+// an anchor (e.g. GTS Root R1 signed by GlobalSign R1) carry the same flag as
+// the canonical self-signed anchor CCADB publishes.
+//
+// Call at the end of the refresh job after ReplaceRootStoreAnchors has
+// settled per-store membership. Returns the number of rows whose flag
+// actually changed.
+func (s *Store) ReconcileTrustAnchorFlags(ctx context.Context) (int64, error) {
+	const match = `
+		EXISTS (
+		    SELECT 1
+		    FROM tlsentinel.root_store_anchors rsa
+		    JOIN tlsentinel.certificates a ON a.fingerprint = rsa.fingerprint
+		    WHERE a.subject_dn_hash = tlsentinel.certificates.subject_dn_hash
+		      AND (
+		          tlsentinel.certificates.subject_key_id = ''
+		       OR a.subject_key_id = ''
+		       OR a.subject_key_id = tlsentinel.certificates.subject_key_id
+		      )
+		)
+	`
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE tlsentinel.certificates
-		SET trust_anchor = FALSE
-		WHERE trust_anchor = TRUE
-		  AND NOT EXISTS (
-		      SELECT 1 FROM tlsentinel.root_store_anchors
-		      WHERE fingerprint = tlsentinel.certificates.fingerprint
-		  )
+		SET trust_anchor = `+match+`
+		WHERE trust_anchor <> `+match+`
 	`)
 	if err != nil {
-		return 0, fmt.Errorf("failed to reset orphaned trust anchor flags: %w", err)
+		return 0, fmt.Errorf("failed to reconcile trust anchor flags: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
