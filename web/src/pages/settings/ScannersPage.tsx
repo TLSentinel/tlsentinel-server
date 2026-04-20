@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, Star, ChevronRight, MoreVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, CheckCircle2, ChevronRight, Clock, Calendar, CalendarDays, Radio, KeyRound, ScanSearch, MoreVertical, Star, RadioTower } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import StrixEmpty from '@/components/StrixEmpty'
 import SchedulePicker from '@/components/SchedulePicker'
 import { Button } from '@/components/ui/button'
@@ -9,22 +16,15 @@ import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { listScanners, createScanner, updateScanner, setDefaultScanner, deleteScanner } from '@/api/scanners'
 import { can } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
-import { fmtDate, plural } from '@/lib/utils'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
@@ -34,9 +34,56 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 function fmtRelative(iso: string, now: number): string {
   const diff = now - new Date(iso).getTime()
   if (diff < 60_000)     return 'Just now'
-  if (diff < 3_600_000)  return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return `${Math.floor(diff / 86_400_000)}d ago`
+  if (diff < 3_600_000)  return `${Math.floor(diff / 60_000)} mins ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} hours ago`
+  return `${Math.floor(diff / 86_400_000)} days ago`
+}
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
+interface ScheduleDisplay {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+}
+
+function scheduleDisplay(expr: string): ScheduleDisplay {
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return { icon: Clock, label: expr }
+  const [min, hr, dom, , dow] = parts
+
+  if (min === '0' && hr === '*' && dom === '*' && dow === '*') {
+    return { icon: Clock, label: 'Hourly' }
+  }
+
+  const h = parseInt(hr)
+  const m = parseInt(min)
+  if (isNaN(h) || isNaN(m)) return { icon: Clock, label: expr }
+  const time = `${pad2(h)}:${pad2(m)}`
+
+  if (dom === '*' && dow === '*') {
+    return { icon: Calendar, label: `Daily at ${time}` }
+  }
+  if (dom === '*' && dow !== '*') {
+    const d = parseInt(dow)
+    if (isNaN(d) || d < 0 || d > 6) return { icon: Calendar, label: expr }
+    return { icon: Calendar, label: `Weekly · ${WEEKDAYS[d]} ${time}` }
+  }
+  if (dom !== '*' && dow === '*') {
+    const d = parseInt(dom)
+    if (isNaN(d)) return { icon: CalendarDays, label: expr }
+    return { icon: CalendarDays, label: `Monthly · day ${d} ${time}` }
+  }
+  return { icon: Clock, label: expr }
+}
+
+function statusDot(lastUsedAt: string | null, now: number): string {
+  if (!lastUsedAt) return 'bg-muted-foreground/40'
+  const age = now - new Date(lastUsedAt).getTime()
+  if (age < 3_600_000)  return 'bg-emerald-500'
+  if (age < 86_400_000) return 'bg-amber-500'
+  return 'bg-red-500'
 }
 
 // ---------------------------------------------------------------------------
@@ -50,21 +97,27 @@ interface CreateDialogProps {
 }
 
 function CreateDialog({ open, onClose, onCreated }: CreateDialogProps) {
-  const [name, setName]           = useState('')
+  const [name, setName]             = useState('')
+  const [cronExpr, setCronExpr]     = useState('0 2 * * *')
+  const [threads, setThreads]       = useState(5)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+  const [error, setError]           = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) { setError('Name is required.'); return }
+    if (threads < 1) { setError('Threads must be at least 1.'); return }
     setSubmitting(true)
     setError(null)
     try {
       const created = await createScanner(name.trim())
+      if (cronExpr !== '0 * * * *' || threads !== 5) {
+        await updateScanner(created.id, name.trim(), cronExpr, threads)
+      }
       onCreated(created)
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create scanner token.')
+      setError(err instanceof ApiError ? err.message : 'Failed to create scanner.')
     } finally {
       setSubmitting(false)
     }
@@ -72,14 +125,57 @@ function CreateDialog({ open, onClose, onCreated }: CreateDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Add Scanner</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="a-name">Name <span className="text-destructive">*</span></Label>
-            <Input id="a-name" value={name} onChange={e => setName(e.target.value)} placeholder="prod-scanner-01" required />
-            <p className="text-xs text-muted-foreground">A descriptive label to identify this scanner agent.</p>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+            <Radio className="h-5 w-5" />
           </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Create Scanner</DialogTitle>
+            <DialogDescription>Provision a new execution node</DialogDescription>
+          </div>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="a-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Scanner Name
+            </Label>
+            <Input
+              id="a-name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Edge-Node-San-Francisco"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Execution Schedule
+            </Label>
+            <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="a-threads" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Threads
+            </Label>
+            <div className="flex items-start gap-4">
+              <Input
+                id="a-threads"
+                type="number"
+                min={1}
+                max={100}
+                value={threads}
+                onChange={e => setThreads(Number(e.target.value))}
+                className="w-24 text-center font-semibold"
+              />
+              <p className="text-sm text-muted-foreground pt-2">
+                Total execution threads. High counts may require additional hardware resources.
+              </p>
+            </div>
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
@@ -112,7 +208,7 @@ function EditScannerDialog({ scanner, onClose, onSaved }: EditScannerDialogProps
     e.preventDefault()
     if (!scanner) return
     if (!name.trim()) { setError('Name is required.'); return }
-    if (concurrency < 1) { setError('Concurrency must be at least 1.'); return }
+    if (concurrency < 1) { setError('Threads must be at least 1.'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -128,23 +224,51 @@ function EditScannerDialog({ scanner, onClose, onSaved }: EditScannerDialogProps
 
   return (
     <Dialog open={scanner !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Edit Scanner</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="e-name">Name <span className="text-destructive">*</span></Label>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+            <Radio className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Edit Scanner</DialogTitle>
+            <DialogDescription>Update execution node configuration</DialogDescription>
+          </div>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="e-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Scanner Name
+            </Label>
             <Input id="e-name" value={name} onChange={e => setName(e.target.value)} required />
           </div>
-          <div className="space-y-1.5">
-            <Label>Scan schedule</Label>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Execution Schedule
+            </Label>
             <SchedulePicker value={cronExpr} onChange={setCronExpr} />
-            <p className="text-xs text-muted-foreground">How often the scanner checks each host.</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e-concurrency">Concurrency</Label>
-            <Input id="e-concurrency" type="number" min={1} max={100} value={concurrency} onChange={e => setConcurrency(Number(e.target.value))} />
-            <p className="text-xs text-muted-foreground">Maximum simultaneous host scans. Default: 5.</p>
+
+          <div className="space-y-2">
+            <Label htmlFor="e-concurrency" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Threads
+            </Label>
+            <div className="flex items-start gap-4">
+              <Input
+                id="e-concurrency"
+                type="number"
+                min={1}
+                max={100}
+                value={concurrency}
+                onChange={e => setConcurrency(Number(e.target.value))}
+                className="w-24 text-center font-semibold"
+              />
+              <p className="text-sm text-muted-foreground pt-2">
+                Total execution threads. High counts may require additional hardware resources.
+              </p>
+            </div>
           </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
@@ -177,33 +301,49 @@ function TokenRevealDialog({ created, onClose }: TokenRevealDialogProps) {
 
   return (
     <Dialog open={created !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader><DialogTitle>Scanner Token Created</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-            <p className="text-sm text-amber-800">Copy this token now — it will <strong>not</strong> be shown again.</p>
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-3xl border-amber-300/60 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40"
+      >
+        <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0">
+          <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-200">
+            <KeyRound className="h-5 w-5" />
+            <DialogTitle className="text-sm font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+              Scanner Token
+            </DialogTitle>
           </div>
-          <div className="space-y-1.5">
-            <Label>Bearer Token</Label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs leading-relaxed">
-                {created?.token}
-              </code>
-              <Button type="button" variant="outline" size="icon-sm" onClick={handleCopy} className="shrink-0">
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                <span className="sr-only">Copy token</span>
-              </Button>
-            </div>
+          <span className="rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-950">
+            New
+          </span>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex min-w-0 items-stretch gap-2">
+            <code className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap rounded-md border border-amber-300/80 bg-background px-3 py-2.5 font-mono text-sm leading-relaxed text-amber-950 dark:border-amber-900/60 dark:text-amber-100">
+              {created?.token}
+            </code>
+            <Button
+              type="button"
+              onClick={handleCopy}
+              className="shrink-0 gap-1.5 bg-none bg-amber-900 text-amber-50 hover:bg-amber-800 hover:brightness-100 dark:bg-amber-800 dark:hover:bg-amber-700"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Provide this token in the{' '}
-            <code className="rounded bg-muted px-1 font-mono">Authorization: Bearer &lt;token&gt;</code>{' '}
-            header when configuring your scanner.
-          </p>
+          <div className="flex items-start gap-2 text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-sm italic">
+              This token is only shown once and cannot be retrieved later. Store it securely in your secrets manager.
+            </p>
+          </div>
         </div>
-        <DialogFooter>
-          <Button onClick={onClose}>Done</Button>
+        <DialogFooter className="border-amber-300/60 bg-amber-100/60 dark:border-amber-900/50 dark:bg-amber-950/60">
+          <Button
+            onClick={onClose}
+            className="bg-none bg-amber-900 text-amber-50 hover:bg-amber-800 hover:brightness-100 dark:bg-amber-800 dark:hover:bg-amber-700"
+          >
+            Done
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -261,10 +401,71 @@ function DeleteDialog({ scanner, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+type StatSignal = 'neutral' | 'green' | 'amber' | 'red'
+
+const SIGNAL_BORDER: Record<StatSignal, string> = {
+  neutral: 'border-l-foreground/20',
+  green:   'border-l-green-500',
+  amber:   'border-l-amber-500',
+  red:     'border-l-red-500',
+}
+
+const SIGNAL_VALUE: Record<StatSignal, string> = {
+  neutral: 'text-foreground',
+  green:   'text-green-600',
+  amber:   'text-amber-600',
+  red:     'text-red-600',
+}
+
+function StatCard({ label, value, signal = 'neutral' }: { label: string; value: string | number; signal?: StatSignal }) {
+  return (
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} bg-card p-5 space-y-2`}>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
+    </div>
+  )
+}
+
+function ActiveStatCard({ active, total }: { active: number; total: number }) {
+  const pct = total === 0 ? 0 : Math.round((active / total) * 100)
+  const signal: StatSignal = total === 0 ? 'neutral' : active === 0 ? 'red' : active < total ? 'amber' : 'green'
+  const iconColor =
+    signal === 'green' ? 'text-green-600'
+    : signal === 'amber' ? 'text-amber-600'
+    : signal === 'red' ? 'text-red-600'
+    : 'text-muted-foreground'
+  const barColor =
+    signal === 'green' ? 'bg-green-500'
+    : signal === 'amber' ? 'bg-amber-500'
+    : signal === 'red' ? 'bg-red-500'
+    : 'bg-muted-foreground/30'
+  return (
+    <div className="rounded-lg border bg-card p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <RadioTower className={`h-5 w-5 ${iconColor}`} />
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Scanners</p>
+      </div>
+      <p className="text-4xl font-bold tracking-tight">
+        {active} <span className="text-muted-foreground font-semibold">/ {total}</span>
+      </p>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2fr_1.5fr_6rem_7rem_7rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[minmax(0,2fr)_9rem_minmax(0,1.5fr)_6rem_8rem_2.5rem]'
 
 export default function ScannersPage() {
   const admin = can('scanners:edit')
@@ -283,6 +484,11 @@ export default function ScannersPage() {
     placeholderData: keepPreviousData,
   })
   const scanners: ScannerToken[] = scannersData ?? []
+
+  // Stats
+  const totalScanners = scanners.length
+  const activeScanners = scanners.filter(s => s.lastUsedAt && now - new Date(s.lastUsedAt).getTime() < 3_600_000).length
+  const totalThreads   = scanners.reduce((sum, s) => sum + s.scanConcurrency, 0)
 
   function handleCreated(created: ScannerTokenCreated) {
     refetch()
@@ -325,20 +531,20 @@ export default function ScannersPage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
       {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
-      <div className="rounded-lg border bg-card overflow-hidden">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border/40">
-          <p className="text-sm text-muted-foreground">
-            {scanners.length === 0 ? 'No scanners' : `${scanners.length} ${plural(scanners.length, 'scanner')} registered`}
-          </p>
+      {!isLoading && totalScanners > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ActiveStatCard active={activeScanners} total={totalScanners} />
+          <StatCard label="Total Threads" value={totalThreads} signal="neutral" />
         </div>
+      )}
 
+      <div className="rounded-lg border bg-card overflow-hidden">
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Default</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Schedule</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Concurrency</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Threads</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Used</span>
           <span />
         </div>
@@ -352,75 +558,89 @@ export default function ScannersPage() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {scanners.map(scanner => (
-              <div key={scanner.id} className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
-                {/* Name + default badge */}
-                <div className="min-w-0 pt-0.5 flex items-center gap-2">
-                  <span className="text-sm font-semibold truncate">{scanner.name}</span>
-                  {scanner.isDefault && (
-                    <span className="inline-flex items-center gap-1 shrink-0 rounded px-2 py-0.5 text-xs font-semibold uppercase bg-muted text-amber-500 dark:text-amber-400">
-                      <Star className="h-3 w-3 fill-current" />
-                      Default
+            {scanners.map(scanner => {
+              const sched = scheduleDisplay(scanner.scanCronExpression)
+              const SchedIcon = sched.icon
+              return (
+                <div key={scanner.id} className={`grid ${ROW_GRID} items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+                  {/* Name + icon */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="shrink-0 flex items-center justify-center h-9 w-9 rounded-md bg-muted">
+                      <ScanSearch className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <span className="text-sm font-semibold truncate">{scanner.name}</span>
+                  </div>
+
+                  {/* Default */}
+                  <div>
+                    {scanner.isDefault ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    ) : admin ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                        onClick={() => handleSetDefault(scanner)}
+                      >
+                        Set Default
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {/* Schedule */}
+                  <div className="min-w-0 flex items-center gap-2">
+                    <SchedIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-sm truncate">{sched.label}</span>
+                  </div>
+
+                  {/* Threads */}
+                  <div>
+                    <span className="text-sm font-semibold tabular-nums">{scanner.scanConcurrency}</span>
+                  </div>
+
+                  {/* Last used */}
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot(scanner.lastUsedAt, now)}`} />
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      {scanner.lastUsedAt ? fmtRelative(scanner.lastUsedAt, now) : 'Never'}
                     </span>
-                  )}
-                </div>
+                  </div>
 
-                {/* Schedule */}
-                <div className="min-w-0 pt-0.5">
-                  <span className="font-mono text-sm text-muted-foreground truncate block">{scanner.scanCronExpression}</span>
-                </div>
-
-                {/* Concurrency */}
-                <div className="pt-0.5">
-                  <span className="text-sm text-muted-foreground">{scanner.scanConcurrency}</span>
-                </div>
-
-                {/* Created */}
-                <div className="pt-0.5">
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">{fmtDate(scanner.createdAt)}</span>
-                </div>
-
-                {/* Last used */}
-                <div className="pt-0.5">
-                  {scanner.lastUsedAt
-                    ? <span className="text-sm text-muted-foreground">{fmtRelative(scanner.lastUsedAt, now)}</span>
-                    : <span className="text-sm text-muted-foreground">Never</span>}
-                </div>
-
-                {/* Actions */}
-                <div>
-                  {admin && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {!scanner.isDefault && (
-                          <DropdownMenuItem onClick={() => handleSetDefault(scanner)}>
-                            <Star className="mr-2 h-4 w-4" />
-                            Set as Default
+                  {/* Actions */}
+                  <div className="flex items-center justify-end">
+                    {admin && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {!scanner.isDefault && (
+                            <DropdownMenuItem onClick={() => handleSetDefault(scanner)}>
+                              <Star className="mr-2 h-4 w-4" />
+                              Set as Default
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => setEditTarget(scanner)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => setEditTarget(scanner)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setDeleteTarget(scanner)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Revoke
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(scanner)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Revoke
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

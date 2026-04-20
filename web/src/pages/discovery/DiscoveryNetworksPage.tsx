@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -175,19 +175,33 @@ function NetworkDialog({ open, initial, onClose, onSaved }: NetworkDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{initial ? 'Edit Network' : 'Add Network'}</DialogTitle>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
+            <Network className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">
+              {initial ? 'Edit Network' : 'Create Network'}
+            </DialogTitle>
+            <DialogDescription>
+              {initial ? 'Update network configuration' : 'Discover hosts on your network'}
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="dn-name">Name</Label>
-            <Input id="dn-name" value={name} onChange={e => setName(e.target.value)} placeholder="Office LAN" />
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="dn-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Network Name
+            </Label>
+            <Input id="dn-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office-LAN" />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="dn-range">Range</Label>
+          <div className="space-y-2">
+            <Label htmlFor="dn-range" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              IP Range
+            </Label>
             <Input
               id="dn-range"
               value={range}
@@ -198,8 +212,10 @@ function NetworkDialog({ open, initial, onClose, onSaved }: NetworkDialogProps) 
             <p className="text-xs text-muted-foreground">CIDR notation or hyphenated range.</p>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="dn-ports">Ports</Label>
+          <div className="space-y-2">
+            <Label htmlFor="dn-ports" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Ports
+            </Label>
             <Input
               id="dn-ports"
               value={portsRaw}
@@ -210,8 +226,10 @@ function NetworkDialog({ open, initial, onClose, onSaved }: NetworkDialogProps) 
             <p className="text-xs text-muted-foreground">Comma-separated list of TCP ports to probe.</p>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="dn-scanner">Scanner</Label>
+          <div className="space-y-2">
+            <Label htmlFor="dn-scanner" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Scanner Node
+            </Label>
             <Select value={scannerId} onValueChange={setScannerId}>
               <SelectTrigger id="dn-scanner">
                 <SelectValue placeholder="Select scanner" />
@@ -225,14 +243,16 @@ function NetworkDialog({ open, initial, onClose, onSaved }: NetworkDialogProps) 
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Schedule</Label>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Schedule
+            </Label>
             <SchedulePicker value={cron} onChange={setCron} />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pt-1">
             <Switch id="dn-enabled" checked={enabled} onCheckedChange={setEnabled} />
-            <Label htmlFor="dn-enabled">Enabled</Label>
+            <Label htmlFor="dn-enabled" className="text-sm">Enabled</Label>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -241,7 +261,7 @@ function NetworkDialog({ open, initial, onClose, onSaved }: NetworkDialogProps) 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : initial ? 'Save changes' : 'Add network'}
+            {saving ? 'Saving…' : initial ? 'Save changes' : 'Create Network'}
           </Button>
         </DialogFooter>
       </DialogContent>
