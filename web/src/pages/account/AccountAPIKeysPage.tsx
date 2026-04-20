@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Plus, Trash2, Copy, Check } from 'lucide-react'
+import { ChevronRight, Plus, Trash2, Copy, Check, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,14 +13,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import StrixEmpty from '@/components/StrixEmpty'
 import { listAPIKeys, createAPIKey, deleteAPIKey, type APIKey } from '@/api/apiKeys'
+
+const ROW_GRID = 'grid-cols-[1.5fr_8rem_7rem_7rem_2.5rem]'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -121,54 +122,64 @@ export default function AccountAPIKeysPage() {
       {createError && <p className="text-sm text-destructive">{createError}</p>}
 
       {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Prefix</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Last Used</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody className="[&_tr]:border-b-0">
-          {isLoading && (
-            <TableRow>
-              <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                Loading…
-              </TableCell>
-            </TableRow>
-          )}
-          {!isLoading && keys.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                No API keys yet. Create one above.
-              </TableCell>
-            </TableRow>
-          )}
-          {!isLoading && keys.map(k => (
-            <TableRow key={k.id}>
-              <TableCell className="font-medium">{k.name}</TableCell>
-              <TableCell className="font-mono text-sm text-muted-foreground">{k.prefix}…</TableCell>
-              <TableCell className="text-sm text-muted-foreground">{fmtDate(k.createdAt)}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {k.lastUsedAt ? fmtDate(k.lastUsedAt) : <span className="text-muted-foreground/50">Never</span>}
-              </TableCell>
-              <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeleteTarget(k)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Revoke {k.name}</span>
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        {/* Column headers */}
+        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prefix</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Used</span>
+          <span />
+        </div>
+
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : keys.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            <StrixEmpty message="No API keys yet. Create one above." />
+          </div>
+        ) : (
+          <div>
+            {keys.map(k => (
+              <div key={k.id} className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+                <div className="min-w-0 pt-0.5">
+                  <span className="text-sm font-semibold truncate block">{k.name}</span>
+                </div>
+                <div className="pt-0.5">
+                  <span className="font-mono text-sm text-muted-foreground">{k.prefix}…</span>
+                </div>
+                <div className="pt-0.5">
+                  <span className="text-sm text-muted-foreground">{fmtDate(k.createdAt)}</span>
+                </div>
+                <div className="pt-0.5">
+                  <span className="text-sm text-muted-foreground">
+                    {k.lastUsedAt ? fmtDate(k.lastUsedAt) : <span className="text-muted-foreground/50">Never</span>}
+                  </span>
+                </div>
+                <div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(k)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Revoke
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* One-time reveal dialog */}
       <Dialog open={!!revealToken} onOpenChange={() => { setRevealToken(null); setCopied(false) }}>

@@ -250,7 +250,7 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isL
           </Button>
         </div>
       )}
-      <div className="rounded-xl bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden">
         <div className={`grid ${grid} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</span>
@@ -333,7 +333,7 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetchin
           </Button>
         </div>
       )}
-      <div className="rounded-xl bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden">
         <div className={`grid ${grid} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>

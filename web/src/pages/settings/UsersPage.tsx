@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, KeyRound, ChevronRight, MoreVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -380,16 +379,7 @@ export default function UsersPage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
       {mutationError && <p className="text-sm text-destructive">{mutationError}</p>}
 
-      <div className="rounded-xl bg-card overflow-hidden">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            {totalCount === 0
-              ? 'No users'
-              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'user')}`}
-          </p>
-        </div>
-
+      <div className="rounded-lg border bg-card overflow-hidden">
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User</span>
@@ -499,16 +489,29 @@ export default function UsersPage() {
             ))}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => p - 1)}
-        onNext={() => setPage(p => p + 1)}
-        noun="user"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No users'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'user')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <UserDialog
         key={editTarget ? editTarget.id : `add-${addSeq}`}

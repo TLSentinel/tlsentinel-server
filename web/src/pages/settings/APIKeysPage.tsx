@@ -88,9 +88,9 @@ export default function APIKeysPage() {
 
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
-      <div className="rounded-xl bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/40">
           <p className="text-sm text-muted-foreground">
             {filtered.length === 0
               ? 'No keys'

@@ -477,9 +477,9 @@ export default function DiscoveryNetworksPage() {
           <StrixEmpty message="No networks configured yet." />
         </div>
       ) : (
-        <div className="rounded-xl bg-card overflow-hidden">
+        <div className="rounded-lg border bg-card overflow-hidden">
           {/* Column headers */}
-          <div className="grid grid-cols-[2fr_1.5fr_1fr_1.5fr_1.5fr_6rem_2.5rem] gap-5 px-5 py-3 border-b bg-muted/40">
+          <div className="grid grid-cols-[2fr_1.5fr_1fr_1.5fr_1.5fr_6rem_2.5rem] gap-5 px-5 py-3 border-b border-border/40 bg-muted/40">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Network Name</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IP Range</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ports</span>

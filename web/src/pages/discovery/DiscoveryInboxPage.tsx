@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { EyeOff, Trash2, Plus, MoreVertical, Lock, ShieldOff, RefreshCw } from 'lucide-react'
+import { EyeOff, Trash2, Plus, MoreVertical, Lock, ShieldOff, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -371,21 +370,11 @@ export default function DiscoveryInboxPage() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Discovery Inbox</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Review newly identified assets across your monitored infrastructure.
-          </p>
-        </div>
-        {networkOptions.length > 1 && (
-          <FilterDropdown
-            label="Network"
-            options={networkOptions}
-            value={networkFilter}
-            onSelect={v => { setNetworkFilter(v); setPage(1) }}
-          />
-        )}
+      <div>
+        <h1 className="text-2xl font-semibold">Discovery Inbox</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Review newly identified assets across your monitored infrastructure.
+        </p>
       </div>
 
       {/* Stat cards */}
@@ -402,11 +391,23 @@ export default function DiscoveryInboxPage() {
         />
       </div>
 
+      {/* Filters */}
+      {networkOptions.length > 1 && (
+        <div className="flex items-center justify-end">
+          <FilterDropdown
+            label="Network"
+            options={networkOptions}
+            value={networkFilter}
+            onSelect={v => { setNetworkFilter(v); setPage(1) }}
+          />
+        </div>
+      )}
+
       {/* Table */}
-      <div className="rounded-xl bg-card overflow-hidden">
+      <div className="rounded-lg border bg-card overflow-hidden">
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/40">
           <div className="flex items-center gap-3">
             <Switch
               id="show-dismissed"
@@ -417,16 +418,9 @@ export default function DiscoveryInboxPage() {
               Show dismissed
             </Label>
           </div>
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-muted-foreground">
-              {totalCount === 0
-                ? 'No discoveries'
-                : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'discovery')}`}
-            </p>
-            <Button variant="ghost" size="icon" onClick={invalidate} className="h-8 w-8">
-              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={invalidate} className="h-8 w-8">
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
 
         {/* Column headers */}
@@ -464,18 +458,39 @@ export default function DiscoveryInboxPage() {
             ))}
           </div>
         )}
-      </div>
 
-      {totalCount > PAGE_SIZE && (
-        <TablePagination
-          page={page}
-          totalPages={totalPages}
-          totalCount={totalCount}
-          onPrev={() => setPage(p => p - 1)}
-          onNext={() => setPage(p => p + 1)}
-          noun="discovery"
-        />
-      )}
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No discoveries'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'discovery')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <DeleteDialog
         item={deleteTarget}

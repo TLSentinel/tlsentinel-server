@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { listAuditLogs } from '@/api/audit'
 import type { AuditLog } from '@/types/api'
 import SearchInput from '@/components/SearchInput'
-import TablePagination from '@/components/TablePagination'
+import { Button } from '@/components/ui/button'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -123,16 +124,7 @@ export default function AuditLogPage() {
         />
       </div>
 
-      <div className="rounded-xl bg-card overflow-hidden">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            {totalCount === 0
-              ? 'No entries'
-              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} entries`}
-          </p>
-        </div>
-
+      <div className="rounded-lg border bg-card overflow-hidden">
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Time</span>
@@ -176,16 +168,29 @@ export default function AuditLogPage() {
             ))}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => Math.max(1, p - 1))}
-        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
-        noun="entry"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No entries'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> entries</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
