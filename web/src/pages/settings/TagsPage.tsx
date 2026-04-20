@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, MoreVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, MoreVertical, Tag as TagIcon, Folders } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -30,8 +31,17 @@ import {
   deleteTag,
 } from '@/api/tags'
 import { can } from '@/api/client'
+import { cn } from '@/lib/utils'
 import type { CategoryWithTags, Tag, TagCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
+
+// ---------------------------------------------------------------------------
+// Design tokens
+// ---------------------------------------------------------------------------
+
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+const ICON_SQUARE_BLUE = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400'
+const ICON_SQUARE_RED  = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,15 +87,27 @@ function CategoryDialog({ open, initial, onClose, onSaved }: CategoryDialogProps
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{isEdit ? 'Edit Category' : 'New Category'}</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-1">
-          <div className="space-y-1.5">
-            <Label htmlFor="cat-name">Name</Label>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className={ICON_SQUARE_BLUE}>
+            <Folders className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">{isEdit ? 'Edit Category' : 'New Category'}</DialogTitle>
+            <DialogDescription>
+              {isEdit ? 'Rename or update this category.' : 'Group related tags under a shared heading.'}
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="cat-name" className={FIELD_LABEL}>Name</Label>
             <Input id="cat-name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} placeholder="e.g. Environment" autoFocus />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cat-desc">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <div className="space-y-2">
+            <Label htmlFor="cat-desc" className={FIELD_LABEL}>
+              Description <span className="normal-case text-muted-foreground/70 font-normal">(optional)</span>
+            </Label>
             <Textarea id="cat-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Deployment environment this endpoint belongs to" rows={2} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -146,16 +168,26 @@ function TagDialog({ open, initial, categories, defaultCategoryId, onClose, onSa
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{isEdit ? 'Edit Tag' : 'New Tag'}</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-1">
-          <div className="space-y-1.5">
-            <Label htmlFor="tag-name">Name</Label>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className={ICON_SQUARE_BLUE}>
+            <TagIcon className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">{isEdit ? 'Edit Tag' : 'New Tag'}</DialogTitle>
+            <DialogDescription>
+              {isEdit ? 'Rename or update this tag.' : 'Add a new tag that endpoints can be labeled with.'}
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="tag-name" className={FIELD_LABEL}>Name</Label>
             <Input id="tag-name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} placeholder="e.g. Production" autoFocus />
           </div>
           {!isEdit && (
-            <div className="space-y-1.5">
-              <Label htmlFor="tag-cat">Category</Label>
+            <div className="space-y-2">
+              <Label htmlFor="tag-cat" className={FIELD_LABEL}>Category</Label>
               <select
                 id="tag-cat"
                 value={categoryId}
@@ -166,8 +198,10 @@ function TagDialog({ open, initial, categories, defaultCategoryId, onClose, onSa
               </select>
             </div>
           )}
-          <div className="space-y-1.5">
-            <Label htmlFor="tag-desc">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          <div className="space-y-2">
+            <Label htmlFor="tag-desc" className={FIELD_LABEL}>
+              Description <span className="normal-case text-muted-foreground/70 font-normal">(optional)</span>
+            </Label>
             <Textarea id="tag-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Live production environment" rows={2} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -190,12 +224,14 @@ function TagDialog({ open, initial, categories, defaultCategoryId, onClose, onSa
 interface DeleteDialogProps {
   open: boolean
   label: string
+  kind: 'tag' | 'category'
+  impactedTags?: string[]
   warning?: string
   onClose: () => void
   onConfirm: () => Promise<void>
 }
 
-function DeleteDialog({ open, label, warning, onClose, onConfirm }: DeleteDialogProps) {
+function DeleteDialog({ open, label, kind, impactedTags, warning, onClose, onConfirm }: DeleteDialogProps) {
   const [deleting, setDeleting] = useState(false)
 
   async function handleConfirm() {
@@ -205,9 +241,39 @@ function DeleteDialog({ open, label, warning, onClose, onConfirm }: DeleteDialog
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Delete "{label}"?</DialogTitle></DialogHeader>
-        {warning && <p className="text-sm text-muted-foreground">{warning}</p>}
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className={ICON_SQUARE_RED}>
+            <Trash2 className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">
+              Delete {kind === 'tag' ? 'Tag' : 'Category'}
+            </DialogTitle>
+            <DialogDescription>This action cannot be undone</DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-md border bg-muted/40 px-3 py-2">
+            <p className={FIELD_LABEL}>{kind === 'tag' ? 'Tag' : 'Category'}</p>
+            <p className="mt-0.5 text-sm font-semibold truncate">{label}</p>
+          </div>
+          {impactedTags && impactedTags.length > 0 && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 dark:border-red-950/50 dark:bg-red-950/20">
+              <p className={cn(FIELD_LABEL, 'text-red-700 dark:text-red-400')}>
+                {impactedTags.length} {impactedTags.length === 1 ? 'tag' : 'tags'} will also be deleted
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {impactedTags.map(t => (
+                  <span key={t} className="inline-flex items-center rounded border border-red-200 bg-white px-1.5 py-0.5 text-xs font-medium text-red-700 dark:border-red-950/50 dark:bg-red-950/40 dark:text-red-300">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {warning && <p className="text-sm text-muted-foreground">{warning}</p>}
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={deleting}>Cancel</Button>
           <Button variant="destructive" onClick={handleConfirm} disabled={deleting}>
@@ -244,17 +310,17 @@ function TagsTable({ categories, admin, onEdit, onDelete, onNew, isFetching, isL
     <div className="space-y-4">
       {admin && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={onNew}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
+          <Button onClick={onNew} className="h-12 px-4 text-base font-semibold">
+            <Plus className="mr-1.5 h-4 w-4" />
             New Tag
           </Button>
         </div>
       )}
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className={`grid ${grid} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>
+          <span className={FIELD_LABEL}>Name</span>
+          <span className={FIELD_LABEL}>Category</span>
+          <span className={FIELD_LABEL}>Description</span>
           {admin && <span />}
         </div>
         {rows.length === 0 ? (
@@ -327,16 +393,16 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetchin
     <div className="space-y-4">
       {admin && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={onNew}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
+          <Button onClick={onNew} className="h-12 px-4 text-base font-semibold">
+            <Plus className="mr-1.5 h-4 w-4" />
             New Category
           </Button>
         </div>
       )}
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className={`grid ${grid} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>
+          <span className={FIELD_LABEL}>Name</span>
+          <span className={FIELD_LABEL}>Description</span>
           {admin && <span />}
         </div>
         {categories.length === 0 ? (
@@ -388,13 +454,18 @@ function CategoriesTable({ categories, admin, onEdit, onDelete, onNew, isFetchin
 
 type TabValue = 'tags' | 'categories'
 
+const TABS: { value: TabValue; label: string }[] = [
+  { value: 'tags', label: 'Tags' },
+  { value: 'categories', label: 'Categories' },
+]
+
 export default function TagsPage() {
   const [tab, setTab] = useState<TabValue>('tags')
   const [tagDialog, setTagDialog]   = useState<{ open: boolean; tag?: Tag | null }>({ open: false })
   const [catDialog, setCatDialog]   = useState<{ open: boolean; cat?: TagCategory | null }>({ open: false })
   const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean; label: string; warning?: string; onConfirm: () => Promise<void>
-  }>({ open: false, label: '', onConfirm: async () => {} })
+    open: boolean; label: string; kind: 'tag' | 'category'; impactedTags?: string[]; warning?: string; onConfirm: () => Promise<void>
+  }>({ open: false, label: '', kind: 'tag', onConfirm: async () => {} })
 
   const admin = can('tags:edit')
 
@@ -405,8 +476,14 @@ export default function TagsPage() {
   })
   const categories: CategoryWithTags[] = categoriesData ?? []
 
-  function openDeleteDialog(label: string, warning: string | undefined, onConfirm: () => Promise<void>) {
-    setDeleteDialog({ open: true, label, warning, onConfirm })
+  function openDeleteDialog(args: {
+    kind: 'tag' | 'category'
+    label: string
+    impactedTags?: string[]
+    warning?: string
+    onConfirm: () => Promise<void>
+  }) {
+    setDeleteDialog({ open: true, ...args })
   }
 
   if (isLoading) return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -425,19 +502,25 @@ export default function TagsPage() {
         </p>
       </div>
 
-      <div className="inline-flex rounded-md border overflow-hidden">
-        <button
-          onClick={() => setTab('tags')}
-          className={`px-5 py-1.5 text-sm font-medium transition-colors ${tab === 'tags' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground'}`}
-        >
-          Tags
-        </button>
-        <button
-          onClick={() => setTab('categories')}
-          className={`px-5 py-1.5 text-sm font-medium border-l transition-colors ${tab === 'categories' ? 'bg-foreground text-background' : 'bg-background text-muted-foreground hover:text-foreground'}`}
-        >
-          Categories
-        </button>
+      <div className="inline-grid grid-cols-2 gap-2 w-full max-w-xs">
+        {TABS.map(t => {
+          const selected = tab === t.value
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setTab(t.value)}
+              className={cn(
+                'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+                selected
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border hover:bg-muted/40 text-foreground',
+              )}
+            >
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {tab === 'tags' ? (
@@ -448,11 +531,12 @@ export default function TagsPage() {
           isLoading={isLoading}
           onNew={() => setTagDialog({ open: true, tag: null })}
           onEdit={tag => setTagDialog({ open: true, tag })}
-          onDelete={(tag, _catName) => openDeleteDialog(
-            tag.name,
-            'This will remove the tag from all endpoints it is currently assigned to.',
-            async () => { await deleteTag(tag.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
-          )}
+          onDelete={(tag, _catName) => openDeleteDialog({
+            kind: 'tag',
+            label: tag.name,
+            warning: 'This will remove the tag from all endpoints it is currently assigned to.',
+            onConfirm: async () => { await deleteTag(tag.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
+          })}
         />
       ) : (
         <CategoriesTable
@@ -462,11 +546,19 @@ export default function TagsPage() {
           isLoading={isLoading}
           onNew={() => setCatDialog({ open: true, cat: null })}
           onEdit={cat => setCatDialog({ open: true, cat })}
-          onDelete={cat => openDeleteDialog(
-            cat.name,
-            'This will also delete all tags in this category and remove them from any endpoints.',
-            async () => { await deleteTagCategory(cat.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
-          )}
+          onDelete={cat => {
+            const fullCat = categories.find(c => c.id === cat.id)
+            const tagNames = fullCat?.tags.map(t => t.name) ?? []
+            openDeleteDialog({
+              kind: 'category',
+              label: cat.name,
+              impactedTags: tagNames,
+              warning: tagNames.length === 0
+                ? undefined
+                : 'These tags will also be removed from any endpoints they are currently assigned to.',
+              onConfirm: async () => { await deleteTagCategory(cat.id); setDeleteDialog(d => ({ ...d, open: false })); refetch() },
+            })
+          }}
         />
       )}
 
@@ -486,6 +578,8 @@ export default function TagsPage() {
       <DeleteDialog
         open={deleteDialog.open}
         label={deleteDialog.label}
+        kind={deleteDialog.kind}
+        impactedTags={deleteDialog.impactedTags}
         warning={deleteDialog.warning}
         onClose={() => setDeleteDialog(d => ({ ...d, open: false }))}
         onConfirm={deleteDialog.onConfirm}
