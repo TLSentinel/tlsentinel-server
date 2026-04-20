@@ -1,12 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
-import { Server, Shield, Clock, AlertCircle, XCircle, ShieldOff } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Server, Shield, Clock, AlertCircle, XCircle, ShieldOff, MoreVertical, ExternalLink } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import { getTLSPostureReport } from '@/api/reports'
 import type { EndpointListItem } from '@/types/api'
 import { fmtDate } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -38,7 +45,7 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, sub, signal = 'neutral' }: StatCardProps) {
   return (
-    <div className={`rounded-xl bg-card border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3`}>
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} bg-card p-5 space-y-3`}>
       <div className="flex items-start gap-2 min-h-[2.5rem]">
         <span className={`shrink-0 mt-0.5 ${SIGNAL_VALUE[signal]}`}>{icon}</span>
         <span className="text-sm font-medium text-muted-foreground leading-snug">{label}</span>
@@ -57,28 +64,29 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
   const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
   if (days < 0) {
     return (
-      <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-error-container text-on-error-container whitespace-nowrap">
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-error-container text-on-error-container whitespace-nowrap">
         EXPIRED
       </span>
     )
   }
   if (days <= 7) {
     return (
-      <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-error-container text-on-error-container whitespace-nowrap">
+      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-error-container text-on-error-container whitespace-nowrap">
         {days} DAYS
       </span>
     )
   }
   return (
-    <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-warning-container text-on-warning-container whitespace-nowrap">
+    <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-warning-container text-on-warning-container whitespace-nowrap">
       {days} DAYS
     </span>
   )
 }
 
 function ExpiringRow({ item }: { item: ExpiringCertItem }) {
+  const navigate = useNavigate()
   return (
-    <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-6 px-5 py-4 border-b border-border/40 last:border-0">
+    <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] items-center gap-6 py-3 border-b border-border/40 last:border-0">
       {/* Common name */}
       <div className="min-w-0">
         <Link
@@ -86,12 +94,6 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
           className="text-sm font-semibold hover:underline truncate block"
         >
           {item.commonName}
-        </Link>
-        <Link
-          to={`/endpoints/${item.endpointId}`}
-          className="text-xs text-muted-foreground hover:underline truncate block mt-0.5"
-        >
-          {item.endpointName}
         </Link>
       </div>
       {/* Issuer */}
@@ -107,6 +109,26 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
       {/* Days left badge */}
       <div className="shrink-0">
         <DaysLeftBadge notAfter={item.notAfter} />
+      </div>
+      {/* Actions */}
+      <div className="shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate(`/endpoints/${item.endpointId}`)}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View Endpoint
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate(`/certificates/${item.fingerprint}`)}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View Certificate
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
@@ -128,7 +150,7 @@ function errorAge(since: string): string {
 
 function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
   return (
-    <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-6 px-5 py-4 border-b border-border/40 last:border-0">
+    <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-6 py-4 border-b border-border/40 last:border-0">
       {/* Endpoint name */}
       <div className="min-w-0">
         <Link
@@ -279,7 +301,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
 
         {/* Left: TLS Distribution */}
-        <div className="rounded-xl bg-card p-5 space-y-4 self-start">
+        <div className="rounded-lg border bg-card p-5 space-y-4 self-start">
           <h2 className="font-semibold">TLS Distribution</h2>
           {!tlsReport ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
@@ -330,8 +352,8 @@ export default function DashboardPage() {
         {/* Right: Expiring soon + Scan errors stacked */}
         <div className="space-y-6 lg:col-span-3">
           {/* Expiring soon */}
-          <div className="rounded-xl bg-card overflow-hidden">
-            <div className="flex items-center justify-between bg-muted px-5 py-4">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4">
               <h2 className="font-semibold">Certificates Expiring Soon</h2>
               <Link to="/certificates" className="text-sm font-medium text-primary hover:underline">
                 View All Certificates
@@ -344,13 +366,14 @@ export default function DashboardPage() {
                 No certificates expiring within 30 days.
               </div>
             ) : (
-              <div>
+              <div className="px-5">
                 {/* Column headers */}
-                <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-6 px-5 py-2.5 border-b border-border/40 bg-muted/40">
+                <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-6 py-2.5 border-b border-border/40">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiry Date</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
+                  <span className="w-10" />
                 </div>
                 {expiring.map((item) => (
                   <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
@@ -360,8 +383,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Scan errors */}
-          <div className="rounded-xl bg-card overflow-hidden">
-            <div className="flex items-center bg-muted px-5 py-4">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="flex items-center px-5 py-4">
               <h2 className="font-semibold">Scan Errors</h2>
             </div>
             {errorHosts === null ? (
@@ -371,8 +394,8 @@ export default function DashboardPage() {
                 No scan errors. All endpoints are healthy.
               </div>
             ) : (
-              <div>
-                <div className="grid grid-cols-[1fr_2fr_auto] gap-6 px-5 py-2.5 border-b border-border/40 bg-muted/40">
+              <div className="px-5">
+                <div className="grid grid-cols-[1fr_2fr_auto] gap-6 py-2.5 border-b border-border/40">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Error</span>
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Duration</span>
