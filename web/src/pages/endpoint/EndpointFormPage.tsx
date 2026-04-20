@@ -30,7 +30,7 @@ import { useQuery } from '@tanstack/react-query'
 
 function Section({ title, titleClassName, className, bareTitle = false, children }: { title?: string; titleClassName?: string; className?: string; bareTitle?: boolean; children: React.ReactNode }) {
   return (
-    <div className={`rounded-xl bg-card overflow-hidden ${className ?? ''}`}>
+    <div className={`rounded-xl border bg-card overflow-hidden ${className ?? ''}`}>
       {title && !bareTitle && (
         <div className="px-5 py-3 bg-muted">
           <h2 className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</h2>
@@ -46,7 +46,8 @@ function Section({ title, titleClassName, className, bareTitle = false, children
   )
 }
 
-const SECTION_TITLE = 'text-2xl font-bold tracking-tight'
+const SECTION_TITLE = 'text-lg font-semibold'
+const FIELD_LABEL   = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -327,7 +328,14 @@ export default function EndpointFormPage() {
     navigate(isEdit && id ? `/endpoints/${id}` : '/endpoints')
   }
 
-  const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
+  const pageTitle       = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
+  const pageDescription = isEdit
+    ? 'Update endpoint configuration'
+    : isClone
+    ? 'Create a duplicate of this endpoint'
+    : isFromInbox
+    ? 'Promote a discovered host to a monitored endpoint'
+    : 'Register a new monitored endpoint'
 
   const breadcrumb = (
     <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -340,14 +348,22 @@ export default function EndpointFormPage() {
   const header = (
     <>
       {breadcrumb}
-      <h1 className="text-5xl font-bold">{pageTitle}</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+          <Globe className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{pageDescription}</p>
+        </div>
+      </div>
     </>
   )
 
   // Loading state
   if ((isEdit || isClone) && !formReady && !loadError) {
     return (
-      <div className="space-y-5 max-w-2xl">
+      <div className="space-y-6 max-w-2xl">
         {header}
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
@@ -356,7 +372,7 @@ export default function EndpointFormPage() {
 
   if (loadError) {
     return (
-      <div className="space-y-5 max-w-2xl">
+      <div className="space-y-6 max-w-2xl">
         {header}
         <p className="text-sm text-destructive">{loadError}</p>
       </div>
@@ -364,7 +380,7 @@ export default function EndpointFormPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
       {header}
 
       {/* Inbox source context */}
@@ -377,8 +393,8 @@ export default function EndpointFormPage() {
       {/* Basics */}
       <Section title="Basics" titleClassName={SECTION_TITLE} bareTitle>
         <div className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-name">
+          <div className="space-y-2">
+            <Label htmlFor="ep-name" className={FIELD_LABEL}>
               Name <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -389,9 +405,9 @@ export default function EndpointFormPage() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-notes">
-              Notes <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+          <div className="space-y-2">
+            <Label htmlFor="ep-notes" className={FIELD_LABEL}>
+              Notes <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
             </Label>
             <Textarea
               id="ep-notes"
@@ -404,7 +420,9 @@ export default function EndpointFormPage() {
 
           {categories.length > 0 && (
             <div className="space-y-2">
-              <Label>Tags <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+              <Label className={FIELD_LABEL}>
+                Tags <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
+              </Label>
               <div className="flex flex-wrap items-center gap-1.5">
             {/* Selected tag chips */}
             {Array.from(selectedTagIds).map(tagId => {
@@ -414,14 +432,14 @@ export default function EndpointFormPage() {
               return (
                 <span
                   key={tagId}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+                  className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                 >
                   <span className="opacity-60">{cat?.name}:</span>
                   {tag.name}
                   <button
                     type="button"
                     onClick={() => setSelectedTagIds(prev => { const n = new Set(prev); n.delete(tagId); return n })}
-                    className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground"
+                    className="ml-0.5 rounded text-muted-foreground hover:text-foreground"
                     aria-label={`Remove ${tag.name}`}
                   >
                     <X className="h-3 w-3" />
@@ -433,7 +451,7 @@ export default function EndpointFormPage() {
                 <button
                   type="button"
                   onClick={() => setShowTagPicker(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+                  className="inline-flex items-center gap-1 rounded border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
                 >
                   <Tag className="h-3 w-3" />
                   <Plus className="h-3 w-3" />
@@ -541,8 +559,8 @@ export default function EndpointFormPage() {
           {/* Host-specific fields */}
           {type === 'host' && (
             <>
-              <div className="space-y-1.5">
-                <Label htmlFor="ep-dns">
+              <div className="space-y-2">
+                <Label htmlFor="ep-dns" className={FIELD_LABEL}>
                   DNS Name <span className="text-destructive">*</span>
                 </Label>
                 <div className="flex gap-2">
@@ -556,23 +574,22 @@ export default function EndpointFormPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     onClick={handleResolve}
                     disabled={!dnsName.trim() || resolving}
                     className="shrink-0"
                   >
                     {resolving
-                      ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      : <Globe className="mr-1.5 h-3.5 w-3.5" />
+                      ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      : <Globe className="mr-1.5 h-4 w-4" />
                     }
                     Resolve
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="ep-ip">
-                  IP Address <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              <div className="space-y-2">
+                <Label htmlFor="ep-ip" className={FIELD_LABEL}>
+                  IP Address <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
                 </Label>
                 <Input
                   id="ep-ip"
@@ -585,8 +602,8 @@ export default function EndpointFormPage() {
                 )}
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="ep-port">Port</Label>
+              <div className="space-y-2">
+                <Label htmlFor="ep-port" className={FIELD_LABEL}>Port</Label>
                 <Input
                   id="ep-port"
                   type="number"
@@ -602,8 +619,8 @@ export default function EndpointFormPage() {
 
           {/* SAML-specific fields */}
           {type === 'saml' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="ep-url">
+            <div className="space-y-2">
+              <Label htmlFor="ep-url" className={FIELD_LABEL}>
                 Metadata URL <span className="text-destructive">*</span>
               </Label>
               <Input
@@ -620,9 +637,9 @@ export default function EndpointFormPage() {
 
           {/* Manual — PEM field */}
           {type === 'manual' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="ep-pem">
-                Certificate <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+            <div className="space-y-2">
+              <Label htmlFor="ep-pem" className={FIELD_LABEL}>
+                Certificate <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
               </Label>
               <Textarea
                 id="ep-pem"
@@ -642,12 +659,10 @@ export default function EndpointFormPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="gap-1.5"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <FolderOpen className="h-3.5 w-3.5" />
-                {fileName ?? 'Browse file…'}
+                <FolderOpen className="mr-1.5 h-4 w-4" />
+                {fileName ?? 'Choose File…'}
               </Button>
               <p className="text-xs text-muted-foreground">
                 Paste or browse for a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
@@ -657,8 +672,8 @@ export default function EndpointFormPage() {
 
           {/* Scanner — host and saml */}
           {type !== 'manual' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="ep-scanner">Scanner</Label>
+            <div className="space-y-2">
+              <Label htmlFor="ep-scanner" className={FIELD_LABEL}>Scanner</Label>
               <select
                 id="ep-scanner"
                 value={scannerID}
@@ -679,24 +694,19 @@ export default function EndpointFormPage() {
       {isEdit && (
         <Section title="Status" titleClassName={SECTION_TITLE} bareTitle>
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <Switch
-                id="ep-scan-exempt"
-                checked={scanExempt}
-                onCheckedChange={setScanExempt}
-              />
-              <div>
-                <Label htmlFor="ep-scan-exempt" className="cursor-pointer">Exclude from scanning</Label>
+            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="ep-scan-exempt" className="cursor-pointer text-sm font-medium">Exclude from scanning</Label>
                 <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
               </div>
+              <Switch id="ep-scan-exempt" checked={scanExempt} onCheckedChange={setScanExempt} />
             </div>
-            <div className="flex items-center gap-3">
-              <Switch
-                id="ep-enabled"
-                checked={enabled}
-                onCheckedChange={setEnabled}
-              />
-              <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
+            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="ep-enabled" className="cursor-pointer text-sm font-medium">Enabled</Label>
+                <p className="text-xs text-muted-foreground">Disabled endpoints stop scanning and drop from active views.</p>
+              </div>
+              <Switch id="ep-enabled" checked={enabled} onCheckedChange={setEnabled} />
             </div>
           </div>
         </Section>
