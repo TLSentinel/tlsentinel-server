@@ -491,7 +491,7 @@ export default function CertificatesPage() {
           </p>
         </div>
         {admin && (
-          <Button onClick={() => setIngestOpen(true)}>
+          <Button onClick={() => setIngestOpen(true)} className="h-12 px-4 text-base font-semibold">
             <Plus className="mr-1.5 h-4 w-4" />
             Ingest
           </Button>

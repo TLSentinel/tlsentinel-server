@@ -600,11 +600,11 @@ function PEMActions({ pem, commonName }: { pem: string; commonName: string }) {
 
   return (
     <div className="flex gap-2">
-      <Button onClick={handleCopy}>
+      <Button onClick={handleCopy} className="h-12 px-4 text-base font-semibold">
         {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
         {copied ? 'Copied!' : 'Copy PEM'}
       </Button>
-      <Button onClick={handleDownload}>
+      <Button onClick={handleDownload} className="h-12 px-4 text-base font-semibold">
         <Download className="mr-1.5 h-4 w-4" />
         Download
       </Button>

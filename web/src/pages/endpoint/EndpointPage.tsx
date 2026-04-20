@@ -473,11 +473,11 @@ export default function HostsPage() {
         <div className="flex items-center gap-2">
           {admin && (
             <>
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Button variant="outline" onClick={() => setImportOpen(true)} className="h-12 px-4 text-base font-semibold">
                 <Upload className="mr-1.5 h-4 w-4" />
                 Import
               </Button>
-              <Button onClick={() => navigate('/endpoints/new')}>
+              <Button onClick={() => navigate('/endpoints/new')} className="h-12 px-4 text-base font-semibold">
                 <Plus className="mr-1.5 h-4 w-4" />
                 Add Endpoint
               </Button>

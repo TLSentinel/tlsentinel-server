@@ -135,7 +135,7 @@ function StatCard({ label, value, signal = 'neutral' }: {
   signal?: SignalColor
 }) {
   return (
-    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-2`}>
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} bg-card p-5 space-y-2`}>
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
       <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
     </div>

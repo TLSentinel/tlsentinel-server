@@ -85,7 +85,7 @@ function StatCard({
   signal?: SignalColor
 }) {
   return (
-    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-2`}>
+    <div className={`rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} bg-card p-5 space-y-2`}>
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
       <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
     </div>
@@ -456,7 +456,7 @@ export default function DiscoveryNetworksPage() {
           </p>
         </div>
         {canEdit && (
-          <Button onClick={() => setShowCreate(true)}>
+          <Button onClick={() => setShowCreate(true)} className="h-12 px-4 text-base font-semibold">
             <Plus className="mr-1.5 h-4 w-4" />
             Create Network
           </Button>

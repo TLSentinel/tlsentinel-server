@@ -521,7 +521,7 @@ export default function ScannersPage() {
           </p>
         </div>
         {admin && (
-          <Button onClick={() => { setAddSeq(s => s + 1); setAddOpen(true) }}>
+          <Button onClick={() => { setAddSeq(s => s + 1); setAddOpen(true) }} className="h-12 px-4 text-base font-semibold">
             <Plus className="mr-1.5 h-4 w-4" />
             Add Scanner
           </Button>
