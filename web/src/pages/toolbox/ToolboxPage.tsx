@@ -13,13 +13,49 @@ export default function ToolboxPage() {
 
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Certificates &amp; PKI</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-3xl">
-          <HubCard icon={<FileSearch className="h-4 w-4" />} title="Certificate Decoder" description="Paste a PEM certificate and inspect all fields — subject, SANs, validity, fingerprint, and more." to="/toolbox/cert-decoder" />
-          <HubCard icon={<FileCode className="h-4 w-4" />} title="CSR Decoder" description="Decode a Certificate Signing Request to verify its contents before submission." to="/toolbox/csr-decoder" />
-          <HubCard icon={<FilePlus className="h-4 w-4" />} title="CSR Generator" description="Generate a CSR and private key entirely in your browser. Your key is never transmitted." to="/toolbox/csr-generator" />
-          <HubCard icon={<GitCompare className="h-4 w-4" />} title="Certificate Diff" description="Compare two certificates side by side — useful when verifying a renewal." to="/toolbox/cert-diff" />
-          <HubCard icon={<Link2 className="h-4 w-4" />} title="Chain Builder / Validator" description="Paste a certificate bundle and verify the full chain of trust from leaf to root." to="/toolbox/cert-chain" />
-          <HubCard icon={<ArrowLeftRight className="h-4 w-4" />} title="PEM / DER Converter" description="Convert certificates and keys between PEM and DER encoding." to="/toolbox/pem-der" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-6xl">
+          <HubCard
+            tone="blue"
+            icon={<FileSearch className="h-6 w-6" />}
+            title="Certificate Decoder"
+            description="Paste a PEM certificate and inspect all fields — subject, SANs, validity, fingerprint, and more."
+            to="/toolbox/cert-decoder"
+          />
+          <HubCard
+            tone="indigo"
+            icon={<FileCode className="h-6 w-6" />}
+            title="CSR Decoder"
+            description="Decode a Certificate Signing Request to verify its contents before submission."
+            to="/toolbox/csr-decoder"
+          />
+          <HubCard
+            tone="green"
+            icon={<FilePlus className="h-6 w-6" />}
+            title="CSR Generator"
+            description="Generate a CSR and private key entirely in your browser. Your key is never transmitted."
+            to="/toolbox/csr-generator"
+          />
+          <HubCard
+            tone="amber"
+            icon={<GitCompare className="h-6 w-6" />}
+            title="Certificate Diff"
+            description="Compare two certificates side by side — useful when verifying a renewal."
+            to="/toolbox/cert-diff"
+          />
+          <HubCard
+            tone="teal"
+            icon={<Link2 className="h-6 w-6" />}
+            title="Chain Builder / Validator"
+            description="Paste a certificate bundle and verify the full chain of trust from leaf to root."
+            to="/toolbox/cert-chain"
+          />
+          <HubCard
+            tone="purple"
+            icon={<ArrowLeftRight className="h-6 w-6" />}
+            title="PEM / DER Converter"
+            description="Convert certificates and keys between PEM and DER encoding."
+            to="/toolbox/pem-der"
+          />
         </div>
       </div>
 
