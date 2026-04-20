@@ -146,7 +146,7 @@ export function GlobalSearch() {
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder={`Search endpoints, certificates, or scanners…  (${SHORTCUT_LABEL})`}
-        className="w-full rounded-lg bg-card py-2.5 pl-10 pr-4 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
+        className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-4 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
         aria-autocomplete="list"
         aria-expanded={showDropdown}
         aria-controls="global-search-results"
