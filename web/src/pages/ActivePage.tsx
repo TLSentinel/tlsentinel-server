@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronLeft, ChevronRight, Check, Tag, X, MoreVertical, ExternalLink } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -99,32 +99,18 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2.5rem_2fr_5rem_1.5fr_1.5fr_8rem_7rem_3rem]'
+const ROW_GRID = 'grid-cols-[2fr_5rem_1.5fr_1.5fr_8rem_7rem_3rem]'
 
 interface ActiveRowProps {
   item: ExpiringCertItem
   tagFilter: string
-  selected: boolean
-  onToggle: (key: string) => void
   onTagClick: (id: string) => void
 }
 
-function ActiveRow({ item, tagFilter, selected, onToggle, onTagClick }: ActiveRowProps) {
+function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
   const navigate = useNavigate()
-  const rowKey = `${item.endpointId}-${item.fingerprint}`
   return (
     <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
-
-      {/* Checkbox */}
-      <div className="flex items-center justify-center pt-0.5">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggle(rowKey)}
-          aria-label={`Select ${item.endpointName}`}
-          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-        />
-      </div>
 
       {/* Endpoint */}
       <div className="min-w-0">
@@ -223,7 +209,6 @@ export default function ActivePage() {
   const [statusFilter, setStatusFilter]   = useState<StatusFilter>('')
   const [sortOption, setSortOption]       = useState<SortOption>('')
   const [tagFilter, setTagFilter]         = useState('')
-  const [selected, setSelected]           = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
@@ -254,30 +239,6 @@ export default function ActivePage() {
 
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
-
-  const pageKeys = useMemo(() => items.map(i => `${i.endpointId}-${i.fingerprint}`), [items])
-  const allPageSelected = pageKeys.length > 0 && pageKeys.every(k => selected.has(k))
-  const somePageSelected = !allPageSelected && pageKeys.some(k => selected.has(k))
-
-  function toggleOne(key: string) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key); else next.add(key)
-      return next
-    })
-  }
-
-  function toggleAll() {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (allPageSelected) {
-        pageKeys.forEach(k => next.delete(k))
-      } else {
-        pageKeys.forEach(k => next.add(k))
-      }
-      return next
-    })
-  }
 
   return (
     <div className="space-y-6">
@@ -363,17 +324,6 @@ export default function ActivePage() {
 
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
-          <div className="flex items-center justify-center">
-            <input
-              type="checkbox"
-              checked={allPageSelected}
-              ref={el => { if (el) el.indeterminate = somePageSelected }}
-              onChange={toggleAll}
-              disabled={items.length === 0}
-              aria-label="Select all on page"
-              className="h-4 w-4 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
@@ -394,19 +344,14 @@ export default function ActivePage() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {items.map(item => {
-              const rowKey = `${item.endpointId}-${item.fingerprint}`
-              return (
-                <ActiveRow
-                  key={rowKey}
-                  item={item}
-                  tagFilter={tagFilter}
-                  selected={selected.has(rowKey)}
-                  onToggle={toggleOne}
-                  onTagClick={handleTagChange}
-                />
-              )
-            })}
+            {items.map(item => (
+              <ActiveRow
+                key={`${item.endpointId}-${item.fingerprint}`}
+                item={item}
+                tagFilter={tagFilter}
+                onTagClick={handleTagChange}
+              />
+            ))}
           </div>
         )}
 
