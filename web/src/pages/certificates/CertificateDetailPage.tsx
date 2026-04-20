@@ -226,6 +226,40 @@ interface ChainCert {
 
 type ChainRole = 'root' | 'intermediate' | 'leaf'
 
+const CHAIN_ROLE_META: Record<ChainRole, {
+  Icon: React.ComponentType<{ className?: string }>
+  description: string
+  pillLabel: string
+  tileBg: string
+  iconColor: string
+  pillClass: string
+}> = {
+  root: {
+    Icon: Landmark,
+    description: 'Root Certificate Authority',
+    pillLabel: 'ROOT',
+    tileBg: 'bg-muted/70',
+    iconColor: 'text-muted-foreground',
+    pillClass: 'bg-foreground text-background',
+  },
+  intermediate: {
+    Icon: Shield,
+    description: 'Intermediate Certificate Authority',
+    pillLabel: 'INTERMEDIATE',
+    tileBg: 'bg-muted/70',
+    iconColor: 'text-muted-foreground',
+    pillClass: 'bg-foreground text-background',
+  },
+  leaf: {
+    Icon: BadgeCheck,
+    description: 'Entity Certificate',
+    pillLabel: 'LEAF',
+    tileBg: 'bg-primary-container/50',
+    iconColor: 'text-primary',
+    pillClass: 'bg-primary-container text-white',
+  },
+}
+
 function ChainNode({
   fingerprint,
   commonName,
@@ -235,22 +269,25 @@ function ChainNode({
   commonName: string
   role: ChainRole
 }) {
-  const Icon = role === 'root' ? Landmark : role === 'intermediate' ? Shield : BadgeCheck
-  const label = role === 'root' ? 'Root CA' : role === 'intermediate' ? 'Intermediate CA' : 'Leaf Certificate'
-  const tileBg = role === 'leaf' ? 'bg-primary-container/50' : 'bg-muted/70'
-  const iconColor = role === 'leaf' ? 'text-primary' : 'text-muted-foreground'
+  const meta = CHAIN_ROLE_META[role]
+  const Icon = meta.Icon
 
   return (
     <Link
       to={`/certificates/${fingerprint}`}
       title={commonName}
-      className="flex w-32 min-w-0 flex-col items-center text-center"
+      className="flex items-center gap-4 min-w-0 hover:opacity-80 transition-opacity"
     >
-      <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${tileBg}`}>
-        <Icon className={`h-7 w-7 ${iconColor}`} />
+      <div className={`shrink-0 w-14 h-14 rounded-xl flex items-center justify-center ${meta.tileBg}`}>
+        <Icon className={`h-7 w-7 ${meta.iconColor}`} />
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 w-full break-words text-sm font-semibold leading-snug">{commonName || '—'}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-semibold break-words leading-tight">{commonName || '—'}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{meta.description}</p>
+      </div>
+      <span className={`shrink-0 inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${meta.pillClass}`}>
+        {meta.pillLabel}
+      </span>
     </Link>
   )
 }
@@ -319,11 +356,13 @@ function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
       {loading && ancestors.length === 0 ? (
         <p className="mt-5 text-xs italic text-muted-foreground">Loading chain…</p>
       ) : (
-        <div className="mt-5 flex items-start gap-2">
+        <div className="mt-5 space-y-2">
           {nodes.map((n, i) => (
             <Fragment key={n.fingerprint}>
-              {i > 0 && <div className="w-8 mt-7 border-t border-border" />}
               <ChainNode fingerprint={n.fingerprint} commonName={n.commonName} role={n.role} />
+              {i < nodes.length - 1 && (
+                <div className="ml-7 h-6 border-l border-border" aria-hidden />
+              )}
             </Fragment>
           ))}
         </div>
