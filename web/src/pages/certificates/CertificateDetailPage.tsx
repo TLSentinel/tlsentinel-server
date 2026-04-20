@@ -1,35 +1,104 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight, Copy, Check, Download } from 'lucide-react'
+import {
+  AlertTriangle,
+  BadgeCheck,
+  CheckCircle2,
+  ChevronRight,
+  Copy,
+  Check,
+  Download,
+  KeyRound,
+  Landmark,
+  Server,
+  Shield,
+  ShieldCheck,
+  XCircle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
-import { CertProgressCard } from '@/components/CertProgressCard'
 import { fmtDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
-// Layout primitives
+// Shared formatting / status helpers
 // ---------------------------------------------------------------------------
 
-function Section({ title, children }: { title?: string; children: React.ReactNode }) {
+function keyLabel(cert: CertificateDetail) {
+  if (!cert.keyAlgorithm) return ''
+  return cert.keySize > 0 ? `${cert.keyAlgorithm} ${cert.keySize}-bit` : cert.keyAlgorithm
+}
+
+function formatSubjectDN(cert: CertificateDetail) {
+  const parts = [
+    cert.commonName     && `CN=${cert.commonName}`,
+    cert.subjectOrg     && `O=${cert.subjectOrg}`,
+    cert.subjectOrgUnit && `OU=${cert.subjectOrgUnit}`,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : '—'
+}
+
+function formatIssuerDN(cert: CertificateDetail) {
+  const parts = [
+    cert.issuerCn  && `CN=${cert.issuerCn}`,
+    cert.issuerOrg && `O=${cert.issuerOrg}`,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : '—'
+}
+
+function certStatus(cert: CertificateDetail) {
+  const daysLeft = Math.floor((new Date(cert.notAfter).getTime() - Date.now()) / 86_400_000)
+  const expired  = daysLeft < 0
+  const warning  = !expired && daysLeft <= 30
+  return {
+    expired,
+    warning,
+    label:
+      expired ? 'Expired' :
+      warning ? 'Expiring' :
+                'Valid',
+    pillClass:
+      expired ? 'bg-error-container text-on-error-container'       :
+      warning ? 'bg-warning-container text-on-warning-container'   :
+                'bg-tertiary-container text-on-tertiary-container',
+    Icon:
+      expired ? XCircle        :
+      warning ? AlertTriangle  :
+                CheckCircle2,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Freestanding section header + attribute primitives
+// ---------------------------------------------------------------------------
+
+function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="rounded-xl bg-card overflow-hidden">
-      {title && (
-        <div className="px-5 py-3 bg-muted">
-          <p className="text-sm font-medium">{title}</p>
-        </div>
-      )}
-      <div className="p-5">{children}</div>
+    <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+      {title}
+    </h2>
+  )
+}
+
+function Attr({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={wide ? 'md:col-span-2' : undefined}>
+      <dt className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-sm font-medium break-words">{children}</dd>
     </div>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function ChipList({ items }: { items: string[] }) {
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
-      <div className="mt-0.5 text-sm font-medium">{children}</div>
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <span key={item} className="rounded-md bg-muted px-3 py-1 text-sm">
+          {item}
+        </span>
+      ))}
     </div>
   )
 }
@@ -37,7 +106,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function UrlList({ urls }: { urls: string[] }) {
   if (urls.length === 0) return <span className="text-muted-foreground">—</span>
   return (
-    <div className="mt-1 flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
       {urls.map((u) => (
         <code key={u} className="rounded bg-muted px-2 py-0.5 font-mono text-xs break-all">
           {u}
@@ -48,200 +117,152 @@ function UrlList({ urls }: { urls: string[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Validity progress bar
+// Validity timeline card (right column, top)
 // ---------------------------------------------------------------------------
 
-function ValiditySection({ cert }: { cert: CertificateDetail }) {
+function ValidityTimelineCard({ cert }: { cert: CertificateDetail }) {
   const now      = Date.now()
   const issued   = new Date(cert.notBefore).getTime()
   const expiry   = new Date(cert.notAfter).getTime()
   const daysLeft = Math.floor((expiry - now) / 86_400_000)
-  const isExpired  = daysLeft < 0
-  const isWarning  = !isExpired && daysLeft <= 30
-  const pct        = Math.round(Math.min(Math.max((now - issued) / (expiry - issued), 0), 1) * 100)
+  const expired  = daysLeft < 0
+  const warning  = !expired && daysLeft <= 30
+  const pct      = Math.round(Math.min(Math.max((now - issued) / (expiry - issued), 0), 1) * 100)
 
-  const barClass = isExpired ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-green-500'
-
-  return (
-    <Section title="Validity">
-      <div className="space-y-3">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
-        </div>
-        <div className="flex justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <span>Issued: {fmtDate(cert.notBefore)}</span>
-          <span>{isExpired ? 'Expired' : `Days remaining: ${daysLeft}`}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-1">
-          <Field label="Not Before">
-            <span className="text-base font-semibold">{fmtDate(cert.notBefore)}</span>
-          </Field>
-          <Field label="Not After">
-            <span className="text-base font-semibold">{fmtDate(cert.notAfter)}</span>
-          </Field>
-        </div>
-      </div>
-    </Section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Subject
-// ---------------------------------------------------------------------------
-
-function SubjectSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <Section title="Subject">
-      <div className="space-y-3">
-        <div className="col-span-2">
-          <Field label="Common Name">
-            <span className="text-base font-semibold">{cert.commonName || '—'}</span>
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <Field label="Organization">
-            <span className="text-base font-semibold">{cert.subjectOrg || '—'}</span>
-          </Field>
-          <Field label="Org Unit">
-            <span className="text-base font-semibold">{cert.subjectOrgUnit || '—'}</span>
-          </Field>
-        </div>
-        {cert.sans.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Subject Alternative Names</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {cert.sans.map((san) => (
-                <span key={san} className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">
-                  {san}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </Section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Issuer
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Key & Signature
-// ---------------------------------------------------------------------------
-
-function KeySection({ cert }: { cert: CertificateDetail }) {
-  const keyLabel = cert.keySize > 0 ? `${cert.keyAlgorithm} ${cert.keySize}-bit` : cert.keyAlgorithm || '—'
+  const barClass =
+    expired ? 'bg-error'    :
+    warning ? 'bg-warning'  :
+              'bg-tertiary'
+  const statusLabel =
+    expired ? 'Expired' :
+    warning ? 'Warning' :
+              'Healthy'
+  const statusColor =
+    expired ? 'text-error'    :
+    warning ? 'text-warning'  :
+              'text-tertiary'
+  const remainingLabel = expired ? 'Expired' : 'Remaining'
+  const remainingText =
+    expired ? `${Math.abs(daysLeft)} ${Math.abs(daysLeft) === 1 ? 'Day' : 'Days'} ago` :
+              `${daysLeft} ${daysLeft === 1 ? 'Day' : 'Days'}`
 
   return (
-    <Section title="Key & Signature">
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <Field label="Key Algorithm">
-            <span className="text-base font-semibold">{cert.keyAlgorithm || '—'}</span>
-          </Field>
-          <Field label="Key Size">
-            <span className="text-base font-semibold">{cert.keySize > 0 ? keyLabel : '—'}</span>
-          </Field>
+    <div className="rounded-xl bg-card border border-border p-6">
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        Validity Timeline
+      </h3>
+
+      <div className="mt-6 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{remainingLabel}</p>
+          <p className="mt-1 text-4xl font-bold leading-tight">{remainingText}</p>
         </div>
-        <Field label="Signature Algorithm">
-          <span className="text-base font-semibold">{cert.signatureAlgorithm || '—'}</span>
-        </Field>
-      </div>
-    </Section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Usages
-// ---------------------------------------------------------------------------
-
-function ChipList({ items }: { items: string[] }) {
-  if (items.length === 0) return <span className="text-muted-foreground">—</span>
-  return (
-    <div className="mt-1 flex flex-wrap gap-1.5">
-      {items.map((item) => (
-        <span key={item} className="rounded border bg-muted px-2 py-0.5 text-xs font-medium">
-          {item}
+        <span className={`text-xs font-semibold uppercase tracking-widest ${statusColor}`}>
+          {statusLabel}
         </span>
-      ))}
+      </div>
+
+      <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+      </div>
+
+      <div className="mt-5 flex justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Issued</p>
+          <p className="mt-1 text-sm font-medium">{fmtDate(cert.notBefore)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Expires</p>
+          <p className="mt-1 text-sm font-medium">{fmtDate(cert.notAfter)}</p>
+        </div>
+      </div>
     </div>
   )
 }
 
-function UsageSection({ cert }: { cert: CertificateDetail }) {
+// ---------------------------------------------------------------------------
+// Root Store Trust (placeholder — TODO: wire to server-side verification)
+// ---------------------------------------------------------------------------
+
+const ROOT_STORES = [
+  'Microsoft Windows',
+  'Apple macOS/iOS',
+  'Mozilla Firefox',
+  'Google Chrome',
+  'Oracle Java',
+] as const
+
+function RootStoreTrustCard() {
   return (
-    <Section title="Usages">
-      <div className="space-y-3">
-        <Field label="Key Usage"><ChipList items={cert.keyUsages} /></Field>
-        <Field label="Extended Key Usage"><ChipList items={cert.extKeyUsages} /></Field>
-      </div>
-    </Section>
+    <div className="rounded-xl bg-card border border-border p-6">
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        Root Store Trust
+      </h3>
+
+      <ul className="mt-5 space-y-3">
+        {ROOT_STORES.map((name) => (
+          <li key={name} className="flex items-center justify-between gap-3">
+            <span className="text-sm">{name}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-tertiary-container px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-on-tertiary-container">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Trusted
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Identifiers
-// ---------------------------------------------------------------------------
-
-function IdentifiersSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <Section title="Identifiers">
-      <div className="space-y-3">
-        <Field label="SHA-256 Fingerprint">
-          <span className="break-all font-mono text-xs">{cert.fingerprint}</span>
-        </Field>
-        <Field label="Serial Number">
-          <span className="break-all font-mono text-xs">{cert.serialNumber}</span>
-        </Field>
-        <Field label="Subject Key ID">
-          <span className="break-all font-mono text-xs">{cert.subjectKeyId}</span>
-        </Field>
-        {cert.authorityKeyId && (
-          <Field label="Authority Key ID">
-            <span className="break-all font-mono text-xs">{cert.authorityKeyId}</span>
-          </Field>
-        )}
-      </div>
-    </Section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Revocation
-// ---------------------------------------------------------------------------
-
-function RevocationSection({ cert }: { cert: CertificateDetail }) {
-  return (
-    <Section title="Revocation">
-      <div className="space-y-3">
-        <Field label="OCSP URL"><UrlList urls={cert.ocspUrls} /></Field>
-        <Field label="CRL Distribution Points"><UrlList urls={cert.crlDistributionPoints} /></Field>
-      </div>
-    </Section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Certificate chain
+// Chain of Trust (horizontal Root → Intermediate → Leaf)
 // ---------------------------------------------------------------------------
 
 interface ChainCert {
   fingerprint: string
   commonName: string
-  notBefore: string
-  notAfter: string
   issuerFingerprint: string | null
 }
 
+type ChainRole = 'root' | 'intermediate' | 'leaf'
 
-function ChainSection({ cert }: { cert: CertificateDetail }) {
-  const [chain, setChain] = useState<ChainCert[]>([])
+function ChainNode({
+  fingerprint,
+  commonName,
+  role,
+}: {
+  fingerprint: string
+  commonName: string
+  role: ChainRole
+}) {
+  const Icon = role === 'root' ? Landmark : role === 'intermediate' ? Shield : BadgeCheck
+  const label = role === 'root' ? 'Root CA' : role === 'intermediate' ? 'Intermediate CA' : 'Leaf Certificate'
+  const tileBg = role === 'leaf' ? 'bg-primary-container/50' : 'bg-muted/70'
+  const iconColor = role === 'leaf' ? 'text-primary' : 'text-muted-foreground'
+
+  return (
+    <Link
+      to={`/certificates/${fingerprint}`}
+      className="flex w-32 min-w-0 flex-col items-center text-center"
+    >
+      <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${tileBg}`}>
+        <Icon className={`h-7 w-7 ${iconColor}`} />
+      </div>
+      <p className="mt-3 w-full truncate text-sm font-semibold">{commonName || '—'}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+    </Link>
+  )
+}
+
+function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
+  const [ancestors, setAncestors] = useState<ChainCert[]>([])
   const [loading, setLoading] = useState(!!cert.issuerFingerprint)
 
   useEffect(() => {
-    if (!cert.issuerFingerprint) return
+    if (!cert.issuerFingerprint) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
 
     async function traverse() {
@@ -257,8 +278,6 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
           result.push({
             fingerprint: parent.fingerprint,
             commonName: parent.commonName,
-            notBefore: parent.notBefore,
-            notAfter: parent.notAfter,
             issuerFingerprint: parent.issuerFingerprint,
           })
           nextFp = parent.issuerFingerprint
@@ -268,50 +287,194 @@ function ChainSection({ cert }: { cert: CertificateDetail }) {
       }
 
       if (!cancelled) {
-        setChain(result)
+        setAncestors(result)
         setLoading(false)
       }
     }
 
     traverse()
     return () => { cancelled = true }
-  }, [cert.fingerprint, cert.issuerFingerprint, cert.commonName, cert.notBefore, cert.notAfter])
+  }, [cert.fingerprint, cert.issuerFingerprint])
 
-  function certRole(index: number, total: number) {
-    if (index === total - 1) return 'Root'
-    return 'Intermediate'
+  // Build visualization: root on left → ... → leaf on right.
+  // `ancestors` is ordered [immediate issuer, grandparent, ...] so reverse it.
+  const leaf: ChainCert = {
+    fingerprint: cert.fingerprint,
+    commonName: cert.commonName,
+    issuerFingerprint: cert.issuerFingerprint,
   }
+  const reversed = [...ancestors].reverse()
+  const nodes: Array<ChainCert & { role: ChainRole }> = [
+    ...reversed.map((c, i) => ({
+      ...c,
+      role: (i === 0 ? 'root' : 'intermediate') as ChainRole,
+    })),
+    { ...leaf, role: 'leaf' as ChainRole },
+  ]
 
   return (
-    <Section title="Issuer">
-      <div className="space-y-2">
-        {loading && chain.length === 0 && (
-          <p className="text-xs italic text-muted-foreground">Loading chain…</p>
-        )}
-        {!loading && chain.length === 0 && (
-          <p className="text-sm italic text-muted-foreground">No issuer chain available.</p>
-        )}
-        {chain.map((c, i) => (
-          <CertProgressCard
-            key={c.fingerprint}
-            fingerprint={c.fingerprint}
-            commonName={c.commonName}
-            notBefore={c.notBefore}
-            notAfter={c.notAfter}
-            label={certRole(i, chain.length)}
-          />
-        ))}
-        {loading && chain.length > 0 && (
-          <p className="text-xs italic text-muted-foreground">Loading chain…</p>
-        )}
-      </div>
-    </Section>
+    <section>
+      <SectionHeader title="Chain of Trust" />
+      {loading && ancestors.length === 0 ? (
+        <p className="mt-5 text-xs italic text-muted-foreground">Loading chain…</p>
+      ) : (
+        <div className="mt-5 flex items-start gap-2">
+          {nodes.map((n, i) => (
+            <Fragment key={n.fingerprint}>
+              {i > 0 && <div className="w-8 mt-7 border-t border-border" />}
+              <ChainNode fingerprint={n.fingerprint} commonName={n.commonName} role={n.role} />
+            </Fragment>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Endpoints using this certificate
+// Certificate attributes grid
 // ---------------------------------------------------------------------------
+
+function CertificateAttributesSection({ cert }: { cert: CertificateDetail }) {
+  const hasEKU = cert.extKeyUsages.length > 0
+  return (
+    <section>
+      <SectionHeader title="Certificate Attributes" />
+      <dl className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+        <Attr label="Subject DN">{formatSubjectDN(cert)}</Attr>
+        <Attr label="Issuer DN">{formatIssuerDN(cert)}</Attr>
+        <Attr label="Serial Number">
+          <span className="break-all font-mono text-xs">{cert.serialNumber}</span>
+        </Attr>
+        <Attr label="Signature Algorithm">{cert.signatureAlgorithm || '—'}</Attr>
+        <Attr label="Public Key">{keyLabel(cert) || '—'}</Attr>
+        <Attr label="Key Usage">
+          {cert.keyUsages.length > 0 ? cert.keyUsages.join(', ') : '—'}
+        </Attr>
+        {hasEKU && (
+          <Attr label="Extended Key Usage" wide>
+            {cert.extKeyUsages.join(', ')}
+          </Attr>
+        )}
+      </dl>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Subject Alternative Names
+// ---------------------------------------------------------------------------
+
+function SANsSection({ cert }: { cert: CertificateDetail }) {
+  if (cert.sans.length === 0) return null
+  return (
+    <section>
+      <SectionHeader title="Subject Alternative Names (SANs)" />
+      <div className="mt-5">
+        <ChipList items={cert.sans} />
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Fingerprints / Key IDs
+// ---------------------------------------------------------------------------
+
+function FingerprintsSection({ cert }: { cert: CertificateDetail }) {
+  return (
+    <section>
+      <SectionHeader title="Fingerprints & Key IDs" />
+      <dl className="mt-5 space-y-5">
+        <Attr label="SHA-256 Fingerprint">
+          <span className="break-all font-mono text-xs">{cert.fingerprint}</span>
+        </Attr>
+        <Attr label="Subject Key ID">
+          <span className="break-all font-mono text-xs">{cert.subjectKeyId || '—'}</span>
+        </Attr>
+        {cert.authorityKeyId && (
+          <Attr label="Authority Key ID">
+            <span className="break-all font-mono text-xs">{cert.authorityKeyId}</span>
+          </Attr>
+        )}
+      </dl>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Revocation
+// ---------------------------------------------------------------------------
+
+function RevocationSection({ cert }: { cert: CertificateDetail }) {
+  if (cert.ocspUrls.length === 0 && cert.crlDistributionPoints.length === 0) return null
+  return (
+    <section>
+      <SectionHeader title="Revocation" />
+      <dl className="mt-5 space-y-5">
+        <Attr label="OCSP">
+          <UrlList urls={cert.ocspUrls} />
+        </Attr>
+        <Attr label="CRL Distribution Points">
+          <UrlList urls={cert.crlDistributionPoints} />
+        </Attr>
+      </dl>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Endpoints using this certificate (right column)
+// ---------------------------------------------------------------------------
+
+function endpointIcon(type: string) {
+  switch (type) {
+    case 'saml':   return KeyRound
+    case 'manual': return ShieldCheck
+    default:       return Server
+  }
+}
+
+function endpointSubtitle(ep: EndpointListItem) {
+  if (ep.type === 'host')   return ep.port > 0 ? `${ep.dnsName}:${ep.port}` : ep.dnsName
+  if (ep.type === 'saml')   return 'SAML IDP'
+  if (ep.type === 'manual') return 'Manual'
+  return ep.type.toUpperCase()
+}
+
+function endpointDotClass(ep: EndpointListItem) {
+  if (ep.lastScanError) return 'bg-warning'
+  if (!ep.earliestExpiry) return 'bg-muted-foreground/40'
+  const days = Math.floor((new Date(ep.earliestExpiry).getTime() - Date.now()) / 86_400_000)
+  if (days < 0)  return 'bg-error'
+  if (days <= 30) return 'bg-warning'
+  return 'bg-tertiary'
+}
+
+function EndpointRow({ ep }: { ep: EndpointListItem }) {
+  const Icon = endpointIcon(ep.type)
+  const subtitle = endpointSubtitle(ep)
+  const dotClass = endpointDotClass(ep)
+  const subtitleClass = ep.type === 'host'
+    ? 'mt-0.5 text-xs text-muted-foreground truncate font-mono'
+    : 'mt-0.5 text-xs uppercase tracking-widest text-muted-foreground truncate'
+
+  return (
+    <Link
+      to={`/endpoints/${ep.id}`}
+      className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/50"
+    >
+      <div className="shrink-0 w-9 h-9 rounded-md bg-muted/70 flex items-center justify-center">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold truncate">{ep.name}</p>
+        <p className={subtitleClass}>{subtitle}</p>
+      </div>
+      <span className={`shrink-0 w-2 h-2 rounded-full ${dotClass}`} aria-hidden />
+    </Link>
+  )
+}
 
 function EndpointsSection({ fingerprint }: { fingerprint: string }) {
   const { data: endpoints, isLoading } = useQuery({
@@ -320,28 +483,27 @@ function EndpointsSection({ fingerprint }: { fingerprint: string }) {
   })
 
   const endpointList: EndpointListItem[] = endpoints ?? []
-  const title = isLoading
-    ? 'Endpoints'
-    : `Endpoints (${endpointList.length})`
 
   return (
-    <Section title={title}>
-      {isLoading && <p className="text-xs italic text-muted-foreground">Loading…</p>}
+    <div className="rounded-xl bg-card border border-border p-6">
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        Associated Endpoints
+      </h3>
+
+      {isLoading && <p className="mt-4 text-xs italic text-muted-foreground">Loading…</p>}
 
       {!isLoading && endpointList.length === 0 && (
-        <p className="text-sm italic text-muted-foreground">No endpoints are currently using this certificate.</p>
+        <p className="mt-4 text-sm italic text-muted-foreground">
+          No endpoints are currently using this certificate.
+        </p>
       )}
 
       {!isLoading && endpointList.length > 0 && (
-        <div className="space-y-1.5">
-          {endpointList.map((h) => (
-            <div key={h.id} className="flex items-center rounded-md border px-3 py-2 text-sm">
-              <Link to={`/endpoints/${h.id}`} className="font-medium hover:underline">{h.name}</Link>
-            </div>
-          ))}
+        <div className="mt-4 space-y-1">
+          {endpointList.map((ep) => <EndpointRow key={ep.id} ep={ep} />)}
         </div>
       )}
-    </Section>
+    </div>
   )
 }
 
@@ -413,34 +575,54 @@ export default function CertificateDetailPage() {
 
   if (!cert) return null
 
+  const status = certStatus(cert)
+  const StatusIcon = status.Icon
+  const subtitleBits = [
+    keyLabel(cert) && `${keyLabel(cert)} Certificate`,
+    cert.signatureAlgorithm,
+  ].filter(Boolean)
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       {backLink}
 
-      {/* Header */}
+      {/* Header: title + status pill, subtitle (key/sig), actions on right */}
       <div className="flex items-start justify-between gap-4">
-        <h1 className="text-5xl font-bold">{cert.commonName || '—'}</h1>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-5xl font-bold break-all">{cert.commonName || '—'}</h1>
+            <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${status.pillClass}`}>
+              <StatusIcon className="h-3.5 w-3.5" />
+              {status.label}
+            </span>
+          </div>
+          {subtitleBits.length > 0 && (
+            <p className="mt-2 text-sm text-muted-foreground">{subtitleBits.join(' • ')}</p>
+          )}
+        </div>
         <div className="shrink-0 mt-2">
           <PEMActions pem={cert.pem} commonName={cert.commonName} />
         </div>
       </div>
 
-      {/* Two-column body */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* 2/3 + 1/3 body */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
 
-        {/* ── Left column ── */}
-        <div className="space-y-5">
-          <SubjectSection cert={cert} />
-          <ValiditySection cert={cert} />
-          <KeySection cert={cert} />
-          <UsageSection cert={cert} />
-          <IdentifiersSection cert={cert} />
-          <RevocationSection cert={cert} />
+        {/* ── Left column (2/3) ── */}
+        <div className="lg:col-span-2">
+          <div className="rounded-xl bg-card border border-border p-6 space-y-8">
+            <ChainOfTrustSection cert={cert} />
+            <CertificateAttributesSection cert={cert} />
+            <SANsSection cert={cert} />
+            <FingerprintsSection cert={cert} />
+            <RevocationSection cert={cert} />
+          </div>
         </div>
 
-        {/* ── Right column ── */}
-        <div className="space-y-5">
-          <ChainSection cert={cert} />
+        {/* ── Right column (1/3) ── */}
+        <div className="space-y-5 lg:col-span-1">
+          <ValidityTimelineCard cert={cert} />
+          <RootStoreTrustCard />
           <EndpointsSection fingerprint={cert.fingerprint} />
         </div>
 
