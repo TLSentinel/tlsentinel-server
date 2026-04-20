@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronDown, Check, Tag, X, MoreVertical, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Check, Tag, X, MoreVertical, ExternalLink } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -16,7 +15,7 @@ import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
 import type { CategoryWithTags } from '@/types/api'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { fmtDate } from '@/lib/utils'
+import { fmtDate, plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
@@ -100,18 +99,32 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2fr_5rem_1.5fr_1.5fr_8rem_7rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[2.5rem_2fr_5rem_1.5fr_1.5fr_8rem_7rem_3rem]'
 
 interface ActiveRowProps {
   item: ExpiringCertItem
   tagFilter: string
+  selected: boolean
+  onToggle: (key: string) => void
   onTagClick: (id: string) => void
 }
 
-function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
+function ActiveRow({ item, tagFilter, selected, onToggle, onTagClick }: ActiveRowProps) {
   const navigate = useNavigate()
+  const rowKey = `${item.endpointId}-${item.fingerprint}`
   return (
-    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
+
+      {/* Checkbox */}
+      <div className="flex items-center justify-center pt-0.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(rowKey)}
+          aria-label={`Select ${item.endpointName}`}
+          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+        />
+      </div>
 
       {/* Endpoint */}
       <div className="min-w-0">
@@ -210,6 +223,7 @@ export default function ActivePage() {
   const [statusFilter, setStatusFilter]   = useState<StatusFilter>('')
   const [sortOption, setSortOption]       = useState<SortOption>('')
   const [tagFilter, setTagFilter]         = useState('')
+  const [selected, setSelected]           = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
@@ -240,6 +254,30 @@ export default function ActivePage() {
 
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
+
+  const pageKeys = useMemo(() => items.map(i => `${i.endpointId}-${i.fingerprint}`), [items])
+  const allPageSelected = pageKeys.length > 0 && pageKeys.every(k => selected.has(k))
+  const somePageSelected = !allPageSelected && pageKeys.some(k => selected.has(k))
+
+  function toggleOne(key: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allPageSelected) {
+        pageKeys.forEach(k => next.delete(k))
+      } else {
+        pageKeys.forEach(k => next.add(k))
+      }
+      return next
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -321,26 +359,28 @@ export default function ActivePage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-xl bg-card overflow-hidden">
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            {totalCount === 0
-              ? 'No certificates'
-              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} certificates`}
-          </p>
-        </div>
+      <div className="rounded-lg border bg-card overflow-hidden">
 
         {/* Column headers */}
-        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              ref={el => { if (el) el.indeterminate = somePageSelected }}
+              onChange={toggleAll}
+              disabled={items.length === 0}
+              aria-label="Select all on page"
+              className="h-4 w-4 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiry Date</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
-          <span />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Actions</span>
         </div>
 
         {/* Rows */}
@@ -354,26 +394,54 @@ export default function ActivePage() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {items.map(item => (
-              <ActiveRow
-                key={`${item.endpointId}-${item.fingerprint}`}
-                item={item}
-                tagFilter={tagFilter}
-                onTagClick={handleTagChange}
-              />
-            ))}
+            {items.map(item => {
+              const rowKey = `${item.endpointId}-${item.fingerprint}`
+              return (
+                <ActiveRow
+                  key={rowKey}
+                  item={item}
+                  tagFilter={tagFilter}
+                  selected={selected.has(rowKey)}
+                  onToggle={toggleOne}
+                  onTagClick={handleTagChange}
+                />
+              )
+            })}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => p - 1)}
-        onNext={() => setPage(p => p + 1)}
-        noun="certificate"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No certificates'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'certificate')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
