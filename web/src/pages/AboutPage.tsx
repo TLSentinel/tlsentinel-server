@@ -31,6 +31,18 @@ const BACKEND_LIBS: LibEntry[] = [
   { name: 'github.com/caarlos0/env',  license: 'MIT',          url: 'https://github.com/caarlos0/env' },
 ]
 
+// Upstream sources of the CA trust data TLSentinel validates against. The
+// CCADB is the mechanical data source; the four root programs are the
+// decision-makers whose inclusion lists CCADB aggregates. Keep this list in
+// sync with internal/rootstore/refresh.go.
+const CA_DATA_SOURCES: LibEntry[] = [
+  { name: 'Common CA Database (CCADB)',    license: 'Attribution', url: 'https://www.ccadb.org' },
+  { name: 'Apple Root Certificate Program', license: 'Apple',       url: 'https://www.apple.com/certificateauthority/ca_program.html' },
+  { name: 'Chrome Root Program',            license: 'Google',      url: 'https://g.co/chrome/root-policy' },
+  { name: 'Microsoft Trusted Root Program', license: 'Microsoft',   url: 'https://learn.microsoft.com/en-us/security/trusted-root/program-requirements' },
+  { name: 'Mozilla CA Certificate Program', license: 'MPL-2.0',     url: 'https://wiki.mozilla.org/CA' },
+]
+
 const FRONTEND_LIBS: LibEntry[] = [
   { name: 'React',                       license: 'MIT',     url: 'https://react.dev' },
   { name: 'Vite',                        license: 'MIT',     url: 'https://vitejs.dev' },
@@ -171,6 +183,26 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`}</pre>
+      </div>
+
+      {/* Trust store data sources */}
+      <div className="rounded-lg border p-5 space-y-3">
+        <h2 className="text-sm font-semibold">Trust Store Data</h2>
+        <p className="text-sm text-muted-foreground">
+          TLSentinel derives its root anchor sets from the{' '}
+          <a
+            href="https://www.ccadb.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            Common CA Database
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          , which aggregates the four major root programs. All upstream data is
+          publicly published and redistributed under each program's own terms.
+        </p>
+        <LibTable sections={[{ label: 'Root programs', libs: CA_DATA_SOURCES }]} />
       </div>
 
       {/* Third-party attributions */}
