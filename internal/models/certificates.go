@@ -72,6 +72,11 @@ type CertificateDetail struct {
 	// root_store_anchors via issuer_fingerprint traversal; empty slice when no
 	// anchor in the chain is a known trust anchor.
 	TrustedBy []string `json:"trustedBy"`
+
+	// IsTrustAnchor is TRUE when this cert is Subject+SKI-equivalent to a CCADB
+	// root anchor. Lets the frontend stop walking the issuer chain at the
+	// effective root (including cross-signed copies of an anchor).
+	IsTrustAnchor bool `json:"isTrustAnchor"`
 }
 
 // RootStoreSummary is the lightweight shape returned by GET /root-stores — one

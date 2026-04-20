@@ -249,6 +249,8 @@ export interface CertificateDetail {
   crlDistributionPoints: string[]
   /** Root store IDs whose anchors appear anywhere in this cert's chain. */
   trustedBy: string[]
+  /** True when this cert is Subject+SKI-equivalent to a CCADB root anchor. */
+  isTrustAnchor: boolean
 }
 
 /** One enabled root store, used by the trust matrix card on cert detail. */

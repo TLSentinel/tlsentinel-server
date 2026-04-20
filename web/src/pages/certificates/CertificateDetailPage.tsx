@@ -241,6 +241,7 @@ interface ChainCert {
   fingerprint: string
   commonName: string
   issuerFingerprint: string | null
+  isTrustAnchor: boolean
 }
 
 type ChainRole = 'root' | 'intermediate' | 'leaf'
@@ -313,10 +314,12 @@ function ChainNode({
 
 function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
   const [ancestors, setAncestors] = useState<ChainCert[]>([])
-  const [loading, setLoading] = useState(!!cert.issuerFingerprint)
+  const [loading, setLoading] = useState(!cert.isTrustAnchor && !!cert.issuerFingerprint)
 
   useEffect(() => {
-    if (!cert.issuerFingerprint) {
+    // Already at the anchor — nothing above to walk. Happens for CCADB roots
+    // and for locally-stored cross-signs that Subject+SKI-match an anchor.
+    if (cert.isTrustAnchor || !cert.issuerFingerprint) {
       setLoading(false)
       return
     }
@@ -336,7 +339,12 @@ function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
             fingerprint: parent.fingerprint,
             commonName: parent.commonName,
             issuerFingerprint: parent.issuerFingerprint,
+            isTrustAnchor: parent.isTrustAnchor,
           })
+          // Stop at the first anchor-equivalent parent so we don't follow a
+          // cross-sign's issuer_fingerprint up to its signing parent, which
+          // would mislabel the real root as an intermediate.
+          if (parent.isTrustAnchor) break
           nextFp = parent.issuerFingerprint
         } catch {
           break
@@ -351,7 +359,7 @@ function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
 
     traverse()
     return () => { cancelled = true }
-  }, [cert.fingerprint, cert.issuerFingerprint])
+  }, [cert.fingerprint, cert.issuerFingerprint, cert.isTrustAnchor])
 
   // Build visualization: root on left → ... → leaf on right.
   // `ancestors` is ordered [immediate issuer, grandparent, ...] so reverse it.
@@ -359,6 +367,7 @@ function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
     fingerprint: cert.fingerprint,
     commonName: cert.commonName,
     issuerFingerprint: cert.issuerFingerprint,
+    isTrustAnchor: cert.isTrustAnchor,
   }
   const reversed = [...ancestors].reverse()
   const nodes: Array<ChainCert & { role: ChainRole }> = [
@@ -366,7 +375,7 @@ function ChainOfTrustSection({ cert }: { cert: CertificateDetail }) {
       ...c,
       role: (i === 0 ? 'root' : 'intermediate') as ChainRole,
     })),
-    { ...leaf, role: 'leaf' as ChainRole },
+    { ...leaf, role: (cert.isTrustAnchor ? 'root' : 'leaf') as ChainRole },
   ]
 
   return (
