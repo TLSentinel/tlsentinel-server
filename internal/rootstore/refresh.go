@@ -160,8 +160,10 @@ func fetchTrustMatrix(ctx context.Context, client *http.Client) ([]trustEntry, e
 		}
 		e := trustEntry{
 			fingerprint: fp,
-			inApple:     row[col["Apple Status"]] == "Included" &&
-				strings.Contains(row[col["Apple Trust Bits"]], "Websites"),
+			// Apple's trust bits use OID-style EKU names (e.g. "serverAuth;
+			// clientAuth"), unlike Mozilla's "Websites".
+			inApple: row[col["Apple Status"]] == "Included" &&
+				strings.Contains(row[col["Apple Trust Bits"]], "serverAuth"),
 			// Chrome Root Program in this CSV has no per-trust-bit breakdown;
 			// inclusion implies TLS trust.
 			inChrome: row[col["Google Chrome Status"]] == "Included",
