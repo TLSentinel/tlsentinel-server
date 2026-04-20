@@ -259,6 +259,34 @@ export interface RootStoreSummary {
   name: string
 }
 
+// ---------------------------------------------------------------------------
+// Universal search — GET /search?q=...
+// ---------------------------------------------------------------------------
+
+export interface SearchEndpoint {
+  id: string
+  name: string
+  type: string
+  subtitle: string
+}
+
+export interface SearchCertificate {
+  fingerprint: string
+  commonName: string
+  notAfter: string
+}
+
+export interface SearchScanner {
+  id: string
+  name: string
+}
+
+export interface SearchResults {
+  endpoints: SearchEndpoint[]
+  certificates: SearchCertificate[]
+  scanners: SearchScanner[]
+}
+
 /** Body for POST /certificates. Exactly one field must be set. */
 export interface IngestCertificateRequest {
   certificatePem?: string

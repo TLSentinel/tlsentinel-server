@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Search, Bell, HelpCircle } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Bell, HelpCircle } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
 import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
 import { cn } from '@/lib/utils'
 import type { BuildInfo } from '@/types/api'
+import { GlobalSearch } from './GlobalSearch'
 
 // ---------------------------------------------------------------------------
 // NavItem — a single sidebar link with active-state highlight.
@@ -197,15 +198,7 @@ function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }:
 
   return (
     <header className="flex items-center gap-3 px-6 py-4">
-      {/* Global search (placeholder — wiring TBD) */}
-      <div className="relative flex-1 max-w-2xl">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          type="search"
-          placeholder="Search endpoints, hosts, or scanners…"
-          className="w-full rounded-lg bg-card py-2.5 pl-10 pr-4 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
-        />
-      </div>
+      <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-1">
         <button

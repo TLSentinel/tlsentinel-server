@@ -30,6 +30,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/internal/search"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/tags"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
@@ -60,6 +61,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	reportsHandler := reports.NewHandler(store)
 	apiKeyHandler := apikeys.NewHandler(store)
 	notifTemplateHandler := notificationtemplates.NewHandler(store)
+	searchHandler := search.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -349,6 +351,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 		r.Route("/utils", func(r chi.Router) {
 				r.Use(auth.RequirePermission(permission.EndpointsView))
 				r.Get("/resolve", utilsHandler.Resolve)
+			})
+
+			r.Route("/search", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.EndpointsView))
+				r.Get("/", searchHandler.Search)
 			})
 
 			r.Route("/probe", func(r chi.Router) {
