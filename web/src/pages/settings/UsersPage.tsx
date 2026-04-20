@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical, UserPlus, UserCog } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -105,34 +106,74 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
     } finally { setSubmitting(false) }
   }
 
+  const Icon = isEdit ? UserCog : UserPlus
+
+  function SegBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={[
+          'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+          active
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-border bg-background text-foreground hover:bg-muted',
+        ].join(' ')}
+      >
+        {children}
+      </button>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{isEdit ? 'Edit User' : 'Add User'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-username">Username <span className="text-destructive">*</span></Label>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">{isEdit ? 'Edit User' : 'Add User'}</DialogTitle>
+            <DialogDescription>{isEdit ? 'Update account details and access' : 'Provision a new user account'}</DialogDescription>
+          </div>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="u-username" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Username <span className="text-destructive">*</span>
+            </Label>
             <Input id="u-username" value={username} onChange={e => setUsername(e.target.value)} placeholder="jane" required />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="u-firstname">First Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="u-firstname" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                First Name
+              </Label>
               <Input id="u-firstname" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jane" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="u-lastname">Last Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="u-lastname" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Last Name
+              </Label>
               <Input id="u-lastname" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Smith" />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-email">Email</Label>
+
+          <div className="space-y-2">
+            <Label htmlFor="u-email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Email
+            </Label>
             <Input id="u-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
           </div>
-          <div className="space-y-1.5">
-            <Label>Provider</Label>
-            <div className="flex gap-2">
-              <Button type="button" variant={provider === 'local' ? 'default' : 'outline'} size="sm" onClick={() => setProvider('local')}>Local</Button>
-              <Button type="button" variant={provider === 'oidc' ? 'default' : 'outline'} size="sm" onClick={() => setProvider('oidc')}>OIDC</Button>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Authentication Provider
+            </Label>
+            <div className="grid grid-cols-2 gap-2">
+              <SegBtn active={provider === 'local'} onClick={() => setProvider('local')}>Local</SegBtn>
+              <SegBtn active={provider === 'oidc'} onClick={() => setProvider('oidc')}>OIDC</SegBtn>
             </div>
             {provider === 'oidc' && (
               <p className="text-xs text-muted-foreground">
@@ -141,27 +182,35 @@ function UserDialog({ user, open, onClose, onSaved }: UserDialogProps) {
               </p>
             )}
           </div>
+
           {provider === 'local' && !isEdit && (
-            <div className="space-y-1.5">
-              <Label htmlFor="u-password">Password <span className="text-destructive">*</span></Label>
+            <div className="space-y-2">
+              <Label htmlFor="u-password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Password <span className="text-destructive">*</span>
+              </Label>
               <Input id="u-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
           )}
-          <div className="space-y-1.5">
-            <Label>Role</Label>
-            <div className="flex gap-2">
-              <Button type="button" variant={role === 'viewer' ? 'default' : 'outline'} size="sm" onClick={() => setRole('viewer')}>Viewer</Button>
-              <Button type="button" variant={role === 'operator' ? 'default' : 'outline'} size="sm" onClick={() => setRole('operator')}>Operator</Button>
-              <Button type="button" variant={role === 'admin' ? 'default' : 'outline'} size="sm" onClick={() => setRole('admin')}>Admin</Button>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Role
+            </Label>
+            <div className="grid grid-cols-3 gap-2">
+              <SegBtn active={role === 'viewer'} onClick={() => setRole('viewer')}>Viewer</SegBtn>
+              <SegBtn active={role === 'operator'} onClick={() => setRole('operator')}>Operator</SegBtn>
+              <SegBtn active={role === 'admin'} onClick={() => setRole('admin')}>Admin</SegBtn>
             </div>
           </div>
-          <div className="flex items-center justify-between">
+
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
             <div className="space-y-0.5">
-              <Label htmlFor="u-notify">Receive alert emails</Label>
+              <Label htmlFor="u-notify" className="text-sm font-medium">Receive alert emails</Label>
               <p className="text-xs text-muted-foreground">{email.trim() ? 'Send expiry alerts to this user.' : 'Requires an email address.'}</p>
             </div>
             <Switch id="u-notify" checked={notify} onCheckedChange={setNotify} disabled={!email.trim()} />
           </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
@@ -203,16 +252,29 @@ function ChangePasswordDialog({ user, onClose }: ChangePasswordDialogProps) {
 
   return (
     <Dialog open={user !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Change Password</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">Set a new password for <span className="font-medium text-foreground">{user?.username}</span>.</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="cp-password">New Password <span className="text-destructive">*</span></Label>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Change Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <span className="font-medium text-foreground">{user?.username}</span>
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="cp-password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              New Password <span className="text-destructive">*</span>
+            </Label>
             <Input id="cp-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cp-confirm">Confirm Password <span className="text-destructive">*</span></Label>
+          <div className="space-y-2">
+            <Label htmlFor="cp-confirm" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Confirm Password <span className="text-destructive">*</span>
+            </Label>
             <Input id="cp-confirm" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="••••••••" required />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}

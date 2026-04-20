@@ -319,8 +319,8 @@ export default function BulkImportDialog({ open, onClose, onComplete }: BulkImpo
               Upload a CSV file with your endpoints. Download the sample to see the expected format.
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={downloadSample} className="gap-1.5">
-                <Download className="h-4 w-4" />
+              <Button variant="outline" onClick={downloadSample}>
+                <Download className="mr-1.5 h-4 w-4" />
                 Download sample CSV
               </Button>
             </div>

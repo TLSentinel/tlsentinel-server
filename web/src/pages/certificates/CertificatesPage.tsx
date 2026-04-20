@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff, ChevronLeft, ChevronRight, FileSignature } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -301,13 +302,21 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Ingest Certificate</DialogTitle>
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
+            <FileSignature className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Ingest Certificate</DialogTitle>
+            <DialogDescription>Import a certificate into the inventory</DialogDescription>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="cert-pem">PEM or Base64 DER</Label>
+            <Label htmlFor="cert-pem" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              PEM or Base64 DER
+            </Label>
             <textarea
               id="cert-pem"
               className="min-h-[200px] w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -325,12 +334,10 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="gap-1.5"
               onClick={() => fileInputRef.current?.click()}
             >
-              <FolderOpen className="h-3.5 w-3.5" />
-              {fileName ?? 'Browse file…'}
+              <FolderOpen className="mr-1.5 h-4 w-4" />
+              {fileName ?? 'Choose File…'}
             </Button>
           </div>
 
