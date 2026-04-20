@@ -487,7 +487,7 @@ export default function CertificatesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Certificates</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            All certificates stored across monitored endpoints.
+            Certificate store inventory.
           </p>
         </div>
         {admin && (
