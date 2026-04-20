@@ -8,15 +8,19 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getMailConfig, saveMailConfig, testMailConfig } from '@/api/mail'
 import { ApiError } from '@/types/api'
+import { cn } from '@/lib/utils'
 
 type AuthType = 'none' | 'plain' | 'login'
 type TLSMode = 'none' | 'starttls' | 'tls'
+
+const SECTION_TITLE = 'text-base font-semibold'
+const FIELD_LABEL   = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function ToggleGroup<T extends string>({
+function Segmented<T extends string>({
   value,
   options,
   onChange,
@@ -26,18 +30,25 @@ function ToggleGroup<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex gap-2">
-      {options.map((opt) => (
-        <Button
-          key={opt.value}
-          type="button"
-          variant={value === opt.value ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => onChange(opt.value)}
-        >
-          {opt.label}
-        </Button>
-      ))}
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+      {options.map((opt) => {
+        const selected = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+              selected
+                ? 'border-primary bg-primary/5 text-primary'
+                : 'border-border hover:bg-muted/40 text-foreground',
+            )}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -170,25 +181,23 @@ export default function MailConfigPage() {
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Enable toggle */}
-        <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="flex items-center justify-between rounded-md border px-4 py-3">
           <div>
-            <p className="text-sm font-medium">Enable email alerts</p>
-            <p className="text-sm text-muted-foreground">
+            <Label htmlFor="mail-enabled" className="text-sm font-medium">Enable email alerts</Label>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               When disabled, no emails will be sent regardless of other settings.
             </p>
           </div>
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
+          <Switch id="mail-enabled" checked={enabled} onCheckedChange={setEnabled} />
         </div>
 
         {/* Server */}
         <div className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Server
-          </h2>
+          <h2 className={SECTION_TITLE}>Server</h2>
 
           <div className="grid grid-cols-[1fr_120px] gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="smtp-host">SMTP Host</Label>
+            <div className="space-y-2">
+              <Label htmlFor="smtp-host" className={FIELD_LABEL}>SMTP Host</Label>
               <Input
                 id="smtp-host"
                 value={smtpHost}
@@ -196,8 +205,8 @@ export default function MailConfigPage() {
                 placeholder="smtp.example.com"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="smtp-port">Port</Label>
+            <div className="space-y-2">
+              <Label htmlFor="smtp-port" className={FIELD_LABEL}>Port</Label>
               <Input
                 id="smtp-port"
                 type="number"
@@ -209,9 +218,9 @@ export default function MailConfigPage() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>TLS Mode</Label>
-            <ToggleGroup<TLSMode>
+          <div className="space-y-2">
+            <Label className={FIELD_LABEL}>TLS Mode</Label>
+            <Segmented<TLSMode>
               value={tlsMode}
               options={[
                 { value: 'starttls', label: 'STARTTLS' },
@@ -225,13 +234,11 @@ export default function MailConfigPage() {
 
         {/* Authentication */}
         <div className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Authentication
-          </h2>
+          <h2 className={SECTION_TITLE}>Authentication</h2>
 
-          <div className="space-y-1.5">
-            <Label>Auth Type</Label>
-            <ToggleGroup<AuthType>
+          <div className="space-y-2">
+            <Label className={FIELD_LABEL}>Auth Type</Label>
+            <Segmented<AuthType>
               value={authType}
               options={[
                 { value: 'plain', label: 'PLAIN' },
@@ -244,8 +251,8 @@ export default function MailConfigPage() {
 
           {authRequired && (
             <>
-              <div className="space-y-1.5">
-                <Label htmlFor="smtp-user">Username</Label>
+              <div className="space-y-2">
+                <Label htmlFor="smtp-user" className={FIELD_LABEL}>Username</Label>
                 <Input
                   id="smtp-user"
                   value={smtpUsername}
@@ -254,8 +261,8 @@ export default function MailConfigPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="smtp-pass">Password</Label>
+              <div className="space-y-2">
+                <Label htmlFor="smtp-pass" className={FIELD_LABEL}>Password</Label>
                 {passwordMode === 'keep' ? (
                   <div className="flex items-center gap-3">
                     <Input
@@ -268,7 +275,6 @@ export default function MailConfigPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
                       onClick={() => {
                         setPasswordMode('change')
                         setPassword('')
@@ -292,7 +298,6 @@ export default function MailConfigPage() {
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
                         onClick={() => {
                           setPasswordMode('keep')
                           setPassword('')
@@ -310,13 +315,11 @@ export default function MailConfigPage() {
 
         {/* From */}
         <div className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Sender
-          </h2>
+          <h2 className={SECTION_TITLE}>Sender</h2>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="from-address">From Address</Label>
+            <div className="space-y-2">
+              <Label htmlFor="from-address" className={FIELD_LABEL}>From Address</Label>
               <Input
                 id="from-address"
                 type="email"
@@ -325,8 +328,8 @@ export default function MailConfigPage() {
                 placeholder="certmonitor@example.com"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="from-name">Display Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="from-name" className={FIELD_LABEL}>Display Name</Label>
               <Input
                 id="from-name"
                 value={fromName}
@@ -360,38 +363,42 @@ export default function MailConfigPage() {
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-end gap-3">
           <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </div>
 
         {/* Test email */}
-        <div className="space-y-3 rounded-lg border p-4">
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
           <div>
-            <p className="text-sm font-medium">Send Test Email</p>
-            <p className="text-sm text-muted-foreground">
+            <h3 className="text-sm font-semibold">Send Test Email</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Verify your SMTP settings by sending a test message. Defaults to the from address if left blank.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Input
-              type="email"
-              value={testRecipient}
-              onChange={(e) => setTestRecipient(e.target.value)}
-              placeholder={fromAddress || 'recipient@example.com'}
-              className="flex-1"
-              disabled={!enabled}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={testing || !enabled}
-              onClick={handleTest}
-              title={!enabled ? 'Enable mail to send a test email' : undefined}
-            >
-              {testing ? 'Sending…' : 'Send'}
-            </Button>
+          <div className="space-y-2">
+            <Label htmlFor="test-recipient" className={FIELD_LABEL}>Recipient</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="test-recipient"
+                type="email"
+                value={testRecipient}
+                onChange={(e) => setTestRecipient(e.target.value)}
+                placeholder={fromAddress || 'recipient@example.com'}
+                className="flex-1"
+                disabled={!enabled}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={testing || !enabled}
+                onClick={handleTest}
+                title={!enabled ? 'Enable mail to send a test email' : undefined}
+              >
+                {testing ? 'Sending…' : 'Send'}
+              </Button>
+            </div>
           </div>
         </div>
       </form>
