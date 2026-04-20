@@ -36,4 +36,5 @@ const (
 	JobPurgeScanHistory  = "purge_scan_history"
 	JobPurgeAuditLogs    = "purge_audit_logs"
 	JobPurgeExpiryAlerts = "purge_expiry_alerts"
+	JobRefreshRootStores = "refresh_root_stores"
 )

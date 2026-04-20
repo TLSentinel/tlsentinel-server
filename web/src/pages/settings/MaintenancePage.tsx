@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Archive, Bell, ScrollText, BellOff } from 'lucide-react'
+import { ChevronRight, Archive, Bell, ScrollText, BellOff, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ import {
   getScanHistoryRetention, setScanHistoryRetention,
   getAuditLogRetention, setAuditLogRetention,
   getScheduledJobs, updateScheduledJob,
-  runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts,
+  runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts, runRefreshRootStores,
   type ScheduledJob,
 } from '@/api/settings'
 
@@ -169,10 +169,11 @@ export default function MaintenancePage() {
     if (auditRetentionData) setAuditRetentionDays(auditRetentionData.days)
   }, [auditRetentionData])
 
-  const purgeJob      = scheduledJobsData?.find(j => j.name === 'purge_scan_history') ?? null
-  const alertsJob     = scheduledJobsData?.find(j => j.name === 'expiry_alerts') ?? null
-  const auditPurgeJob = scheduledJobsData?.find(j => j.name === 'purge_audit_logs') ?? null
-  const expiryPurgeJob = scheduledJobsData?.find(j => j.name === 'purge_expiry_alerts') ?? null
+  const purgeJob          = scheduledJobsData?.find(j => j.name === 'purge_scan_history')   ?? null
+  const alertsJob         = scheduledJobsData?.find(j => j.name === 'expiry_alerts')        ?? null
+  const auditPurgeJob     = scheduledJobsData?.find(j => j.name === 'purge_audit_logs')     ?? null
+  const expiryPurgeJob    = scheduledJobsData?.find(j => j.name === 'purge_expiry_alerts')  ?? null
+  const rootStoresJob     = scheduledJobsData?.find(j => j.name === 'refresh_root_stores')  ?? null
 
   async function handleSaveRetention() {
     setSavingRetention(true)
@@ -309,6 +310,17 @@ export default function MaintenancePage() {
           </div>
         </div>
       </JobScheduleCard>
+
+      <JobScheduleCard
+        job={rootStoresJob}
+        icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
+        title="Refresh Root Stores"
+        description="Pull the latest Apple, Chrome, Microsoft, and Mozilla root CA bundles from CCADB and update trust anchor membership. Runs weekly by default."
+        onRun={async () => {
+          await runRefreshRootStores()
+          return 'Refresh complete.'
+        }}
+      />
 
     </div>
   )
