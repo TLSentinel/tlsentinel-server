@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-react'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 export default function AccountPasswordPage() {
   const [isLocal, setIsLocal]             = useState<boolean | null>(null)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -68,17 +70,18 @@ export default function AccountPasswordPage() {
           <CardTitle>Change Password</CardTitle>
           <CardDescription>You'll need your current password to set a new one.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-current">Current Password</Label>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="acc-current" className={FIELD_LABEL}>Current Password</Label>
             <Input id="acc-current" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-new">New Password</Label>
+          <div className="space-y-2">
+            <Label htmlFor="acc-new" className={FIELD_LABEL}>New Password</Label>
             <Input id="acc-new" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" />
+            <p className="text-xs text-muted-foreground">Minimum 8 characters.</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-confirm">Confirm New Password</Label>
+          <div className="space-y-2">
+            <Label htmlFor="acc-confirm" className={FIELD_LABEL}>Confirm New Password</Label>
             <Input id="acc-confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
           </div>
 

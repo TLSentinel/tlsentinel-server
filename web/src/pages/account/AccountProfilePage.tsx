@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-react'
 import type { User } from '@/types/api'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 export default function AccountProfilePage() {
   const [user, setUser]           = useState<User | null>(null)
   const [firstName, setFirstName] = useState('')
@@ -66,19 +68,19 @@ export default function AccountProfilePage() {
           <CardTitle>Personal Information</CardTitle>
           <CardDescription>Your name and email address.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-first">First Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="acc-first" className={FIELD_LABEL}>First Name</Label>
               <Input id="acc-first" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="acc-last">Last Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="acc-last" className={FIELD_LABEL}>Last Name</Label>
               <Input id="acc-last" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-email">Email</Label>
+          <div className="space-y-2">
+            <Label htmlFor="acc-email" className={FIELD_LABEL}>Email</Label>
             <Input id="acc-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
           </div>
 
@@ -87,7 +89,7 @@ export default function AccountProfilePage() {
 
           <div className="flex justify-end">
             <Button onClick={save} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
         </CardContent>
