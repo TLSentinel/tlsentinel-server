@@ -76,6 +76,14 @@ func (s *Store) UniversalSearch(ctx context.Context, q string, limit int) (model
 		return models.SearchResults{}, fmt.Errorf("search scanners: %w", err)
 	}
 
+	// Force empty slices rather than nil so the JSON contract is always an
+	// array — the frontend maps over these unconditionally.
+	if certificates == nil {
+		certificates = []models.SearchCertificate{}
+	}
+	if scanners == nil {
+		scanners = []models.SearchScanner{}
+	}
 	return models.SearchResults{
 		Endpoints:    endpoints,
 		Certificates: certificates,

@@ -16,8 +16,12 @@ type FlatItem =
 
 function flatten(results: SearchResults | undefined): FlatItem[] {
   if (!results) return []
+  // Defensive: an older server build could return null for an empty group.
+  const endpoints = results.endpoints ?? []
+  const certificates = results.certificates ?? []
+  const scanners = results.scanners ?? []
   return [
-    ...results.endpoints.map<FlatItem>(e => ({
+    ...endpoints.map<FlatItem>(e => ({
       kind: 'endpoint',
       id: e.id,
       title: e.name,
@@ -25,14 +29,14 @@ function flatten(results: SearchResults | undefined): FlatItem[] {
       type: e.type,
       href: `/endpoints/${e.id}`,
     })),
-    ...results.certificates.map<FlatItem>(c => ({
+    ...certificates.map<FlatItem>(c => ({
       kind: 'certificate',
       id: c.fingerprint,
       title: c.commonName || c.fingerprint.slice(0, 16) + '…',
       subtitle: c.fingerprint,
       href: `/certificates/${c.fingerprint}`,
     })),
-    ...results.scanners.map<FlatItem>(s => ({
+    ...scanners.map<FlatItem>(s => ({
       kind: 'scanner',
       id: s.id,
       title: s.name,
