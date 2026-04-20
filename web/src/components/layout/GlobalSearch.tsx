@@ -47,6 +47,11 @@ function flatten(results: SearchResults | undefined): FlatItem[] {
   ]
 }
 
+// Apple platforms use ⌘; everyone else sees Ctrl. The handler below accepts
+// either modifier (metaKey || ctrlKey) — this is purely a display concern.
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+const SHORTCUT_LABEL = IS_MAC ? '⌘K' : 'Ctrl+K'
+
 export function GlobalSearch() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -140,7 +145,7 @@ export function GlobalSearch() {
         onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIdx(0) }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Search endpoints, certificates, or scanners…  (⌘K)"
+        placeholder={`Search endpoints, certificates, or scanners…  (${SHORTCUT_LABEL})`}
         className="w-full rounded-lg bg-card py-2.5 pl-10 pr-4 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
         aria-autocomplete="list"
         aria-expanded={showDropdown}
