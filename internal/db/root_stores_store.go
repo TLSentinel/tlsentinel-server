@@ -6,7 +6,64 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
+
+// ListRootStoreSummaries returns id+name for each enabled root store,
+// ordered by name. Suitable for populating the frontend trust matrix card.
+func (s *Store) ListRootStoreSummaries(ctx context.Context) ([]models.RootStoreSummary, error) {
+	var rows []struct {
+		ID   string `bun:"id"`
+		Name string `bun:"name"`
+	}
+	err := s.db.NewSelect().
+		Model((*RootStore)(nil)).
+		Column("id", "name").
+		Where("enabled = TRUE").
+		Order("name").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list root store summaries: %w", err)
+	}
+	out := make([]models.RootStoreSummary, len(rows))
+	for i, r := range rows {
+		out[i] = models.RootStoreSummary{ID: r.ID, Name: r.Name}
+	}
+	return out, nil
+}
+
+// GetChainTrustedBy walks the issuer_fingerprint chain starting from the given
+// leaf fingerprint and returns the distinct root_store_id values for any cert
+// in the chain that is a trust anchor. A store's inclusion of any anchor in
+// the chain (leaf, intermediate, or self-signed root) counts as trust.
+//
+// Recursion is depth-bounded to protect against pathological loops; the
+// c.fingerprint != chain.fingerprint guard stops self-signed root expansion.
+func (s *Store) GetChainTrustedBy(ctx context.Context, leafFingerprint string) ([]string, error) {
+	var ids []string
+	err := s.db.NewRaw(`
+		WITH RECURSIVE chain AS (
+			SELECT fingerprint, issuer_fingerprint, 1 AS depth
+			FROM tlsentinel.certificates
+			WHERE fingerprint = ?
+		  UNION ALL
+			SELECT c.fingerprint, c.issuer_fingerprint, chain.depth + 1
+			FROM tlsentinel.certificates c
+			JOIN chain ON c.fingerprint = chain.issuer_fingerprint
+			WHERE c.fingerprint != chain.fingerprint
+			  AND chain.depth < 10
+		)
+		SELECT DISTINCT rsa.root_store_id
+		FROM chain
+		JOIN tlsentinel.root_store_anchors rsa ON rsa.fingerprint = chain.fingerprint
+		ORDER BY rsa.root_store_id
+	`, leafFingerprint).Scan(ctx, &ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute trust matrix for %s: %w", leafFingerprint, err)
+	}
+	return ids, nil
+}
 
 // ListEnabledRootStores returns all enabled root stores.
 func (s *Store) ListEnabledRootStores(ctx context.Context) ([]RootStore, error) {

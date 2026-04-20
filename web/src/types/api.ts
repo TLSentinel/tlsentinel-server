@@ -247,6 +247,14 @@ export interface CertificateDetail {
   extKeyUsages: string[]
   ocspUrls: string[]
   crlDistributionPoints: string[]
+  /** Root store IDs whose anchors appear anywhere in this cert's chain. */
+  trustedBy: string[]
+}
+
+/** One enabled root store, used by the trust matrix card on cert detail. */
+export interface RootStoreSummary {
+  id: string
+  name: string
 }
 
 /** Body for POST /certificates. Exactly one field must be set. */

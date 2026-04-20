@@ -135,7 +135,12 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				})
 			})
 
-			r.Route("/endpoints", func(r chi.Router) {
+			r.Route("/root-stores", func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.CertsView))
+					r.Get("/", certHandler.ListRootStores)
+				})
+
+				r.Route("/endpoints", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.EndpointsView))
 					r.Get("/", endpointHandler.List)

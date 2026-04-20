@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
+import { listRootStores } from '@/api/rootstores'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
 import { fmtDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -181,35 +182,53 @@ function ValidityTimelineCard({ cert }: { cert: CertificateDetail }) {
 }
 
 // ---------------------------------------------------------------------------
-// Root Store Trust (placeholder — TODO: wire to server-side verification)
+// Root Store Trust — per-cert trust matrix derived from CCADB membership.
+// Chain is walked server-side; `cert.trustedBy` lists root store IDs whose
+// anchors appear anywhere in the chain.
 // ---------------------------------------------------------------------------
 
-const ROOT_STORES = [
-  'Microsoft Windows',
-  'Apple macOS/iOS',
-  'Mozilla Firefox',
-  'Google Chrome',
-  'Oracle Java',
-] as const
+function RootStoreTrustCard({ cert }: { cert: CertificateDetail }) {
+  const { data: stores } = useQuery({
+    queryKey: ['root-stores'],
+    queryFn: listRootStores,
+    staleTime: 5 * 60 * 1000,
+  })
 
-function RootStoreTrustCard() {
+  const trustedSet = new Set(cert.trustedBy)
+
   return (
     <div className="rounded-xl bg-card border border-border p-6">
       <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Root Store Trust
       </h3>
 
-      <ul className="mt-5 space-y-3">
-        {ROOT_STORES.map((name) => (
-          <li key={name} className="flex items-center justify-between gap-3">
-            <span className="text-sm">{name}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-tertiary-container px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-on-tertiary-container">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Trusted
-            </span>
-          </li>
-        ))}
-      </ul>
+      {!stores ? (
+        <p className="mt-5 text-sm text-muted-foreground">Loading…</p>
+      ) : stores.length === 0 ? (
+        <p className="mt-5 text-sm text-muted-foreground">No root stores configured.</p>
+      ) : (
+        <ul className="mt-5 space-y-3">
+          {stores.map((s) => {
+            const trusted = trustedSet.has(s.id)
+            return (
+              <li key={s.id} className="flex items-center justify-between gap-3">
+                <span className="text-sm">{s.name}</span>
+                {trusted ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-tertiary-container px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-on-tertiary-container">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Trusted
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <XCircle className="h-3.5 w-3.5" />
+                    Not Trusted
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
@@ -662,7 +681,7 @@ export default function CertificateDetailPage() {
         {/* ── Right column (1/3) ── */}
         <div className="space-y-5 lg:col-span-1">
           <ValidityTimelineCard cert={cert} />
-          <RootStoreTrustCard />
+          <RootStoreTrustCard cert={cert} />
           <EndpointsSection fingerprint={cert.fingerprint} />
         </div>
 
