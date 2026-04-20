@@ -27,6 +27,8 @@ function fmtDate(iso: string) {
 }
 
 const ROW_GRID = 'grid-cols-[1.5fr_1fr_8rem_7rem_7rem_2.5rem]'
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+const ICON_SQUARE_RED = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400'
 
 export default function APIKeysPage() {
   const [search, setSearch]           = useState('')
@@ -100,11 +102,11 @@ export default function APIKeysPage() {
 
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prefix</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Used</span>
+          <span className={FIELD_LABEL}>Name</span>
+          <span className={FIELD_LABEL}>User</span>
+          <span className={FIELD_LABEL}>Prefix</span>
+          <span className={FIELD_LABEL}>Created</span>
+          <span className={FIELD_LABEL}>Last Used</span>
           <span />
         </div>
 
@@ -168,17 +170,33 @@ export default function APIKeysPage() {
       </div>
 
       <Dialog open={!!revokeTarget} onOpenChange={() => { setRevokeTarget(null); setRevokeError(null) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Revoke API Key</DialogTitle>
-            <DialogDescription>
-              Revoke <strong>{revokeTarget?.name}</strong> belonging to{' '}
-              <strong>{revokeTarget?.username}</strong>? It will be immediately invalidated.
-            </DialogDescription>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="flex-row items-center gap-3">
+            <div className={ICON_SQUARE_RED}>
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <div className="space-y-0.5">
+              <DialogTitle className="text-lg font-semibold">Revoke API Key</DialogTitle>
+              <DialogDescription>The key will be immediately invalidated</DialogDescription>
+            </div>
           </DialogHeader>
-          {revokeError && <p className="text-sm text-destructive">{revokeError}</p>}
+          <div className="space-y-3">
+            <div className="rounded-md border bg-muted/40 px-3 py-2">
+              <p className={FIELD_LABEL}>Key</p>
+              <p className="mt-0.5 text-sm font-semibold truncate">{revokeTarget?.name}</p>
+              <p className="font-mono text-xs text-muted-foreground">{revokeTarget?.prefix}…</p>
+            </div>
+            <div className="rounded-md border bg-muted/40 px-3 py-2">
+              <p className={FIELD_LABEL}>Owner</p>
+              <p className="mt-0.5 text-sm font-semibold truncate">{revokeTarget?.username}</p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Any services or scripts using this key will stop working immediately. This cannot be undone.
+            </p>
+            {revokeError && <p className="text-sm text-destructive">{revokeError}</p>}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeError(null) }}>
+            <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeError(null) }} disabled={revoking}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleRevoke} disabled={revoking}>
