@@ -33,22 +33,28 @@ func (s *Store) ListRootStoreSummaries(ctx context.Context) ([]models.RootStoreS
 	return out, nil
 }
 
-// GetChainTrustedBy walks the issuer_fingerprint chain starting from the given
-// leaf fingerprint and returns the distinct root_store_id values for any cert
-// in the chain that is a trust anchor. A store's inclusion of any anchor in
-// the chain (leaf, intermediate, or self-signed root) counts as trust.
+// GetChainTrustedBy walks the issuer_fingerprint chain from the given leaf
+// and returns the distinct root_store_id values whose anchors validate it.
 //
-// Recursion is depth-bounded to protect against pathological loops; the
-// c.fingerprint != chain.fingerprint guard stops self-signed root expansion.
+// Match semantics: for each cert in the chain, find any known anchor that
+// shares the same Subject DN (subject_dn_hash), additionally requiring
+// Subject Key ID agreement when both sides publish one. This mirrors
+// RFC 5280 path-building — a browser's local trust store entry need only
+// match the chain-served cert's Subject + SKI, not its exact fingerprint.
+// Without that, cross-signed intermediates (e.g. GTS Root R1 served under
+// GlobalSign R1) wouldn't resolve to their canonical anchor copy.
+//
+// Recursion is depth-bounded; c.fingerprint != chain.fingerprint stops
+// self-signed root expansion.
 func (s *Store) GetChainTrustedBy(ctx context.Context, leafFingerprint string) ([]string, error) {
 	var ids []string
 	err := s.db.NewRaw(`
 		WITH RECURSIVE chain AS (
-			SELECT fingerprint, issuer_fingerprint, 1 AS depth
+			SELECT fingerprint, issuer_fingerprint, subject_key_id, subject_dn_hash, 1 AS depth
 			FROM tlsentinel.certificates
 			WHERE fingerprint = ?
 		  UNION ALL
-			SELECT c.fingerprint, c.issuer_fingerprint, chain.depth + 1
+			SELECT c.fingerprint, c.issuer_fingerprint, c.subject_key_id, c.subject_dn_hash, chain.depth + 1
 			FROM tlsentinel.certificates c
 			JOIN chain ON c.fingerprint = chain.issuer_fingerprint
 			WHERE c.fingerprint != chain.fingerprint
@@ -56,7 +62,15 @@ func (s *Store) GetChainTrustedBy(ctx context.Context, leafFingerprint string) (
 		)
 		SELECT DISTINCT rsa.root_store_id
 		FROM chain
-		JOIN tlsentinel.root_store_anchors rsa ON rsa.fingerprint = chain.fingerprint
+		JOIN tlsentinel.certificates anchor_cert
+		  ON anchor_cert.subject_dn_hash = chain.subject_dn_hash
+		 AND (
+			  chain.subject_key_id = ''
+		   OR anchor_cert.subject_key_id = ''
+		   OR anchor_cert.subject_key_id = chain.subject_key_id
+		 )
+		JOIN tlsentinel.root_store_anchors rsa
+		  ON rsa.fingerprint = anchor_cert.fingerprint
 		ORDER BY rsa.root_store_id
 	`, leafFingerprint).Scan(ctx, &ids)
 	if err != nil {
