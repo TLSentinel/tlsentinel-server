@@ -185,6 +185,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`}</pre>
       </div>
 
+      {/* Scoring methodology */}
+      <div className="rounded-lg border p-5 space-y-3">
+        <h2 className="text-sm font-semibold">Scoring Methodology</h2>
+        <p className="text-sm text-muted-foreground">
+          The TLS grade on endpoint detail pages follows the{' '}
+          <a
+            href="https://github.com/ssllabs/research/wiki/SSL-Server-Rating-Guide"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            SSL Labs SSL Server Rating Guide
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          {' '}by Qualys, applied to the data our scanner captures. See{' '}
+          <Link to="/help/scoring" className="text-primary hover:underline">
+            how the TLS score is calculated
+          </Link>
+          {' '}for the specifics and current limitations.
+        </p>
+      </div>
+
       {/* Trust store data sources */}
       <div className="rounded-lg border p-5 space-y-3">
         <h2 className="text-sm font-semibold">Trust Store Data</h2>
