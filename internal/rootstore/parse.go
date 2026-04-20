@@ -9,7 +9,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
+
+// normalizeFingerprint strips non-hex characters (CCADB uses colon-separated
+// uppercase hex, e.g. "CB:3C:...") and lowercases. Matches the plain
+// lowercase-hex format produced by certificates.ExtractCertificateRecord.
+func normalizeFingerprint(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r >= 'a' && r <= 'f':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'F':
+			b.WriteRune(r + ('a' - 'A'))
+		}
+	}
+	return b.String()
+}
 
 // httpGet returns the response body for a GET request, with non-2xx treated
 // as an error. Caller must close the returned reader.

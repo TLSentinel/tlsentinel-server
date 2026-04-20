@@ -154,7 +154,7 @@ func fetchTrustMatrix(ctx context.Context, client *http.Client) ([]trustEntry, e
 		if err != nil {
 			return nil, fmt.Errorf("read row: %w", err)
 		}
-		fp := strings.ToLower(strings.TrimSpace(row[col["SHA-256 Fingerprint"]]))
+		fp := normalizeFingerprint(row[col["SHA-256 Fingerprint"]])
 		if fp == "" {
 			continue
 		}
