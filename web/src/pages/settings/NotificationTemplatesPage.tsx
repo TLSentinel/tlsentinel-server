@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ChevronRight, RotateCcw, Save, Copy, Eye, Code2 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   listNotificationTemplates,
   updateNotificationTemplate,
@@ -15,7 +15,9 @@ import {
   type TemplateVariable,
 } from '@/api/notificationTemplates'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Design tokens ───────────────────────────────────────────────────────────
+
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 const channelLabel: Record<string, string> = {
   email: 'Email',
@@ -129,13 +131,13 @@ function TemplateEditor({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-6">
       {/* Editor / Preview */}
-      <div className="space-y-3">
+      <div className="space-y-5">
         {/* Subject */}
         {template.subject !== null && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Subject</label>
+          <div className="space-y-2">
+            <label className={FIELD_LABEL}>Subject</label>
             <Input
               value={subject}
               onChange={e => { setSubject(e.target.value); setDirty(true) }}
@@ -146,16 +148,19 @@ function TemplateEditor({
         )}
 
         {/* Edit / Preview tabs */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">Body</label>
-            <div className="flex items-center rounded-md border p-0.5 gap-0.5">
+            <label className={FIELD_LABEL}>Body</label>
+            <div className="flex items-center rounded-md border p-0.5 gap-0.5 bg-muted/30">
               <button
                 type="button"
                 onClick={() => setTab('edit')}
-                className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
-                  tab === 'edit' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'
-                }`}
+                className={cn(
+                  'flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                  tab === 'edit'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
               >
                 <Code2 className="h-3 w-3" />
                 Edit
@@ -163,9 +168,12 @@ function TemplateEditor({
               <button
                 type="button"
                 onClick={() => setTab('preview')}
-                className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
-                  tab === 'preview' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'
-                }`}
+                className={cn(
+                  'flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                  tab === 'preview'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
               >
                 <Eye className="h-3 w-3" />
                 Preview
@@ -203,26 +211,27 @@ function TemplateEditor({
         <div className="flex items-center justify-between pt-1">
           <Button
             variant="ghost"
-            size="sm"
             onClick={handleReset}
             disabled={resetting || !template.isCustom}
-            className="gap-1.5 text-muted-foreground"
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-4 w-4" />
             {resetting ? 'Resetting…' : 'Reset to default'}
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || !dirty} className="gap-1.5">
-            <Save className="h-3.5 w-3.5" />
+          <Button onClick={handleSave} disabled={saving || !dirty} className="gap-1.5">
+            <Save className="h-4 w-4" />
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </div>
       </div>
 
       {/* Variables panel */}
-      <div className="space-y-1.5">
-        <p className="text-sm font-medium">Variables</p>
-        <p className="text-xs text-muted-foreground mb-2">Click to copy</p>
-        <div className="rounded-md border bg-muted/30 p-1">
+      <div className="space-y-2">
+        <div>
+          <p className={FIELD_LABEL}>Variables</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Click a name to copy</p>
+        </div>
+        <div className="rounded-md border bg-muted/20 p-1">
           {template.variables.map(v => (
             <VariableChip key={v.name} variable={v} />
           ))}
@@ -283,42 +292,46 @@ export default function NotificationTemplatesPage() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 items-start">
           {/* Template picker */}
-          <div className="space-y-1">
-            {templates.map(t => {
-              const isActive = selected?.eventType === t.eventType && selected?.channel === t.channel
-              return (
-                <button
-                  key={`${t.eventType}|${t.channel}`}
-                  type="button"
-                  onClick={() => setSelected(t)}
-                  className={`w-full flex items-center justify-between rounded-md px-3 py-2 text-sm text-left transition-colors ${
-                    isActive
-                      ? 'bg-muted font-medium'
-                      : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <span>{t.label}</span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant="outline" className="text-xs py-0">
-                      {channelLabel[t.channel] ?? t.channel}
-                    </Badge>
-                    {t.isCustom && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" title="Customised" />
+          <div className="space-y-3">
+            <p className={FIELD_LABEL}>Templates</p>
+            <div className="space-y-1.5">
+              {templates.map(t => {
+                const isActive = selected?.eventType === t.eventType && selected?.channel === t.channel
+                return (
+                  <button
+                    key={`${t.eventType}|${t.channel}`}
+                    type="button"
+                    onClick={() => setSelected(t)}
+                    className={cn(
+                      'w-full flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm text-left transition-colors',
+                      isActive
+                        ? 'border-primary bg-primary/5 text-primary font-medium'
+                        : 'border-transparent hover:bg-muted/60 text-foreground',
                     )}
-                  </div>
-                </button>
-              )
-            })}
+                  >
+                    <span className="truncate">{t.label}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge variant="outline" className="text-xs py-0">
+                        {channelLabel[t.channel] ?? t.channel}
+                      </Badge>
+                      {t.isCustom && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" title="Customised" />
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* Editor */}
           {selected && (
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{selected.label}</CardTitle>
+            <div className="rounded-lg border bg-card">
+              <div className="border-b px-6 py-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-semibold">{selected.label}</h2>
                   <Badge variant="outline" className="text-xs">
                     {channelLabel[selected.channel] ?? selected.channel}
                   </Badge>
@@ -326,19 +339,19 @@ export default function NotificationTemplatesPage() {
                     <Badge variant="secondary" className="text-xs">Customised</Badge>
                   )}
                 </div>
-                <CardDescription>
+                <p className="mt-0.5 text-sm text-muted-foreground">
                   Changes take effect on the next notification run.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+                </p>
+              </div>
+              <div className="p-6">
                 <TemplateEditor
                   key={`${selected.eventType}|${selected.channel}`}
                   template={selected}
                   onSaved={handleSaved}
                   onReset={handleReset}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </div>
       )}
