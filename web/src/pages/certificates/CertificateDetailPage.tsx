@@ -108,7 +108,7 @@ function UrlList({ urls }: { urls: string[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {urls.map((u) => (
-        <code key={u} className="rounded bg-muted px-2 py-0.5 font-mono text-xs break-all">
+        <code key={u} className="rounded bg-muted px-2 py-0.5 font-mono text-sm break-all">
           {u}
         </code>
       ))}
@@ -243,13 +243,14 @@ function ChainNode({
   return (
     <Link
       to={`/certificates/${fingerprint}`}
+      title={commonName}
       className="flex w-32 min-w-0 flex-col items-center text-center"
     >
       <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${tileBg}`}>
         <Icon className={`h-7 w-7 ${iconColor}`} />
       </div>
-      <p className="mt-3 w-full truncate text-sm font-semibold">{commonName || '—'}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+      <p className="mt-3 text-xs text-muted-foreground">{label}</p>
+      <p className="mt-0.5 w-full break-words text-sm font-semibold leading-snug">{commonName || '—'}</p>
     </Link>
   )
 }
@@ -344,7 +345,7 @@ function CertificateAttributesSection({ cert }: { cert: CertificateDetail }) {
         <Attr label="Subject DN">{formatSubjectDN(cert)}</Attr>
         <Attr label="Issuer DN">{formatIssuerDN(cert)}</Attr>
         <Attr label="Serial Number">
-          <span className="break-all font-mono text-xs">{cert.serialNumber}</span>
+          <span className="break-all font-mono text-sm">{cert.serialNumber}</span>
         </Attr>
         <Attr label="Signature Algorithm">{cert.signatureAlgorithm || '—'}</Attr>
         <Attr label="Public Key">{keyLabel(cert) || '—'}</Attr>
@@ -387,14 +388,14 @@ function FingerprintsSection({ cert }: { cert: CertificateDetail }) {
       <SectionHeader title="Fingerprints & Key IDs" />
       <dl className="mt-5 space-y-5">
         <Attr label="SHA-256 Fingerprint">
-          <span className="break-all font-mono text-xs">{cert.fingerprint}</span>
+          <span className="break-all font-mono text-sm">{cert.fingerprint}</span>
         </Attr>
         <Attr label="Subject Key ID">
-          <span className="break-all font-mono text-xs">{cert.subjectKeyId || '—'}</span>
+          <span className="break-all font-mono text-sm">{cert.subjectKeyId || '—'}</span>
         </Attr>
         {cert.authorityKeyId && (
           <Attr label="Authority Key ID">
-            <span className="break-all font-mono text-xs">{cert.authorityKeyId}</span>
+            <span className="break-all font-mono text-sm">{cert.authorityKeyId}</span>
           </Attr>
         )}
       </dl>
