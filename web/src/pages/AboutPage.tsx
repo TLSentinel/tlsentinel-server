@@ -1,8 +1,10 @@
 import { useState, useEffect, Fragment } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, ExternalLink, ChevronDown } from 'lucide-react'
+import { ExternalLink, ChevronDown } from 'lucide-react'
 import { getVersion } from '@/api/version'
 import type { BuildInfo } from '@/types/api'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Styling
@@ -10,7 +12,6 @@ import type { BuildInfo } from '@/types/api'
 
 const SECTION_CARD  = 'rounded-lg border bg-card p-5 space-y-4'
 const SECTION_TITLE = 'text-base font-semibold'
-const FIELD_LABEL   = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const LINK_BODY     = 'inline-flex items-center gap-1 text-primary hover:underline'
 const MIT_LICENSE   = `MIT License
 
@@ -153,11 +154,10 @@ export default function AboutPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">About</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'About' },
+      ]} />
 
       {/* Mascot + title */}
       <div className="flex items-end gap-5">

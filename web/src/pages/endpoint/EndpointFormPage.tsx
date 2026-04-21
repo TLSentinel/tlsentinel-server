@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { createEndpoint, getEndpoint, updateEndpoint, linkCertificate } from '@/api/endpoints'
 import { listScanners } from '@/api/scanners'
 import { resolve } from '@/api/utils'
@@ -19,10 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ChevronRight, FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
+import { FIELD_LABEL, cn } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import { useQuery } from '@tanstack/react-query'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Layout primitives (mirrors EndpointDetailPage)
@@ -47,7 +48,6 @@ function Section({ title, titleClassName, className, bareTitle = false, children
 }
 
 const SECTION_TITLE = 'text-lg font-semibold'
-const FIELD_LABEL   = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -338,11 +338,10 @@ export default function EndpointFormPage() {
     : 'Register a new monitored endpoint'
 
   const breadcrumb = (
-    <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-      <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
-      <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-foreground">{pageTitle}</span>
-    </nav>
+    <Breadcrumb items={[
+      { label: 'Endpoints', to: '/endpoints' },
+      { label: <>{pageTitle}</> },
+    ]} />
   )
 
   const header = (

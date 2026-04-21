@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BadgeCheck,
   CheckCircle2,
-  ChevronRight,
   Copy,
   Check,
   Download,
@@ -13,14 +12,14 @@ import {
   Server,
   Shield,
   ShieldCheck,
-  XCircle,
-} from 'lucide-react'
+  XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCertificate, getCertificateHosts } from '@/api/certificates'
 import { listRootStores } from '@/api/rootstores'
 import type { CertificateDetail, EndpointListItem } from '@/types/api'
 import { fmtDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Shared formatting / status helpers
@@ -626,11 +625,10 @@ export default function CertificateDetailPage() {
   })
 
   const backLink = (
-    <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-      <Link to="/certificates" className="hover:text-foreground">Certificates</Link>
-      <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-foreground">{cert ? cert.commonName || fingerprint : '…'}</span>
-    </nav>
+    <Breadcrumb items={[
+      { label: 'Certificates', to: '/certificates' },
+      { label: <>{cert ? cert.commonName || fingerprint : '…'}</> },
+    ]} />
   )
 
   if (isLoading) {

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ChevronRight, ChevronDown, Copy, Check } from 'lucide-react'
+import { ChevronDown, Copy, Check } from 'lucide-react'
 import { getMe, updateMe, getMyTagSubscriptions, setMyTagSubscriptions, rotateCalendarToken } from '@/api/users'
 import { listTagCategories } from '@/api/tags'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,10 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { FIELD_LABEL, cn } from '@/lib/utils'
 import type { User, CategoryWithTags } from '@/types/api'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Category section
@@ -233,11 +231,10 @@ export default function AccountNotificationsPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/account" className="hover:text-foreground">My Account</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Notifications</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'My Account', to: '/account' },
+        { label: 'Notifications' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Notifications</h1>

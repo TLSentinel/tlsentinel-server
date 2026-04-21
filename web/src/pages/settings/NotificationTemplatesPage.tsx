@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ChevronRight, RotateCcw, Save, Copy, Eye, Code2 } from 'lucide-react'
+import { RotateCcw, Save, Copy, Eye, Code2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { FIELD_LABEL, cn } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import {
   listNotificationTemplates,
   updateNotificationTemplate,
@@ -16,8 +16,6 @@ import {
 } from '@/api/notificationTemplates'
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 const channelLabel: Record<string, string> = {
   email: 'Email',
@@ -274,11 +272,10 @@ export default function NotificationTemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Notification Templates</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'Notification Templates' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Notification Templates</h1>

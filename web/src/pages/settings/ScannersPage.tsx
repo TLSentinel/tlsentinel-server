@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, CheckCircle2, ChevronRight, Clock, Calendar, CalendarDays, Radio, KeyRound, ScanSearch, MoreVertical, Star, RadioTower } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, Check, AlertTriangle, CheckCircle2, Clock, Calendar, CalendarDays, Radio, KeyRound, ScanSearch, MoreVertical, Star, RadioTower } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +25,7 @@ import { can } from '@/api/client'
 import type { ScannerToken, ScannerTokenCreated } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -507,11 +507,10 @@ export default function ScannersPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Scanners</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'Scanners' },
+      ]} />
 
       <div className="flex items-center justify-between">
         <div>

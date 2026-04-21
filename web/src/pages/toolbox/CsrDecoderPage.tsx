@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   Pkcs10CertificateRequest,
   SubjectAlternativeNameExtension,
@@ -13,8 +14,6 @@ import {
   KeyUsageFlags,
   Extension,
 } from '@peculiar/x509'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 // OIDs for CSR extension lookup
 const OID_SAN = '2.5.29.17'
@@ -209,11 +208,10 @@ export default function CsrDecoderPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">CSR Decoder</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'CSR Decoder' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">CSR Decoder</h1>
@@ -246,12 +244,7 @@ export default function CsrDecoderPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorAlert>{error}</ErrorAlert>}
 
       {/* Results */}
       {decoded && (

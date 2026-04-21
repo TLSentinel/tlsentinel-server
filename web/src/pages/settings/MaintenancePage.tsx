@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Archive, Bell, ScrollText, BellOff, ShieldCheck, Play } from 'lucide-react'
+import { Archive, Bell, ScrollText, BellOff, ShieldCheck, Play } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import SchedulePicker from '@/components/SchedulePicker'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import {
   getScanHistoryRetention, setScanHistoryRetention,
   getAuditLogRetention, setAuditLogRetention,
@@ -15,8 +16,6 @@ import {
   runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts, runRefreshRootStores,
   type ScheduledJob,
 } from '@/api/settings'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 type Tone = 'emerald' | 'amber' | 'blue'
 
@@ -272,11 +271,10 @@ export default function MaintenancePage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Maintenance</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'Maintenance' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Maintenance</h1>

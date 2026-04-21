@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { getMe, changeMyPassword } from '@/api/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ChevronRight } from 'lucide-react'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+import { } from 'lucide-react'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 export default function AccountPasswordPage() {
   const [isLocal, setIsLocal]             = useState<boolean | null>(null)
@@ -54,11 +54,10 @@ export default function AccountPasswordPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/account" className="hover:text-foreground">My Account</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Password</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'My Account', to: '/account' },
+        { label: 'Password' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Password</h1>

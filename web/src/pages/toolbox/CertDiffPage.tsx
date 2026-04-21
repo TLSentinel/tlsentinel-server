@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, AlertCircle, ArrowLeftRight } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
@@ -12,9 +11,8 @@ import {
   DN_LABELS,
   type DecodedCert,
 } from '@/lib/cert-utils'
-import { plural } from '@/lib/utils'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+import { FIELD_LABEL, plural } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Diff row primitives
@@ -287,11 +285,10 @@ export default function CertDiffPage() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Certificate Diff</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'Certificate Diff' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Certificate Diff</h1>

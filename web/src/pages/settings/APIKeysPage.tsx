@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MoreVertical, Trash2, ChevronRight } from 'lucide-react'
+import { MoreVertical, Trash2 } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -20,14 +20,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { listAllAPIKeys, revokeAPIKey, type AdminAPIKey } from '@/api/apiKeys'
-import { plural } from '@/lib/utils'
+import { FIELD_LABEL, plural } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 const ROW_GRID = 'grid-cols-[1.5fr_1fr_8rem_7rem_7rem_2.5rem]'
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const ICON_SQUARE_RED = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400'
 
 export default function APIKeysPage() {
@@ -68,11 +68,10 @@ export default function APIKeysPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">API Keys</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'API Keys' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">API Keys</h1>

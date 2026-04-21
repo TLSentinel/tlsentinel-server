@@ -31,7 +31,7 @@ import {
   deleteTag,
 } from '@/api/tags'
 import { can } from '@/api/client'
-import { cn } from '@/lib/utils'
+import { FIELD_LABEL, cn } from '@/lib/utils'
 import type { CategoryWithTags, Tag, TagCategory } from '@/types/api'
 import { ApiError } from '@/types/api'
 
@@ -39,7 +39,6 @@ import { ApiError } from '@/types/api'
 // Design tokens
 // ---------------------------------------------------------------------------
 
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const ICON_SQUARE_BLUE = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400'
 const ICON_SQUARE_RED  = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400'
 

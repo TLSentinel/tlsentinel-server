@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Copy, Check, AlertCircle, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
+import { Copy, Check, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   decodeCert,
   fmtDate,
@@ -12,8 +14,6 @@ import {
   DN_LABELS,
   type DecodedCert,
 } from '@/lib/cert-utils'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 // ---------------------------------------------------------------------------
 // Layout primitives
@@ -166,11 +166,10 @@ export default function CertDecoderPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Certificate Decoder</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'Certificate Decoder' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Certificate Decoder</h1>
@@ -195,12 +194,7 @@ export default function CertDecoderPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorAlert>{error}</ErrorAlert>}
 
       {decoded && (
         <div className="space-y-8">

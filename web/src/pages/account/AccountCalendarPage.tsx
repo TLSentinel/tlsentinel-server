@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import { getMe, rotateCalendarToken } from '@/api/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ChevronRight } from 'lucide-react'
+import { } from 'lucide-react'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 export default function AccountCalendarPage() {
   const [token, setToken]       = useState<string | null>(null)
@@ -36,11 +36,10 @@ export default function AccountCalendarPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/account" className="hover:text-foreground">My Account</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Calendar Feed</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'My Account', to: '/account' },
+        { label: 'Calendar Feed' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Calendar Feed</h1>

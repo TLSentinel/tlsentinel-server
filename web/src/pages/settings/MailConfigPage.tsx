@@ -1,20 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ChevronRight, CheckCircle2, XCircle } from 'lucide-react'
+import { CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getMailConfig, saveMailConfig, testMailConfig } from '@/api/mail'
 import { ApiError } from '@/types/api'
-import { cn } from '@/lib/utils'
+import { FIELD_LABEL, cn } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 type AuthType = 'none' | 'plain' | 'login'
 type TLSMode = 'none' | 'starttls' | 'tls'
 
 const SECTION_TITLE = 'text-base font-semibold'
-const FIELD_LABEL   = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -166,11 +165,10 @@ export default function MailConfigPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Email / SMTP</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'Email / SMTP' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Email / SMTP</h1>

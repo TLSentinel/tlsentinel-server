@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Plus, Trash2, Copy, Check, MoreVertical, KeyRound, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Copy, Check, MoreVertical, KeyRound, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import StrixEmpty from '@/components/StrixEmpty'
 import { listAPIKeys, createAPIKey, deleteAPIKey, type APIKey } from '@/api/apiKeys'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 const ROW_GRID = 'grid-cols-[1.5fr_8rem_7rem_7rem_2.5rem]'
 
@@ -64,11 +64,10 @@ export default function AccountAPIKeysPage() {
 
   return (
     <div className="space-y-4">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/account" className="hover:text-foreground">Account</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">API Keys</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Account', to: '/account' },
+        { label: 'API Keys' },
+      ]} />
 
       <div className="flex items-center justify-between gap-4">
         <div>

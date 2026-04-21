@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, FileEdit, CheckCircle2, XCircle, AlertCircle, Pencil } from 'lucide-react'
+import { FileEdit, CheckCircle2, XCircle, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -13,6 +13,8 @@ import type { Endpoint, EndpointScanHistoryItem, TagWithCategory } from '@/types
 import { ApiError } from '@/types/api'
 import { fmtDateTime } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -67,11 +69,10 @@ export function Row({ label, children }: { label: string; children: React.ReactN
 
 export function BackBreadcrumb({ name }: { name: string | null }) {
   return (
-    <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-      <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
-      <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-foreground">{name ?? '…'}</span>
-    </nav>
+    <Breadcrumb items={[
+      { label: 'Endpoints', to: '/endpoints' },
+      { label: <>{name ?? '…'}</> },
+    ]} />
   )
 }
 
@@ -145,12 +146,7 @@ export function TagsRow({ tags }: { tags: TagWithCategory[] }) {
 // ---------------------------------------------------------------------------
 
 export function LastScanErrorBanner({ message }: { message: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{message}</span>
-    </div>
-  )
+  return <ErrorAlert>{message}</ErrorAlert>
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, ShieldCheck, ShieldAlert, ShieldX, KeyRound, Building2 } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, ShieldX, KeyRound, Building2 } from 'lucide-react'
 import { Pie, PieChart } from 'recharts'
 import {
   ChartContainer,
@@ -21,6 +21,7 @@ import {
 import { getTLSPostureReport } from '@/api/reports'
 import type { TLSPostureReport, TLSIssuerCount } from '@/types/api'
 import { plural } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Chart configs
@@ -138,11 +139,10 @@ export default function TLSPosturePage() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/reports" className="hover:text-foreground">Reports</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">TLS Posture</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Reports', to: '/reports' },
+        { label: 'TLS Posture' },
+      ]} />
 
       {/* Header */}
       <div>

@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Copy, Check, Download, Upload, AlertCircle } from 'lucide-react'
+import { Copy, Check, Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
@@ -12,8 +11,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PemConverter } from '@peculiar/x509'
-
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -129,12 +129,7 @@ function CopyButton({ value }: { value: string }) {
 }
 
 function ErrorMsg({ msg }: { msg: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-      <span>{msg}</span>
-    </div>
-  )
+  return <ErrorAlert>{msg}</ErrorAlert>
 }
 
 // ---------------------------------------------------------------------------
@@ -366,11 +361,10 @@ export default function PemDerPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">PEM / DER Converter</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'PEM / DER Converter' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">PEM / DER Converter</h1>

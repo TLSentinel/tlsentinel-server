@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { listAuditLogs } from '@/api/audit'
 import type { AuditLog } from '@/types/api'
 import SearchInput from '@/components/SearchInput'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/ui/button'
 
 // ---------------------------------------------------------------------------
@@ -102,11 +102,10 @@ export default function AuditLogPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/logs" className="hover:text-foreground transition-colors">Logs</Link>
-        <span>/</span>
-        <span className="text-foreground">Audit</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Logs', to: '/logs' },
+        { label: 'Audit' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Audit Log</h1>

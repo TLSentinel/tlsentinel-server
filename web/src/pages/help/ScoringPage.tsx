@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { ChevronRight, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Help → TLS Score
@@ -69,11 +69,10 @@ export default function ScoringPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Help — TLS Score</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Help — TLS Score' },
+      ]} />
 
       {/* Title */}
       <div>
