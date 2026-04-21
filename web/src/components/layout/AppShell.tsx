@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Bell, HelpCircle, Landmark } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, User, Wrench, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Bell, HelpCircle, Landmark } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
 import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
@@ -135,11 +135,7 @@ export default function AppShell() {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-3 font-display">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
-          <NavGroup icon={<SquareActivity className="h-4 w-4" />} label="Monitor" childPaths={['/active', '/calendar']}>
-            <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
-            <NavItem to="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
-          </NavGroup>
-          <NavItem to="/reports" icon={<BarChart2 className="h-4 w-4" />} label="Reports" />
+          <NavItem to="/monitor" icon={<SquareActivity className="h-4 w-4" />} label="Monitor" />
           <NavGroup icon={<Package className="h-4 w-4" />} label="Inventory" childPaths={['/certificates', '/endpoints', '/root-stores']}>
             <NavItem to="/certificates" icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
             <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
@@ -149,6 +145,7 @@ export default function AppShell() {
             <NavItem to="/discovery/inbox" icon={<Inbox className="h-4 w-4" />} label="Inbox" />
             <NavItem to="/discovery/networks" icon={<Network className="h-4 w-4" />} label="Networks" />
           </NavGroup>
+          <NavItem to="/reports" icon={<BarChart2 className="h-4 w-4" />} label="Reports" />
           <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
         </nav>
 

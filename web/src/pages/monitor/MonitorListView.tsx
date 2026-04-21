@@ -19,12 +19,15 @@ import { fmtDate, plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
-// Filter / sort options
+// List view — was /active. Table of certificates currently active on
+// endpoints, with status/sort/tag filtering and pagination. MonitorPage
+// owns the page heading and view toggle; this component renders just the
+// filter strip + table.
 // ---------------------------------------------------------------------------
 
-type CertStatus  = 'expired' | 'critical' | 'warning' | 'ok'
+type CertStatus   = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
-type SortOption  = '' | 'days_desc' | 'endpoint_name' | 'common_name'
+type SortOption   = '' | 'days_desc' | 'endpoint_name' | 'common_name'
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: '',         label: 'All' },
@@ -197,12 +200,12 @@ function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Page
+// View
 // ---------------------------------------------------------------------------
 
 const PAGE_SIZE = 20
 
-export default function ActivePage() {
+export default function MonitorListView() {
   const [page, setPage]                   = useState(1)
   const [search, setSearch]               = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -242,14 +245,6 @@ export default function ActivePage() {
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold">Active Certificates</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Active certificates across all monitored endpoints.
-        </p>
-      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
