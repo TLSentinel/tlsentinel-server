@@ -39,6 +39,23 @@ once it reaches 1.0.
   matches each across endpoints (name / DNS / URL), certificates (common
   name, SAN, fingerprint prefix), and scanners (name). Requires
   `endpoints:view`. Powers the header command-search dropdown in the UI.
+- **Per-program trust anchor browser.** New `GET /root-stores/{id}/anchors`
+  endpoint paginates the anchors in a single CCADB program (Microsoft,
+  Apple, Mozilla, Chrome) with an optional common-name filter, powering
+  the Root Stores page under Inventory. `GET /root-stores` also gained
+  `kind`, `sourceUrl`, `anchorCount`, and `updatedAt` fields alongside
+  `id` and `name` so the tab strip can show per-program metadata.
+- **Subject Organization / Organizational Unit captured on every
+  certificate.** New `subject_org` and `subject_ou` columns on the
+  `certificates` table (migration 000043), populated on every insert
+  path — scanner upload, manual ingest, endpoint link, and CCADB
+  refresh. `UpsertTrustAnchor` also sets O/OU on conflict so the weekly
+  refresh backfills existing anchor rows. A startup one-shot
+  (`BackfillSubjectOrgOU`) parses stored PEMs for pre-existing
+  scanner-ingested certs so operators don't need a manual backfill.
+  RFC 5280 doesn't require CN in Subject — some CCADB roots (SECOM, a
+  handful of EU gov CAs) only populate O or OU, so CN-alone rendering
+  previously showed "—" for them.
 
 ### Breaking Changes
 
