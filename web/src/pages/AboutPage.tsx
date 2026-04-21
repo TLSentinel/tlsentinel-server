@@ -168,7 +168,7 @@ export default function AboutPage() {
           draggable={false}
         />
         <div className="pb-1">
-          <h1 className="text-2xl font-semibold">TLSentinel</h1>
+          <h1 className="font-brand text-4xl uppercase tracking-[0.05em]">TLSentinel</h1>
           <p className="text-sm text-muted-foreground mt-0.5">TLS certificate monitoring</p>
         </div>
       </div>

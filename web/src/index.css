@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/manrope";
 @import "@fontsource-variable/inter";
+@import "@fontsource/unica-one";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -177,9 +178,10 @@
 }
 
 @theme inline {
-    /* Manrope for display/headline, Inter for body/data */
+    /* Manrope for display/headline, Inter for body/data, Unica One for the product wordmark */
     --font-sans:    'Inter Variable', system-ui, sans-serif;
     --font-display: 'Manrope Variable', 'Inter Variable', system-ui, sans-serif;
+    --font-brand:   'Unica One', 'Manrope Variable', system-ui, sans-serif;
     --font-mono:    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 
     /* Expose the new palette to Tailwind utility classes */

@@ -127,8 +127,9 @@ export default function AppShell() {
       {/* Sidebar */}
       <aside className="flex w-56 flex-col bg-sidebar">
         {/* Brand */}
-        <div className="flex items-center justify-center px-4 py-1">
-          <img src="/logo_light_horizontal.png" alt="TLSentinel" className="h-32 w-auto object-contain" />
+        <div className="flex flex-col items-center justify-center gap-2 px-4 pt-4 pb-2">
+          <img src="/logo.png" alt="TLSentinel" className="h-20 w-auto object-contain" />
+          <span className="font-brand text-3xl uppercase tracking-[0.05em] text-sidebar-foreground">TLSentinel</span>
         </div>
 
         {/* Navigation */}
