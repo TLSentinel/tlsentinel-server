@@ -23,7 +23,7 @@ function NavItem({ to, icon, label }: NavItemProps) {
       to={to}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+          'flex items-center gap-3 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors',
           isActive
             ? 'bg-sidebar-primary text-sidebar-primary-foreground'
             : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -61,7 +61,7 @@ function NavGroup({ icon, label, childPaths, children }: NavGroupProps) {
       <button
         onClick={() => setOpen(v => !v)}
         className={cn(
-          'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+          'flex w-full items-center gap-3 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors',
           isChildActive
             ? 'text-sidebar-foreground'
             : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -132,7 +132,7 @@ export default function AppShell() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-1 p-3 font-display">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
           <NavGroup icon={<SquareActivity className="h-4 w-4" />} label="Monitor" childPaths={['/active', '/calendar']}>
             <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
