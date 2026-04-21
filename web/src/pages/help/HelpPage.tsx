@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { ExternalLink, Gauge, BookOpen, Github, Info, Keyboard, Search } from 'lucide-react'
+import { ExternalLink, Gauge, BookOpen, Github, Info, Keyboard, Landmark, Search } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { helpDocs } from './registry'
 
 // ---------------------------------------------------------------------------
 // Help landing page. Serves as a table of contents for in-app topics plus
@@ -19,13 +20,10 @@ interface TopicEntry {
   href?: string
 }
 
-const INTERNAL_TOPICS: TopicEntry[] = [
-  {
-    title: 'How the TLS score is calculated',
-    blurb: 'The SSL Labs-style grade on endpoint detail pages — sub-scores, grade caps, and what the current scanner can\u2019t see.',
-    icon: Gauge,
-    to: '/help/scoring',
-  },
+// Hand-curated entries for destinations that aren't served from markdown
+// (e.g. the About page). New help content should prefer a markdown file in
+// ./content/ — those are merged in automatically below.
+const HAND_TOPICS: TopicEntry[] = [
   {
     title: 'About TLSentinel',
     blurb: 'Version, license, and third-party attributions.',
@@ -33,6 +31,24 @@ const INTERNAL_TOPICS: TopicEntry[] = [
     to: '/settings/about',
   },
 ]
+
+// Per-slug icon override for MD docs. Unlisted slugs fall back to BookOpen.
+// Kept as a map (rather than a frontmatter field) so we don't have to ship
+// a runtime name->lucide lookup for what's a handful of entries.
+const MD_ICONS: Record<string, LucideIcon> = {
+  'scoring':     Gauge,
+  'root-stores': Landmark,
+}
+
+// Auto-generated entries from ./content/*.md via the registry.
+const MD_TOPICS: TopicEntry[] = helpDocs.map(d => ({
+  title: d.title,
+  blurb: d.blurb,
+  icon: MD_ICONS[d.slug] ?? BookOpen,
+  to: `/help/${d.slug}`,
+}))
+
+const INTERNAL_TOPICS: TopicEntry[] = [...MD_TOPICS, ...HAND_TOPICS]
 
 const EXTERNAL_TOPICS: TopicEntry[] = [
   {

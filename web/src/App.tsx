@@ -44,7 +44,7 @@ import CertDiffPage from '@/pages/toolbox/CertDiffPage'
 import PemDerPage from '@/pages/toolbox/PemDerPage'
 import CertChainPage from '@/pages/toolbox/CertChainPage'
 import HelpPage from '@/pages/help/HelpPage'
-import ScoringPage from '@/pages/help/ScoringPage'
+import MarkdownDocPage from '@/pages/help/MarkdownDocPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -97,7 +97,10 @@ export default function App() {
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
           <Route path="root-stores" element={<RootStoresPage />} />
           <Route path="help" element={<HelpPage />} />
-          <Route path="help/scoring" element={<ScoringPage />} />
+          {/* Everything under /help/<slug> is served from bundled markdown —
+              see src/pages/help/content/. Add a specific route above this one
+              if a page ever genuinely needs to be TSX. */}
+          <Route path="help/:slug" element={<MarkdownDocPage />} />
           <Route path="account">
             <Route index element={<AccountPage />} />
             <Route path="profile" element={<AccountProfilePage />} />
