@@ -14,6 +14,8 @@ import {
 } from '@/lib/cert-utils'
 import { plural } from '@/lib/utils'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 // ---------------------------------------------------------------------------
 // Diff row primitives
 // ---------------------------------------------------------------------------
@@ -49,11 +51,11 @@ function DiffRow({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-border">
       <div className={`px-3 py-2.5 ${rowBg(status, 'a')}`}>
-        <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
+        <p className={`${FIELD_LABEL} mb-1`}>{label}</p>
         {aVal ? <p className="text-xs font-medium break-all">{aVal}</p> : empty}
       </div>
       <div className={`px-3 py-2.5 ${rowBg(status, 'b')}`}>
-        <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
+        <p className={`${FIELD_LABEL} mb-1`}>{label}</p>
         {bVal ? <p className="text-xs font-medium break-all">{bVal}</p> : empty}
       </div>
     </div>
@@ -70,7 +72,7 @@ function SansDiffRow({ a, b }: { a: DecodedCert['sans']; b: DecodedCert['sans'] 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-border">
       <div className="px-3 py-2.5">
-        <p className="text-[10px] text-muted-foreground mb-1.5">Subject Alternative Names</p>
+        <p className={`${FIELD_LABEL} mb-1.5`}>Subject Alternative Names</p>
         <div className="flex flex-wrap gap-1">
           {allValues.map((v) => (
             <Badge
@@ -84,7 +86,7 @@ function SansDiffRow({ a, b }: { a: DecodedCert['sans']; b: DecodedCert['sans'] 
         </div>
       </div>
       <div className="px-3 py-2.5">
-        <p className="text-[10px] text-muted-foreground mb-1.5">Subject Alternative Names</p>
+        <p className={`${FIELD_LABEL} mb-1.5`}>Subject Alternative Names</p>
         <div className="flex flex-wrap gap-1">
           {allValues.map((v) => (
             <Badge
@@ -108,7 +110,7 @@ function SansDiffRow({ a, b }: { a: DecodedCert['sans']; b: DecodedCert['sans'] 
 function SectionDivider({ title }: { title: string }) {
   return (
     <div className="col-span-2 px-3 py-2 bg-muted/30 border-y border-border">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
     </div>
   )
 }
@@ -127,8 +129,8 @@ function DiffTable({ a, b }: { a: DecodedCert; b: DecodedCert }) {
     <div className="rounded-lg border border-border overflow-hidden divide-y divide-border text-sm">
       {/* Column headers */}
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-border bg-muted/20">
-        <div className="px-3 py-2 font-semibold text-xs">Certificate A</div>
-        <div className="px-3 py-2 font-semibold text-xs">Certificate B</div>
+        <div className={`px-3 py-2 ${FIELD_LABEL}`}>Certificate A</div>
+        <div className={`px-3 py-2 ${FIELD_LABEL}`}>Certificate B</div>
       </div>
 
       {/* Subject */}
@@ -300,8 +302,8 @@ export default function CertDiffPage() {
 
       {/* Inputs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">Certificate A</p>
+        <div className="space-y-2">
+          <p className={FIELD_LABEL}>Certificate A</p>
           <Textarea
             placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
             value={pemA}
@@ -316,8 +318,8 @@ export default function CertDiffPage() {
             </div>
           )}
         </div>
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">Certificate B</p>
+        <div className="space-y-2">
+          <p className={FIELD_LABEL}>Certificate B</p>
           <Textarea
             placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
             value={pemB}

@@ -14,6 +14,8 @@ import {
   Extension,
 } from '@peculiar/x509'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 // OIDs for CSR extension lookup
 const OID_SAN = '2.5.29.17'
 const OID_KEY_USAGE = '2.5.29.15'
@@ -147,7 +149,7 @@ async function decodeCSR(pem: string): Promise<DecodedCSR> {
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
       <Separator />
     </div>
   )
@@ -156,8 +158,8 @@ function SectionHeader({ title }: { title: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="mt-0.5 text-sm font-medium break-all">{children}</div>
+      <p className={FIELD_LABEL}>{label}</p>
+      <div className="mt-1 text-sm font-medium break-all">{children}</div>
     </div>
   )
 }
@@ -256,8 +258,8 @@ export default function CsrDecoderPage() {
         <div className="space-y-8">
           {/* Summary */}
           <div className="rounded-lg border p-4">
-            <p className="text-xs text-muted-foreground">Common Name</p>
-            <p className="text-sm font-semibold mt-0.5">
+            <p className={FIELD_LABEL}>Common Name</p>
+            <p className="mt-1 text-sm font-semibold">
               {decoded.subject['CN']?.[0] ?? decoded.subjectString}
             </p>
           </div>
@@ -309,13 +311,13 @@ export default function CsrDecoderPage() {
               <div className="space-y-3">
                 {decoded.keyUsages.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Key Usage</p>
+                    <p className={`${FIELD_LABEL} mb-1`}>Key Usage</p>
                     <TagList items={decoded.keyUsages} />
                   </div>
                 )}
                 {decoded.extendedKeyUsages.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Extended Key Usage</p>
+                    <p className={`${FIELD_LABEL} mb-1`}>Extended Key Usage</p>
                     <TagList items={decoded.extendedKeyUsages} />
                   </div>
                 )}

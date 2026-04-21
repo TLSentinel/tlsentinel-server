@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select'
 import { PemConverter } from '@peculiar/x509'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -179,8 +181,8 @@ function PemToDerPanel() {
           <Separator />
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">DER output</p>
-              <p className="text-sm font-medium">{result.tag} · {result.der.byteLength.toLocaleString()} bytes</p>
+              <p className={FIELD_LABEL}>DER output</p>
+              <p className="mt-1 text-sm font-medium">{result.tag} · {result.der.byteLength.toLocaleString()} bytes</p>
             </div>
             <div className="flex items-center gap-2">
               <CopyButton value={result.hexFull} />
@@ -311,7 +313,7 @@ function DerToPemPanel() {
       {/* PEM type + actions */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">PEM type</span>
+          <span className={FIELD_LABEL}>PEM type</span>
           <Select value={tag} onValueChange={handleTagChange}>
             <SelectTrigger className="w-52">
               <SelectValue />
@@ -333,7 +335,7 @@ function DerToPemPanel() {
         <div className="space-y-2">
           <Separator />
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">PEM output</p>
+            <p className={FIELD_LABEL}>PEM output</p>
             <div className="flex items-center gap-2">
               <CopyButton value={pem} />
               <Button className="gap-1.5"

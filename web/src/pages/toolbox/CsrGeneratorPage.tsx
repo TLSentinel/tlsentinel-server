@@ -18,6 +18,8 @@ import {
   PemConverter,
 } from '@peculiar/x509'
 
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
 // ---------------------------------------------------------------------------
 // Key algorithm configs
 // ---------------------------------------------------------------------------
@@ -157,7 +159,7 @@ function download(filename: string, content: string) {
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
       <Separator />
     </div>
   )
@@ -168,7 +170,7 @@ function PemBlock({ label, value, filename }: { label: string; value: string; fi
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{label}</p>
+        <p className={FIELD_LABEL}>{label}</p>
         <div className="flex items-center gap-1.5">
           <Button variant="ghost" size="sm" onClick={copy} className="h-7 gap-1.5 text-xs">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -258,32 +260,32 @@ export default function CsrGeneratorPage() {
         <div className="space-y-3">
           <SectionHeader title="Subject" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="cn">Common Name <span className="text-destructive">*</span></Label>
+            <div className="space-y-2">
+              <Label htmlFor="cn" className={FIELD_LABEL}>Common Name <span className="text-destructive">*</span></Label>
               <Input id="cn" placeholder="example.com" value={cn} onChange={(e) => setCn(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="o">Organization</Label>
+            <div className="space-y-2">
+              <Label htmlFor="o" className={FIELD_LABEL}>Organization</Label>
               <Input id="o" placeholder="Acme Corp" value={o} onChange={(e) => setO(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ou">Organizational Unit</Label>
+            <div className="space-y-2">
+              <Label htmlFor="ou" className={FIELD_LABEL}>Organizational Unit</Label>
               <Input id="ou" placeholder="Engineering" value={ou} onChange={(e) => setOu(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="c">Country</Label>
+            <div className="space-y-2">
+              <Label htmlFor="c" className={FIELD_LABEL}>Country</Label>
               <Input id="c" placeholder="US" maxLength={2} value={c} onChange={(e) => setC(e.target.value.toUpperCase())} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="st">State / Province</Label>
+            <div className="space-y-2">
+              <Label htmlFor="st" className={FIELD_LABEL}>State / Province</Label>
               <Input id="st" placeholder="California" value={st} onChange={(e) => setSt(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l">Locality</Label>
+            <div className="space-y-2">
+              <Label htmlFor="l" className={FIELD_LABEL}>Locality</Label>
               <Input id="l" placeholder="San Francisco" value={l} onChange={(e) => setL(e.target.value)} />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="email" className={FIELD_LABEL}>Email</Label>
               <Input id="email" type="email" placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
           </div>
