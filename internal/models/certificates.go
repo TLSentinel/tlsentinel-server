@@ -8,6 +8,8 @@ type CertificateRecord struct {
 	Fingerprint    string
 	PEM            string
 	CommonName     string
+	SubjectOrg     string
+	SubjectOrgUnit string
 	SANs           []string
 	NotBefore      time.Time
 	NotAfter       time.Time
@@ -95,7 +97,7 @@ type RootStoreSummary struct {
 type RootStoreAnchorItem struct {
 	Fingerprint       string    `json:"fingerprint"`
 	CommonName        string    `json:"commonName"`
-	NotBefore         time.Time `json:"notBefore"`
+	SubjectOrg        string    `json:"subjectOrg"`
 	NotAfter          time.Time `json:"notAfter"`
 	IssuerFingerprint *string   `json:"issuerFingerprint"`
 }

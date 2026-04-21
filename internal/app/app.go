@@ -75,6 +75,12 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		log.Info("reconciled certificate chain links", "count", n)
 	}
 
+	if n, err := store.BackfillSubjectOrgOU(context.Background()); err != nil {
+		log.Warn("subject org/ou backfill failed", "error", err)
+	} else if n > 0 {
+		log.Info("backfilled subject org/ou", "count", n)
+	}
+
 	enc := crypto.NewEncryptor(cfg.EncryptionKey)
 
 	registry := buildJobRegistry(store, enc, log)

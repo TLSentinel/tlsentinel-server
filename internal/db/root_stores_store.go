@@ -76,14 +76,14 @@ func (s *Store) ListRootStoreAnchors(
 	var rows []struct {
 		Fingerprint       string    `bun:"fingerprint"`
 		CommonName        string    `bun:"common_name"`
-		NotBefore         time.Time `bun:"not_before"`
+		SubjectOrg        string    `bun:"subject_org"`
 		NotAfter          time.Time `bun:"not_after"`
 		IssuerFingerprint *string   `bun:"issuer_fingerprint"`
 	}
 	listQ := s.db.NewSelect().
 		TableExpr("tlsentinel.root_store_anchors AS rsa").
 		Join("JOIN tlsentinel.certificates c ON c.fingerprint = rsa.fingerprint").
-		ColumnExpr("c.fingerprint, c.common_name, c.not_before, c.not_after, c.issuer_fingerprint").
+		ColumnExpr("c.fingerprint, c.common_name, c.subject_org, c.not_after, c.issuer_fingerprint").
 		Where("rsa.root_store_id = ?", storeID).
 		OrderExpr("c.common_name").
 		Limit(pageSize).
@@ -100,7 +100,7 @@ func (s *Store) ListRootStoreAnchors(
 		items[i] = models.RootStoreAnchorItem{
 			Fingerprint:       r.Fingerprint,
 			CommonName:        r.CommonName,
-			NotBefore:         r.NotBefore,
+			SubjectOrg:        r.SubjectOrg,
 			NotAfter:          r.NotAfter,
 			IssuerFingerprint: r.IssuerFingerprint,
 		}
@@ -189,13 +189,17 @@ func (s *Store) TouchRootStoreUpdatedAt(ctx context.Context, id string, at time.
 // UpsertTrustAnchor inserts a certificate row (if absent) and ensures
 // trust_anchor=TRUE. Used by the root store refresh job — unlike the
 // scanner insert path, this always flips trust_anchor on regardless of
-// whether the row existed.
+// whether the row existed. Also backfills subject_org / subject_ou on
+// conflict so the weekly refresh populates those fields for anchors
+// ingested before the columns existed.
 func (s *Store) UpsertTrustAnchor(ctx context.Context, c *Certificate) error {
 	c.TrustAnchor = true
 	_, err := s.db.NewInsert().
 		Model(c).
 		On("CONFLICT (fingerprint) DO UPDATE").
 		Set("trust_anchor = TRUE").
+		Set("subject_org = EXCLUDED.subject_org").
+		Set("subject_ou = EXCLUDED.subject_ou").
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to upsert trust anchor: %w", err)

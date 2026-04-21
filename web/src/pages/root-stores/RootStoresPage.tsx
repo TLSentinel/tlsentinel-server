@@ -9,7 +9,7 @@ import { listRootStores, listRootStoreAnchors } from '@/api/rootstores'
 import { fmtDate, plural, cn } from '@/lib/utils'
 
 const PAGE_SIZE = 20
-const ROW_GRID = 'grid-cols-[2.5fr_1.25fr_1.25fr_11rem]'
+const ROW_GRID = 'grid-cols-[2fr_2fr_1.25fr_11rem]'
 
 // Preferred tab order; any unknown stores from the API fall in after these.
 const STORE_ORDER = ['microsoft', 'apple', 'mozilla', 'chrome']
@@ -152,7 +152,7 @@ export default function RootStoresPage() {
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valid From</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Organization</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valid Until</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Fingerprint</span>
         </div>
@@ -181,9 +181,9 @@ export default function RootStoresPage() {
                     {item.commonName || '—'}
                   </Link>
                 </div>
-                <div>
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {fmtDate(item.notBefore)}
+                <div className="min-w-0">
+                  <span className="block truncate text-sm text-muted-foreground" title={item.subjectOrg}>
+                    {item.subjectOrg || '—'}
                   </span>
                 </div>
                 <div>

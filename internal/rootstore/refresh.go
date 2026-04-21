@@ -82,6 +82,8 @@ func Refresh(ctx context.Context, store *db.Store, log *slog.Logger) error {
 				Fingerprint:    rec.Fingerprint,
 				PEM:            rec.PEM,
 				CommonName:     rec.CommonName,
+				SubjectOrg:     rec.SubjectOrg,
+				SubjectOrgUnit: rec.SubjectOrgUnit,
 				SANs:           rec.SANs,
 				NotBefore:      rec.NotBefore,
 				NotAfter:       rec.NotAfter,

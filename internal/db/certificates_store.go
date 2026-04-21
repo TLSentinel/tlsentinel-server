@@ -283,6 +283,8 @@ func (s *Store) InsertCertificate(ctx context.Context, rec models.CertificateRec
 		Fingerprint:    rec.Fingerprint,
 		PEM:            rec.PEM,
 		CommonName:     rec.CommonName,
+		SubjectOrg:     rec.SubjectOrg,
+		SubjectOrgUnit: rec.SubjectOrgUnit,
 		SANs:           rec.SANs,
 		NotBefore:      rec.NotBefore,
 		NotAfter:       rec.NotAfter,
@@ -370,6 +372,66 @@ func (s *Store) BackfillDNHashes(ctx context.Context) (int64, error) {
 		)
 		if err != nil {
 			slog.Warn("dn hash backfill: failed to update", "fingerprint", fingerprint, "error", err)
+			continue
+		}
+		updated++
+	}
+	return updated, rows.Err()
+}
+
+// BackfillSubjectOrgOU populates subject_org and subject_ou for certificates
+// inserted before migration 000043. Parses the stored PEM for Subject O / OU.
+//
+// Not fully idempotent: rows whose certificates legitimately have neither O
+// nor OU (CN-only leaf certs are common) remain '' and get re-scanned on
+// every startup. Acceptable — the decode+skip is cheap, and certificate
+// volumes here are small enough that the O(n) scan isn't worth tracking a
+// visited sentinel.
+func (s *Store) BackfillSubjectOrgOU(ctx context.Context) (int64, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT fingerprint, pem FROM tlsentinel.certificates
+		 WHERE subject_org = '' AND subject_ou = '' AND pem <> ''`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query certificates for subject org/ou backfill: %w", err)
+	}
+	defer rows.Close()
+
+	var updated int64
+	for rows.Next() {
+		var fingerprint, pemStr string
+		if err := rows.Scan(&fingerprint, &pemStr); err != nil {
+			return updated, err
+		}
+
+		block, _ := pem.Decode([]byte(pemStr))
+		if block == nil {
+			slog.Warn("subject org/ou backfill: failed to decode PEM", "fingerprint", fingerprint)
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			slog.Warn("subject org/ou backfill: failed to parse certificate", "fingerprint", fingerprint, "error", err)
+			continue
+		}
+
+		org := ""
+		if len(cert.Subject.Organization) > 0 {
+			org = cert.Subject.Organization[0]
+		}
+		ou := ""
+		if len(cert.Subject.OrganizationalUnit) > 0 {
+			ou = cert.Subject.OrganizationalUnit[0]
+		}
+		if org == "" && ou == "" {
+			continue
+		}
+
+		_, err = s.db.ExecContext(ctx,
+			`UPDATE tlsentinel.certificates SET subject_org = ?, subject_ou = ? WHERE fingerprint = ?`,
+			org, ou, fingerprint,
+		)
+		if err != nil {
+			slog.Warn("subject org/ou backfill: failed to update", "fingerprint", fingerprint, "error", err)
 			continue
 		}
 		updated++

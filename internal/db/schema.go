@@ -14,6 +14,8 @@ type Certificate struct {
 	Fingerprint       string    `bun:"fingerprint,pk"`
 	PEM               string    `bun:"pem"`
 	CommonName        string    `bun:"common_name"`
+	SubjectOrg        string    `bun:"subject_org"`
+	SubjectOrgUnit    string    `bun:"subject_ou"`
 	SANs              []string  `bun:"sans,array"`
 	NotBefore         time.Time `bun:"not_before"`
 	NotAfter          time.Time `bun:"not_after"`

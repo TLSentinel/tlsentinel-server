@@ -268,7 +268,7 @@ export interface RootStoreSummary {
 export interface RootStoreAnchorItem {
   fingerprint: string
   commonName: string
-  notBefore: string
+  subjectOrg: string
   notAfter: string
   issuerFingerprint: string | null
 }
