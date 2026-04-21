@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileEdit, CheckCircle2, XCircle, Pencil } from 'lucide-react'
+import { FileEdit, CheckCircle2, XCircle, Pencil, StickyNote } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { patchEndpoint } from '@/api/endpoints'
 import type { Endpoint, EndpointScanHistoryItem, TagWithCategory } from '@/types/api'
@@ -249,17 +249,27 @@ function NotesEditDialog({
     mutate(trimmed === '' ? null : trimmed)
   }
 
+  const hasNotes = !!endpoint.notes
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !isPending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit Notes</DialogTitle>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+            <StickyNote className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">{hasNotes ? 'Edit Notes' : 'Add Notes'}</DialogTitle>
+            <DialogDescription>
+              Owner, support contact, runbook link — markdown is supported.
+            </DialogDescription>
+          </div>
         </DialogHeader>
-        <div className="space-y-2 py-1">
+        <div className="space-y-4">
           <Textarea
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Markdown is supported."
+            placeholder={'Owner, support contact, runbook link…\n\nMarkdown is supported.'}
             rows={10}
             autoFocus
           />
