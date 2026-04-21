@@ -512,7 +512,7 @@ export default function TagsPage() {
               className={cn(
                 'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
                 selected
-                  ? 'border-primary bg-primary/5 text-primary'
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                   : 'border-border hover:bg-muted/40 text-foreground',
               )}
             >
