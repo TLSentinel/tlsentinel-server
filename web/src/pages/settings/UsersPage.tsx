@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical, UserPlus, UserCog } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical, UserPlus, UserCog, Power, PowerOff } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -448,7 +448,7 @@ export default function UsersPage() {
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Provider</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
-          {admin && <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enabled</span>}
+          {admin && <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>}
           {admin && <span />}
         </div>
 
@@ -502,15 +502,18 @@ export default function UsersPage() {
                   <span className="text-sm text-muted-foreground whitespace-nowrap">{fmtDate(user.createdAt)}</span>
                 </div>
 
-                {/* Enabled toggle */}
+                {/* Status pill */}
                 {admin && (
                   <div className="pt-0.5">
-                    <Switch
-                      checked={user.enabled}
-                      disabled={user.id === currentUserID}
-                      onCheckedChange={() => handleToggleEnabled(user)}
-                      aria-label={user.enabled ? `Disable ${user.username}` : `Enable ${user.username}`}
-                    />
+                    {user.enabled ? (
+                      <span className="inline-block rounded-full px-3 py-0.5 text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 uppercase tracking-wide">
+                        Enabled
+                      </span>
+                    ) : (
+                      <span className="inline-block rounded-full px-3 py-0.5 text-xs font-semibold bg-muted text-muted-foreground uppercase tracking-wide">
+                        Disabled
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -527,6 +530,16 @@ export default function UsersPage() {
                         <DropdownMenuItem onClick={() => setEditTarget(user)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleToggleEnabled(user)}
+                          disabled={user.id === currentUserID}
+                        >
+                          {user.enabled ? (
+                            <><PowerOff className="mr-2 h-4 w-4" />Disable</>
+                          ) : (
+                            <><Power className="mr-2 h-4 w-4" />Enable</>
+                          )}
                         </DropdownMenuItem>
                         {user.provider === 'local' && (
                           <DropdownMenuItem onClick={() => setPasswordTarget(user)}>
