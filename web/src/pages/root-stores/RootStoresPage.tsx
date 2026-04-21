@@ -92,15 +92,12 @@ export default function RootStoresPage() {
                   className={cn(
                     'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
                     active
-                      ? 'border-primary bg-primary/5 text-foreground'
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                       : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                   )}
                 >
-                  <Landmark className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground')} />
+                  <Landmark className={cn('h-4 w-4', active ? 'text-primary-foreground' : 'text-muted-foreground')} />
                   <span className="font-medium">{store.name}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
-                    {store.anchorCount}
-                  </span>
                 </button>
               )
             })}
