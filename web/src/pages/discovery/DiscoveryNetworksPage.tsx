@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, Network, Clock, MoreVertical } from 'lucide-react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Pencil, Trash2, Network, Clock, MoreVertical, Power, PowerOff } from 'lucide-react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import StrixEmpty from '@/components/StrixEmpty'
 import SchedulePicker from '@/components/SchedulePicker'
 import { Button } from '@/components/ui/button'
@@ -327,9 +327,11 @@ interface NetworkRowProps {
   canEdit: boolean
   onEdit: () => void
   onDelete: () => void
+  onToggle: () => void
+  toggling: boolean
 }
 
-function NetworkRow({ network, canEdit, onEdit, onDelete }: NetworkRowProps) {
+function NetworkRow({ network, canEdit, onEdit, onDelete, onToggle, toggling }: NetworkRowProps) {
   return (
     <div className="grid grid-cols-[2fr_1.5fr_1fr_1.5fr_1.5fr_6rem_2.5rem] items-center gap-5 px-5 py-4 border-b border-border/40 last:border-0">
 
@@ -399,6 +401,13 @@ function NetworkRow({ network, canEdit, onEdit, onDelete }: NetworkRowProps) {
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onToggle} disabled={toggling}>
+              {network.enabled ? (
+                <><PowerOff className="mr-2 h-4 w-4" />Disable</>
+              ) : (
+                <><Power className="mr-2 h-4 w-4" />Enable</>
+              )}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
@@ -437,6 +446,20 @@ export default function DiscoveryNetworksPage() {
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ['discovery-networks'] })
   }
+
+  // Toggle-enabled is a one-click action from the kebab; reuses the full
+  // update endpoint since the API has no dedicated toggle route.
+  const toggleMutation = useMutation({
+    mutationFn: (n: DiscoveryNetwork) => updateDiscoveryNetwork(n.id, {
+      name: n.name,
+      range: n.range,
+      ports: n.ports,
+      scannerId: n.scannerId,
+      cronExpression: n.cronExpression,
+      enabled: !n.enabled,
+    }),
+    onSuccess: refresh,
+  })
 
   const networks     = data?.items ?? []
   const activeCount  = networks.filter(n => n.enabled).length
@@ -516,6 +539,8 @@ export default function DiscoveryNetworksPage() {
               canEdit={canEdit}
               onEdit={() => setEditing(net)}
               onDelete={() => setDeleting(net)}
+              onToggle={() => toggleMutation.mutate(net)}
+              toggling={toggleMutation.isPending}
             />
           ))}
         </div>
