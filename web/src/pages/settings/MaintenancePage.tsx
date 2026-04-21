@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   Archive, Bell, ScrollText, BellOff, ShieldCheck, Play, Pencil,
-  Power, PowerOff, Clock, MoreVertical,
+  Power, PowerOff, Clock, MoreVertical, CheckCircle2, XCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -174,19 +174,30 @@ const JOBS: JobConfig[] = [
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[3fr_1.5fr_1.5fr_6rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[3fr_1.25fr_1.25fr_1.5fr_6rem_2.5rem]'
+
+// Scheduler writes freeform strings into last_run_status — "success" for auto
+// runs, "removed N rows (manual run)" etc. for manual ones. Treat anything
+// containing "fail" or "error" as a failure; otherwise it's a success.
+function lastRunFailed(status: string): boolean {
+  return /fail|error/i.test(status)
+}
 
 interface JobRowProps {
   cfg:      JobConfig
   job:      ScheduledJob | null
   onEdit:   () => void
   onToggle: () => void
+  onRun:    () => void
   toggling: boolean
+  running:  boolean
 }
 
-function JobRow({ cfg, job, onEdit, onToggle, toggling }: JobRowProps) {
+function JobRow({ cfg, job, onEdit, onToggle, onRun, toggling, running }: JobRowProps) {
   const Icon = cfg.icon
   const enabled = job?.enabled ?? false
+  const status  = job?.lastRunStatus ?? null
+  const failed  = status !== null && lastRunFailed(status)
 
   return (
     <div className={`grid ${ROW_GRID} items-center gap-5 px-5 py-4 border-b border-border/40 last:border-0`}>
@@ -217,6 +228,23 @@ function JobRow({ cfg, job, onEdit, onToggle, toggling }: JobRowProps) {
           : <span className="text-sm italic text-muted-foreground/50">Never</span>}
       </div>
 
+      {/* Last status */}
+      <div className="flex items-center gap-2 min-w-0">
+        {status === null ? (
+          <span className="text-sm italic text-muted-foreground/50">—</span>
+        ) : failed ? (
+          <>
+            <XCircle className="shrink-0 h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+            <span className="text-sm text-muted-foreground truncate" title={status}>{status}</span>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="shrink-0 h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+            <span className="text-sm text-muted-foreground truncate" title={status}>{status}</span>
+          </>
+        )}
+      </div>
+
       {/* Status */}
       <div>
         {enabled ? (
@@ -243,6 +271,12 @@ function JobRow({ cfg, job, onEdit, onToggle, toggling }: JobRowProps) {
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
+            {cfg.runner && (
+              <DropdownMenuItem onClick={onRun} disabled={running}>
+                <Play className="mr-2 h-4 w-4" />
+                {running ? 'Running…' : 'Run Now'}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={onToggle} disabled={toggling}>
               {enabled ? (
                 <><PowerOff className="mr-2 h-4 w-4" />Disable</>
@@ -435,6 +469,13 @@ export default function MaintenancePage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduled-jobs'] }),
   })
 
+  // Run-now dispatched from the kebab. Variables stays populated for the full
+  // lifecycle of the mutation so we can highlight the active row while pending.
+  const runMutation = useMutation({
+    mutationFn: (cfg: JobConfig) => cfg.runner!(),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['scheduled-jobs'] }),
+  })
+
   // editing is a config; we resolve it to a live job on each render so the
   // dialog always sees the freshest enabled/schedule state.
   const editingJob = editing ? (jobs?.find(j => j.name === editing.name) ?? null) : null
@@ -462,12 +503,14 @@ export default function MaintenancePage() {
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Job</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Schedule</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Run</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Status</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
             <span />
           </div>
 
           {JOBS.map(cfg => {
             const job = jobs?.find(j => j.name === cfg.name) ?? null
+            const isRunning = runMutation.isPending && runMutation.variables?.name === cfg.name
             return (
               <JobRow
                 key={cfg.name}
@@ -475,7 +518,9 @@ export default function MaintenancePage() {
                 job={job}
                 onEdit={() => setEditing(cfg)}
                 onToggle={() => job && toggleMutation.mutate(job)}
+                onRun={() => runMutation.mutate(cfg)}
                 toggling={toggleMutation.isPending}
+                running={isRunning}
               />
             )
           })}
