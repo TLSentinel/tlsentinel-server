@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronDown, Check, Tag, X, MoreVertical, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Check, Tag, X, MoreVertical, ExternalLink } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -16,7 +15,7 @@ import { listActive, type ExpiringCertItem } from '@/api/certificates'
 import { listTagCategories } from '@/api/tags'
 import type { CategoryWithTags } from '@/types/api'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { fmtDate } from '@/lib/utils'
+import { fmtDate, plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 
 // ---------------------------------------------------------------------------
@@ -100,7 +99,7 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2fr_5rem_1.5fr_1.5fr_8rem_7rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[2fr_5rem_1.5fr_1.5fr_8rem_7rem_3rem]'
 
 interface ActiveRowProps {
   item: ExpiringCertItem
@@ -111,7 +110,7 @@ interface ActiveRowProps {
 function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
   const navigate = useNavigate()
   return (
-    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
 
       {/* Endpoint */}
       <div className="min-w-0">
@@ -129,7 +128,7 @@ function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
                 type="button"
                 onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
                 title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
               >
                 <span className="opacity-60">{tag.categoryName}:</span>
                 {tag.name}
@@ -321,26 +320,17 @@ export default function ActivePage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-lg border">
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            {totalCount === 0
-              ? 'No certificates'
-              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} certificates`}
-          </p>
-        </div>
+      <div className="rounded-lg border bg-card overflow-hidden">
 
         {/* Column headers */}
-        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiry Date</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
-          <span />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Actions</span>
         </div>
 
         {/* Rows */}
@@ -364,16 +354,39 @@ export default function ActivePage() {
             ))}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => p - 1)}
-        onNext={() => setPage(p => p + 1)}
-        noun="certificate"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No certificates'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'certificate')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

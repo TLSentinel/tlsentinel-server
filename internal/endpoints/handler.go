@@ -443,18 +443,20 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // tlsProfileResponse is the enriched API response for an endpoint TLS profile.
 // It combines the raw scan data stored in the database with the classification
-// computed by internal/tlsprofile.Classify at query time.
+// and SSL Labs-style score computed by internal/tlsprofile at query time.
 type tlsProfileResponse struct {
-	EndpointID     string            `json:"endpointId"`
-	ScannedAt      time.Time         `json:"scannedAt"`
-	TLS10          bool              `json:"tls10"`
-	TLS11          bool              `json:"tls11"`
-	TLS12          bool              `json:"tls12"`
-	TLS13          bool              `json:"tls13"`
-	CipherSuites   []string          `json:"cipherSuites"`
-	SelectedCipher *string           `json:"selectedCipher,omitempty"`
-	ScanError      *string           `json:"scanError,omitempty"`
-	Classification tlsprofile.Result `json:"classification"`
+	EndpointID     string                 `json:"endpointId"`
+	ScannedAt      time.Time              `json:"scannedAt"`
+	SSL30          bool                   `json:"ssl30"`
+	TLS10          bool                   `json:"tls10"`
+	TLS11          bool                   `json:"tls11"`
+	TLS12          bool                   `json:"tls12"`
+	TLS13          bool                   `json:"tls13"`
+	CipherSuites   []string               `json:"cipherSuites"`
+	SelectedCipher *string                `json:"selectedCipher,omitempty"`
+	ScanError      *string                `json:"scanError,omitempty"`
+	Classification tlsprofile.Result      `json:"classification"`
+	Score          tlsprofile.ScoreResult `json:"score"`
 }
 
 // @Summary      Get TLS profile
@@ -484,9 +486,21 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 		profile.CipherSuites = []string{}
 	}
 
+	// Cheap-path key-exchange bits: derived from the endpoint's current TLS
+	// cert's public key (RSA modulus / EC curve / Ed25519). This is a proxy
+	// for real key-exchange strength — close enough to populate the sub-score
+	// and activate the weak-key grade caps without adding scanner probes.
+	kexBits := -1
+	if pemData, err := h.store.GetEndpointTLSCertPEM(r.Context(), endpointID); err == nil {
+		if bits, err := tlsprofile.KeyExchangeBitsFromPEM(pemData); err == nil {
+			kexBits = bits
+		}
+	}
+
 	resp := tlsProfileResponse{
 		EndpointID:     profile.EndpointID,
 		ScannedAt:      profile.ScannedAt,
+		SSL30:          profile.SSL30,
 		TLS10:          profile.TLS10,
 		TLS11:          profile.TLS11,
 		TLS12:          profile.TLS12,
@@ -495,12 +509,29 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 		SelectedCipher: profile.SelectedCipher,
 		ScanError:      profile.ScanError,
 		Classification: tlsprofile.Classify(
+			profile.SSL30,
 			profile.TLS10,
 			profile.TLS11,
 			profile.TLS12,
 			profile.TLS13,
 			profile.CipherSuites,
 		),
+		Score: tlsprofile.Score(tlsprofile.ScoreInput{
+			SSL30:             profile.SSL30,
+			TLS10:             profile.TLS10,
+			TLS11:             profile.TLS11,
+			TLS12:             profile.TLS12,
+			TLS13:             profile.TLS13,
+			CipherSuites:      profile.CipherSuites,
+			KeyExchangeBits:   kexBits,
+			HSTS:              nil, // Not probed yet.
+			HasForwardSecrecy: tlsprofile.HasForwardSecrecy(profile.CipherSuites),
+			HasAEAD:           tlsprofile.HasAEAD(profile.CipherSuites),
+			// SSL 3.0 support implies POODLE (CVE-2014-3566). We don't separately
+			// probe CBC-under-SSLv3; any server accepting SSLv3 is considered
+			// vulnerable, which matches SSL Labs' treatment.
+			VulnPoodle: profile.SSL30,
+		}),
 	}
 
 	response.JSON(w, http.StatusOK, resp)

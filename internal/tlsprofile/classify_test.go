@@ -5,7 +5,7 @@ import (
 )
 
 func TestClassify_CleanHost(t *testing.T) {
-	result := Classify(false, false, true, true, []string{
+	result := Classify(false, false, false, true, true, []string{
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 		"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
 		"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
@@ -30,7 +30,7 @@ func TestClassify_CleanHost(t *testing.T) {
 }
 
 func TestClassify_OldProtocols(t *testing.T) {
-	result := Classify(true, true, true, true, []string{
+	result := Classify(false, true, true, true, true, []string{
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 	})
 
@@ -53,7 +53,7 @@ func TestClassify_OldProtocols(t *testing.T) {
 }
 
 func TestClassify_RC4(t *testing.T) {
-	result := Classify(false, false, true, true, []string{
+	result := Classify(false, false, false, true, true, []string{
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 		"TLS_RSA_WITH_RC4_128_SHA",
 	})
@@ -74,7 +74,7 @@ func TestClassify_RC4(t *testing.T) {
 }
 
 func TestClassify_NoForwardSecrecy(t *testing.T) {
-	result := Classify(false, false, true, false, []string{
+	result := Classify(false, false, false, true, false, []string{
 		"TLS_RSA_WITH_AES_256_GCM_SHA384",
 	})
 
@@ -89,7 +89,7 @@ func TestClassify_NoForwardSecrecy(t *testing.T) {
 func TestClassify_UnknownSuiteIsVisible(t *testing.T) {
 	// An unrecognised suite should appear in CipherSuites (not silently dropped)
 	// and be classified as ok with an explanatory note.
-	result := Classify(false, false, true, true, []string{
+	result := Classify(false, false, false, true, true, []string{
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 		"TLS_SOME_FUTURE_SUITE_SHA512",
 	})
@@ -108,7 +108,7 @@ func TestClassify_UnknownSuiteIsVisible(t *testing.T) {
 
 func TestClassify_VersionOrder(t *testing.T) {
 	// Versions should always appear oldest-to-newest regardless of probe order.
-	result := Classify(true, false, true, true, []string{})
+	result := Classify(false, true, false, true, true, []string{})
 
 	names := make([]string, len(result.Versions))
 	for i, v := range result.Versions {
@@ -124,7 +124,7 @@ func TestClassify_VersionOrder(t *testing.T) {
 
 func TestClassify_WorstSeverityWins(t *testing.T) {
 	// TLS 1.1 is warning, RC4 is critical — overall must be critical.
-	result := Classify(false, true, true, true, []string{
+	result := Classify(false, false, true, true, true, []string{
 		"TLS_RSA_WITH_RC4_128_SHA",
 	})
 

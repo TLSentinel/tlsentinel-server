@@ -214,7 +214,32 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Populate trust matrix: which root stores' anchors appear in this chain.
+	trustedBy, err := h.store.GetChainTrustedBy(r.Context(), fingerprint)
+	if err != nil {
+		slog.Warn("failed to compute trust matrix", "fingerprint", fingerprint, "error", err)
+		trustedBy = []string{}
+	}
+	detail.TrustedBy = trustedBy
+
 	response.JSON(w, http.StatusOK, detail)
+}
+
+// @Summary      List root stores
+// @Description  Returns all enabled root stores (id + display name). Used by the
+// @Description  certificate detail page to render the Root Store Trust matrix.
+// @Tags         certificates
+// @Produce      json
+// @Success      200  {array}  models.RootStoreSummary
+// @Failure      500  {string} string  "internal server error"
+// @Router       /root-stores [get]
+func (h *Handler) ListRootStores(w http.ResponseWriter, r *http.Request) {
+	stores, err := h.store.ListRootStoreSummaries(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list root stores", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, stores)
 }
 
 // @Summary      Get endpoints using a certificate

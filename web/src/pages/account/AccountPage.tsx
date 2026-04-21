@@ -11,28 +11,32 @@ export default function AccountPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-3xl">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-6xl">
         <HubCard
           to="/account/profile"
-          icon={<User className="h-4 w-4" />}
+          tone="blue"
+          icon={<User className="h-6 w-6" />}
           title="Profile"
           description="Update your name and email address."
         />
         <HubCard
           to="/account/password"
-          icon={<KeyRound className="h-4 w-4" />}
+          tone="red"
+          icon={<KeyRound className="h-6 w-6" />}
           title="Password"
           description="Change your local account login password. This is not applicable to SSO users."
         />
         <HubCard
           to="/account/notifications"
-          icon={<Bell className="h-4 w-4" />}
+          tone="orange"
+          icon={<Bell className="h-6 w-6" />}
           title="Notifications"
           description="Configure alert email preferences and narrow scope by tag."
         />
         <HubCard
           to="/account/api-keys"
-          icon={<Key className="h-4 w-4" />}
+          tone="amber"
+          icon={<Key className="h-6 w-6" />}
           title="API Keys"
           description="Generate long-lived keys for CLI and automation access."
         />

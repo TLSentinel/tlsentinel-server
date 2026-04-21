@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MoreVertical, Trash2, ChevronRight } from 'lucide-react'
+import { MoreVertical, Trash2 } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import StrixEmpty from '@/components/StrixEmpty'
 import { Button } from '@/components/ui/button'
@@ -20,13 +20,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { listAllAPIKeys, revokeAPIKey, type AdminAPIKey } from '@/api/apiKeys'
-import { plural } from '@/lib/utils'
+import { FIELD_LABEL, plural } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 const ROW_GRID = 'grid-cols-[1.5fr_1fr_8rem_7rem_7rem_2.5rem]'
+const ICON_SQUARE_RED = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400'
 
 export default function APIKeysPage() {
   const [search, setSearch]           = useState('')
@@ -66,11 +68,10 @@ export default function APIKeysPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">API Keys</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'API Keys' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">API Keys</h1>
@@ -88,9 +89,9 @@ export default function APIKeysPage() {
 
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
-      <div className="rounded-lg border">
+      <div className="rounded-lg border bg-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/40">
           <p className="text-sm text-muted-foreground">
             {filtered.length === 0
               ? 'No keys'
@@ -100,11 +101,11 @@ export default function APIKeysPage() {
 
         {/* Column headers */}
         <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prefix</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Used</span>
+          <span className={FIELD_LABEL}>Name</span>
+          <span className={FIELD_LABEL}>User</span>
+          <span className={FIELD_LABEL}>Prefix</span>
+          <span className={FIELD_LABEL}>Created</span>
+          <span className={FIELD_LABEL}>Last Used</span>
           <span />
         </div>
 
@@ -168,17 +169,33 @@ export default function APIKeysPage() {
       </div>
 
       <Dialog open={!!revokeTarget} onOpenChange={() => { setRevokeTarget(null); setRevokeError(null) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Revoke API Key</DialogTitle>
-            <DialogDescription>
-              Revoke <strong>{revokeTarget?.name}</strong> belonging to{' '}
-              <strong>{revokeTarget?.username}</strong>? It will be immediately invalidated.
-            </DialogDescription>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="flex-row items-center gap-3">
+            <div className={ICON_SQUARE_RED}>
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <div className="space-y-0.5">
+              <DialogTitle className="text-lg font-semibold">Revoke API Key</DialogTitle>
+              <DialogDescription>The key will be immediately invalidated</DialogDescription>
+            </div>
           </DialogHeader>
-          {revokeError && <p className="text-sm text-destructive">{revokeError}</p>}
+          <div className="space-y-3">
+            <div className="rounded-md border bg-muted/40 px-3 py-2">
+              <p className={FIELD_LABEL}>Key</p>
+              <p className="mt-0.5 text-sm font-semibold truncate">{revokeTarget?.name}</p>
+              <p className="font-mono text-xs text-muted-foreground">{revokeTarget?.prefix}…</p>
+            </div>
+            <div className="rounded-md border bg-muted/40 px-3 py-2">
+              <p className={FIELD_LABEL}>Owner</p>
+              <p className="mt-0.5 text-sm font-semibold truncate">{revokeTarget?.username}</p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Any services or scripts using this key will stop working immediately. This cannot be undone.
+            </p>
+            {revokeError && <p className="text-sm text-destructive">{revokeError}</p>}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeError(null) }}>
+            <Button variant="outline" onClick={() => { setRevokeTarget(null); setRevokeError(null) }} disabled={revoking}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleRevoke} disabled={revoking}>

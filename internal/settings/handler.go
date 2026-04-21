@@ -14,6 +14,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/internal/rootstore"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
@@ -337,4 +338,29 @@ func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_audit_logs.run", "", "")
 	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
+}
+
+// refreshRootStoresResponse is the response envelope for a root store refresh run.
+type refreshRootStoresResponse struct {
+	Status string `json:"status"`
+}
+
+// @Summary      Run refresh root stores
+// @Description  Fetches CCADB root bundles and repopulates root_stores / root_store_anchors. Synchronous; may take up to a minute.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  refreshRootStoresResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/refresh-root-stores [post]
+func (h *Handler) RunRefreshRootStores(w http.ResponseWriter, r *http.Request) {
+	if err := rootstore.Refresh(r.Context(), h.store, slog.Default()); err != nil {
+		slog.Error("manual root store refresh failed", "err", err)
+		http.Error(w, "refresh failed", http.StatusInternalServerError)
+		return
+	}
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobRefreshRootStores, "manual run"); err != nil {
+		slog.Warn("failed to update job last run after manual root store refresh", "err", err)
+	}
+	auth.LogAction(r.Context(), h.store, r, "maintenance.refresh_root_stores.run", "", "")
+	response.JSON(w, http.StatusOK, refreshRootStoresResponse{Status: "ok"})
 }

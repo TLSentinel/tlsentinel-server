@@ -66,6 +66,24 @@ type CertificateDetail struct {
 	// Revocation
 	OCSPURLs              []string `json:"ocspUrls"`
 	CRLDistributionPoints []string `json:"crlDistributionPoints"`
+
+	// TrustedBy lists root store IDs (e.g. "apple", "chrome", "microsoft", "mozilla")
+	// whose trust anchors appear anywhere in this cert's chain. Derived from
+	// root_store_anchors via issuer_fingerprint traversal; empty slice when no
+	// anchor in the chain is a known trust anchor.
+	TrustedBy []string `json:"trustedBy"`
+
+	// IsTrustAnchor is TRUE when this cert is Subject+SKI-equivalent to a CCADB
+	// root anchor. Lets the frontend stop walking the issuer chain at the
+	// effective root (including cross-signed copies of an anchor).
+	IsTrustAnchor bool `json:"isTrustAnchor"`
+}
+
+// RootStoreSummary is the lightweight shape returned by GET /root-stores — one
+// row per enabled store, used by the frontend to render the trust matrix.
+type RootStoreSummary struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // CertificateList represents a paginated list of certificates.

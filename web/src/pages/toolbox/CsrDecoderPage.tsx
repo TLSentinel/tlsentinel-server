@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   Pkcs10CertificateRequest,
   SubjectAlternativeNameExtension,
@@ -147,7 +148,7 @@ async function decodeCSR(pem: string): Promise<DecodedCSR> {
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
       <Separator />
     </div>
   )
@@ -156,8 +157,8 @@ function SectionHeader({ title }: { title: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="mt-0.5 text-sm font-medium break-all">{children}</div>
+      <p className={FIELD_LABEL}>{label}</p>
+      <div className="mt-1 text-sm font-medium break-all">{children}</div>
     </div>
   )
 }
@@ -207,11 +208,10 @@ export default function CsrDecoderPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">CSR Decoder</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'CSR Decoder' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">CSR Decoder</h1>
@@ -244,20 +244,15 @@ export default function CsrDecoderPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorAlert>{error}</ErrorAlert>}
 
       {/* Results */}
       {decoded && (
         <div className="space-y-8">
           {/* Summary */}
           <div className="rounded-lg border p-4">
-            <p className="text-xs text-muted-foreground">Common Name</p>
-            <p className="text-sm font-semibold mt-0.5">
+            <p className={FIELD_LABEL}>Common Name</p>
+            <p className="mt-1 text-sm font-semibold">
               {decoded.subject['CN']?.[0] ?? decoded.subjectString}
             </p>
           </div>
@@ -309,13 +304,13 @@ export default function CsrDecoderPage() {
               <div className="space-y-3">
                 {decoded.keyUsages.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Key Usage</p>
+                    <p className={`${FIELD_LABEL} mb-1`}>Key Usage</p>
                     <TagList items={decoded.keyUsages} />
                   </div>
                 )}
                 {decoded.extendedKeyUsages.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Extended Key Usage</p>
+                    <p className={`${FIELD_LABEL} mb-1`}>Extended Key Usage</p>
                     <TagList items={decoded.extendedKeyUsages} />
                   </div>
                 )}

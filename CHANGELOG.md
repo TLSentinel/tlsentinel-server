@@ -8,6 +8,38 @@ once it reaches 1.0.
 
 ## [Unreleased]
 
+### Added
+
+- **CCADB-backed trust anchor tracking.** New `root_stores` and
+  `root_store_anchors` tables, plus a daily refresh job that pulls CCADB's
+  trust matrix (Apple, Chrome, Microsoft, Mozilla) and the matching PEM
+  bundles, tagging every ingested certificate with a `trust_anchor` flag
+  and per-store membership. `GET /certificates/{fingerprint}` now exposes
+  `trustedBy` (root store IDs whose anchors appear anywhere in the chain)
+  and `isTrustAnchor` (Subject+SKI-equivalent to a CCADB anchor). Anchor
+  resolution keys on Subject DN + Subject Key ID, so cross-signed copies
+  of a root (e.g. GTS Root R1 served under GlobalSign R1) resolve to the
+  canonical anchor instead of walking past it. A new `GET /root-stores`
+  endpoint returns the enabled-store list for the trust-matrix UI.
+- **SSL Labs-style grade and score on endpoint TLS profiles.** TLS profile
+  responses now include a `score` object (protocol / key-exchange / cipher
+  sub-scores, weighted total, letter grade) derived from the SSL Labs SSL
+  Server Rating Guide. Key-exchange strength is approximated from the
+  server certificate's public key, with EC and Ed25519 mapped to NIST
+  SP 800-57 RSA-equivalent sizes so the < 1024 / 2048 / 4096 thresholds
+  compare apples to apples. SSL 3.0 is probed and folded into both
+  classification and scoring; automatic-F and grade-cap rules follow the
+  rubric as closely as the scanner's inputs allow. See `/help/scoring` for
+  current coverage and limitations.
+- **SAML metadata persistence with history.** Scanned SAML endpoints now
+  store the parsed metadata bag alongside the raw XML (with a SHA-256
+  digest), and a `saml_metadata_history` table records each distinct
+  document ever observed per endpoint.
+- **Universal search endpoint.** `GET /search?q=` returns up to five
+  matches each across endpoints (name / DNS / URL), certificates (common
+  name, SAN, fingerprint prefix), and scanners (name). Requires
+  `endpoints:view`. Powers the header command-search dropdown in the UI.
+
 ### Breaking Changes
 
 - **`TLSENTINEL_JWT_SECRET` must now be base64-encoded and decode to at least 32 bytes.**
@@ -91,6 +123,34 @@ once it reaches 1.0.
   request context cancellation for both the TCP dial and the TLS handshake.
   Cancelling the HTTP request no longer waits out the full 10-second dial
   timeout; a cancelled context also suppresses the insecure retry.
+- Trust-anchor reconciliation now matches by Subject DN + Subject Key ID
+  rather than raw fingerprint. Cross-signed copies of a root (e.g. GTS Root R1
+  served under a GlobalSign R1 signature) no longer get walked past as
+  intermediates — the chain-of-trust viz terminates at the first
+  Subject+SKI-equivalent anchor, matching how platform verifiers behave.
+- CCADB fingerprints are normalized to plain lowercase hex before matching,
+  in case the upstream CSV ships colon-separated or uppercase values. The
+  previous direct comparison would have silently missed every anchor in
+  that shape.
+- Anchors that appear in CCADB's trust matrix but are missing from the
+  matching per-program PEM bundle are now flagged on any certificate we
+  already have locally (e.g. GlobalSign Root CA R1 is listed under
+  Microsoft in the matrix but absent from Microsoft's PEM export). The
+  refresh previously skipped those matrix rows entirely, so anchors we
+  had already ingested from scans never got `trust_anchor=TRUE` and never
+  gained store memberships. The fallback only flips existing rows — a
+  matrix entry with no PEM and no local cert still logs `pem_missing`
+  and is skipped, since `root_store_anchors.fingerprint` FKs
+  `certificates.fingerprint`.
+- The CCADB parser now matches `serverAuth` against Apple's Trust Bits
+  column instead of `Websites`. Apple reports trust bits as OID-style EKU
+  names (`serverAuth;clientAuth;emailProtection`), not Mozilla's
+  "Websites" vocabulary, so the previous check never matched any Apple
+  row — the Apple store ended up with zero anchor memberships.
+- `GET /search` now returns `{"endpoints": [], "certificates": [],
+  "scanners": []}` for zero-match queries instead of `null` arrays. bun's
+  `Scan` leaves the destination slice nil on empty result sets, which
+  crashed the frontend on its `.map(...)` calls.
 
 ### Observability
 

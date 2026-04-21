@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff } from 'lucide-react'
+import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff, ChevronLeft, ChevronRight, FileSignature } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -17,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -101,35 +101,42 @@ function StatCard({ icon, label, value, signal = 'neutral', active, onClick }: S
 }
 
 // ---------------------------------------------------------------------------
-// Days-left badge
+// Expiration status pill
 // ---------------------------------------------------------------------------
 
-function DaysLeftBadge({ notAfter }: { notAfter: string }) {
+type ExpiryState = 'valid' | 'expiring' | 'expired'
+
+function expiryState(notAfter: string): ExpiryState {
   const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
-  if (days < 0) {
-    return (
-      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
-        EXPIRED
-      </span>
-    )
-  }
-  if (days <= 7) {
-    return (
-      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 whitespace-nowrap">
-        {days} DAYS
-      </span>
-    )
-  }
-  if (days <= 30) {
-    return (
-      <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 whitespace-nowrap">
-        {days} DAYS
-      </span>
-    )
-  }
+  if (days < 0)  return 'expired'
+  if (days <= 30) return 'expiring'
+  return 'valid'
+}
+
+const EXPIRY_LABEL: Record<ExpiryState, string> = {
+  valid:    'Valid',
+  expiring: 'Expiring Soon',
+  expired:  'Expired',
+}
+
+const EXPIRY_DOT: Record<ExpiryState, string> = {
+  valid:    'bg-green-500',
+  expiring: 'bg-amber-500',
+  expired:  'bg-red-500',
+}
+
+const EXPIRY_BG: Record<ExpiryState, string> = {
+  valid:    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  expiring: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  expired:  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+}
+
+function ExpiryPill({ notAfter }: { notAfter: string }) {
+  const state = expiryState(notAfter)
   return (
-    <span className="inline-block rounded px-2.5 py-1 text-xs font-semibold bg-muted text-muted-foreground whitespace-nowrap">
-      {days} DAYS
+    <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${EXPIRY_BG[state]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${EXPIRY_DOT[state]}`} />
+      {EXPIRY_LABEL[state]}
     </span>
   )
 }
@@ -138,77 +145,64 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2fr_2.5fr_7rem_8rem_7rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[2.5rem_2fr_2.5fr_10rem_3rem]'
 
 interface CertRowProps {
   cert: CertificateListItem
   admin: boolean
+  selected: boolean
+  onToggle: (fingerprint: string) => void
   onDelete: (cert: CertificateListItem) => void
 }
 
-function CertRow({ cert, admin, onDelete }: CertRowProps) {
+function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
   const navigate = useNavigate()
-  const isWildcard = cert.commonName.startsWith('*.') || cert.sans.some(s => s.startsWith('*.'))
   const sansDisplay = cert.sans.length === 0
     ? '—'
     : cert.sans.slice(0, 3).join(', ') + (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')
 
   return (
-    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+    <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
+
+      {/* Checkbox */}
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(cert.fingerprint)}
+          aria-label={`Select ${cert.commonName || cert.fingerprint}`}
+          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+        />
+      </div>
 
       {/* Common Name */}
       <div className="min-w-0">
         <Link
           to={`/certificates/${cert.fingerprint}`}
-          className="text-sm font-semibold hover:underline truncate block pt-0.5"
+          className="block truncate text-sm font-semibold hover:underline"
         >
           {cert.commonName || '—'}
         </Link>
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {isWildcard && (
-            <span className="inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase bg-muted text-violet-500 dark:text-violet-400">
-              Wildcard
-            </span>
-          )}
-          {cert.sans.length > 1 && (
-            <span className="inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase bg-muted text-muted-foreground">
-              {cert.sans.length} SANs
-            </span>
-          )}
-        </div>
       </div>
 
       {/* SANs */}
-      <div className="min-w-0 pt-0.5">
-        <span className="text-sm text-muted-foreground truncate block" title={cert.sans.join(', ')}>
+      <div className="min-w-0">
+        <span className="block truncate text-sm text-muted-foreground" title={cert.sans.join(', ')}>
           {sansDisplay}
         </span>
       </div>
 
-      {/* Issued */}
-      <div className="pt-0.5">
-        <span className="text-sm text-muted-foreground whitespace-nowrap">
-          {fmtDate(cert.notBefore)}
-        </span>
-      </div>
-
-      {/* Expires */}
-      <div className="pt-0.5">
-        <span className="text-sm text-muted-foreground whitespace-nowrap">
-          {fmtDate(cert.notAfter)}
-        </span>
-      </div>
-
-      {/* Days left */}
-      <div className="pt-0.5">
-        <DaysLeftBadge notAfter={cert.notAfter} />
+      {/* Expiration: date + status pill */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm whitespace-nowrap">{fmtDate(cert.notAfter)}</span>
+        <ExpiryPill notAfter={cert.notAfter} />
       </div>
 
       {/* Actions */}
-      <div>
+      <div className="flex items-center justify-end">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Actions">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -308,13 +302,21 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Ingest Certificate</DialogTitle>
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
+            <FileSignature className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Ingest Certificate</DialogTitle>
+            <DialogDescription>Import a certificate into the inventory</DialogDescription>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="cert-pem">PEM or Base64 DER</Label>
+            <Label htmlFor="cert-pem" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              PEM or Base64 DER
+            </Label>
             <textarea
               id="cert-pem"
               className="min-h-[200px] w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -332,12 +334,10 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="gap-1.5"
               onClick={() => fileInputRef.current?.click()}
             >
-              <FolderOpen className="h-3.5 w-3.5" />
-              {fileName ?? 'Browse file…'}
+              <FolderOpen className="mr-1.5 h-4 w-4" />
+              {fileName ?? 'Choose File…'}
             </Button>
           </div>
 
@@ -430,6 +430,7 @@ export default function CertificatesPage() {
   const [sortOption, setSortOption]           = useState<SortOption>('')
   const [deleteTarget, setDeleteTarget]       = useState<CertificateListItem | null>(null)
   const [ingestOpen, setIngestOpen]           = useState(false)
+  const [selected, setSelected]               = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
@@ -461,6 +462,30 @@ export default function CertificatesPage() {
   function handleStatusChange(value: StatusFilter) { setStatusFilter(value); setPage(1) }
   function handleSortChange(value: SortOption)      { setSortOption(value);   setPage(1) }
 
+  const pageFingerprints = useMemo(() => certs.map(c => c.fingerprint), [certs])
+  const allPageSelected = pageFingerprints.length > 0 && pageFingerprints.every(fp => selected.has(fp))
+  const somePageSelected = !allPageSelected && pageFingerprints.some(fp => selected.has(fp))
+
+  function toggleOne(fp: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(fp)) next.delete(fp); else next.add(fp)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allPageSelected) {
+        pageFingerprints.forEach(fp => next.delete(fp))
+      } else {
+        pageFingerprints.forEach(fp => next.add(fp))
+      }
+      return next
+    })
+  }
+
   return (
     <div className="space-y-6">
 
@@ -469,11 +494,11 @@ export default function CertificatesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Certificates</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            All certificates stored across monitored endpoints.
+            Certificate store inventory.
           </p>
         </div>
         {admin && (
-          <Button onClick={() => setIngestOpen(true)}>
+          <Button onClick={() => setIngestOpen(true)} className="h-12 px-4 text-base font-semibold">
             <Plus className="mr-1.5 h-4 w-4" />
             Ingest
           </Button>
@@ -541,25 +566,25 @@ export default function CertificatesPage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-lg border">
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            {totalCount === 0
-              ? 'No certificates'
-              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'certificate')}`}
-          </p>
-        </div>
+      <div className="rounded-lg border bg-card overflow-hidden">
 
         {/* Column headers */}
-        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              ref={el => { if (el) el.indeterminate = somePageSelected }}
+              onChange={toggleAll}
+              disabled={certs.length === 0}
+              aria-label="Select all on page"
+              className="h-4 w-4 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">SANs</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issued</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expires</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</span>
-          <span />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiration</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Actions</span>
         </div>
 
         {/* Rows */}
@@ -578,21 +603,46 @@ export default function CertificatesPage() {
                 key={cert.fingerprint}
                 cert={cert}
                 admin={admin}
+                selected={selected.has(cert.fingerprint)}
+                onToggle={toggleOne}
                 onDelete={setDeleteTarget}
               />
             ))}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => p - 1)}
-        onNext={() => setPage(p => p + 1)}
-        noun="certificate"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No certificates'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'certificate')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <IngestDialog
         open={ingestOpen}

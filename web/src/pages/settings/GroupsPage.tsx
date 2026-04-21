@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { listGroups, deleteGroup } from '@/api/groups'
 import type { Group } from '@/types/api'
@@ -14,7 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Pencil, Trash2, MoreVertical, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, MoreVertical } from 'lucide-react'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 const PAGE_SIZE = 20
 const ROW_GRID = 'grid-cols-[1.5fr_2fr_2.5rem]'
@@ -51,11 +52,10 @@ export default function GroupsPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/settings" className="hover:text-foreground">Settings</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Groups</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'Groups' },
+      ]} />
 
       <div className="flex items-center justify-between">
         <div>
@@ -70,7 +70,7 @@ export default function GroupsPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border">
+      <div className="rounded-xl bg-card overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <p className="text-sm text-muted-foreground">

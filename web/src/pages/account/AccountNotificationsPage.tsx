@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { ChevronRight, ChevronDown } from 'lucide-react'
+import { ChevronDown, Copy, Check } from 'lucide-react'
 import { getMe, updateMe, getMyTagSubscriptions, setMyTagSubscriptions, rotateCalendarToken } from '@/api/users'
 import { listTagCategories } from '@/api/tags'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,8 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { FIELD_LABEL, cn } from '@/lib/utils'
 import type { User, CategoryWithTags } from '@/types/api'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Category section
@@ -128,6 +128,7 @@ export default function AccountNotificationsPage() {
   const [tagsError, setTagsError]         = useState<string | null>(null)
   const [notifySuccess, setNotifySuccess] = useState(false)
   const [tagsSuccess, setTagsSuccess]     = useState(false)
+  const [feedCopied, setFeedCopied]       = useState(false)
 
   const { data: meData } = useQuery({ queryKey: ['me'], queryFn: getMe })
   const { data: tagCategoriesData } = useQuery({ queryKey: ['tag-categories'], queryFn: listTagCategories })
@@ -230,11 +231,10 @@ export default function AccountNotificationsPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/account" className="hover:text-foreground">My Account</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Notifications</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'My Account', to: '/account' },
+        { label: 'Notifications' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Notifications</h1>
@@ -242,6 +242,36 @@ export default function AccountNotificationsPage() {
           Control whether you receive alert emails and which endpoints you care about.
         </p>
       </div>
+
+      {/* ── Alert email toggle ─────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Alert Emails</CardTitle>
+          <CardDescription>
+            Receive certificate expiry and scan error alerts by email.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-md border px-4 py-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="acc-notify" className="text-sm font-medium">Receive alert emails</Label>
+              <p className="text-xs text-muted-foreground">
+                {user?.email
+                  ? 'Alerts will be sent to ' + user.email + '.'
+                  : 'Requires an email address on your profile.'}
+              </p>
+            </div>
+            <Switch
+              id="acc-notify"
+              checked={notify}
+              disabled={!user?.email || savingNotify}
+              onCheckedChange={saveNotify}
+            />
+          </div>
+          {notifyError  && <p className="text-sm text-destructive">{notifyError}</p>}
+          {notifySuccess && <p className="text-sm text-green-600">Saved.</p>}
+        </CardContent>
+      </Card>
 
       {/* ── Notification scope ────────────────────────────────────────────── */}
       <Card>
@@ -252,23 +282,23 @@ export default function AccountNotificationsPage() {
             Applies to both email alerts and your calendar feed.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Mode selector */}
-          <div className="flex gap-2">
+        <CardContent className="space-y-5">
+          {/* Mode selector — segmented buttons */}
+          <div className="grid grid-cols-2 gap-2">
             {(['all', 'tags'] as const).map(mode => (
               <button
                 key={mode}
                 type="button"
                 onClick={() => setFilterMode(mode)}
                 className={cn(
-                  'flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
+                  'flex items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-sm font-medium transition-colors',
                   filterMode === mode
                     ? 'border-primary bg-primary/5 text-primary'
                     : 'border-border hover:bg-muted/40 text-foreground',
                 )}
               >
                 <div className={cn(
-                  'h-3.5 w-3.5 rounded-full border-2 transition-colors',
+                  'h-3.5 w-3.5 rounded-full border-2 transition-colors shrink-0',
                   filterMode === mode ? 'border-primary bg-primary' : 'border-muted-foreground',
                 )} />
                 {mode === 'all' ? 'All endpoints' : 'Filter by tags'}
@@ -303,39 +333,9 @@ export default function AccountNotificationsPage() {
 
           <div className="flex justify-end">
             <Button onClick={saveTags} disabled={savingTags}>
-              {savingTags ? 'Saving…' : 'Save scope'}
+              {savingTags ? 'Saving…' : 'Save Scope'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Alert email toggle ─────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Alert Emails</CardTitle>
-          <CardDescription>
-            Receive certificate expiry and scan error alerts by email.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="acc-notify">Receive alert emails</Label>
-              <p className="text-xs text-muted-foreground">
-                {user?.email
-                  ? 'Alerts will be sent to ' + user.email + '.'
-                  : 'Requires an email address on your profile.'}
-              </p>
-            </div>
-            <Switch
-              id="acc-notify"
-              checked={notify}
-              disabled={!user?.email || savingNotify}
-              onCheckedChange={saveNotify}
-            />
-          </div>
-          {notifyError  && <p className="text-sm text-destructive">{notifyError}</p>}
-          {notifySuccess && <p className="text-sm text-green-600">Saved.</p>}
         </CardContent>
       </Card>
 
@@ -351,17 +351,29 @@ export default function AccountNotificationsPage() {
         <CardContent className="space-y-4">
           {calendarToken ? (
             <>
-              <div className="flex gap-2">
-                <Input readOnly value={feedUrl} className="font-mono text-xs" />
-                <Button variant="outline" onClick={() => navigator.clipboard.writeText(feedUrl)}>
-                  Copy
-                </Button>
+              <div className="space-y-2">
+                <Label className={FIELD_LABEL}>Feed URL</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={feedUrl} className="font-mono text-xs" />
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(feedUrl)
+                      setFeedCopied(true)
+                      setTimeout(() => setFeedCopied(false), 2000)
+                    }}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {feedCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {feedCopied ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">
                 Regenerating will invalidate the current URL — you'll need to re-subscribe in your calendar app.
               </p>
               <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={generateCalendarToken} disabled={rotating}>
+                <Button variant="outline" onClick={generateCalendarToken} disabled={rotating}>
                   {rotating ? 'Regenerating…' : 'Regenerate'}
                 </Button>
               </div>

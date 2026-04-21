@@ -19,10 +19,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeft, FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { FolderOpen, Globe, Loader2, Tag, Plus, X } from 'lucide-react'
+import { FIELD_LABEL, cn } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import { useQuery } from '@tanstack/react-query'
+import { Breadcrumb } from '@/components/Breadcrumb'
+
+// ---------------------------------------------------------------------------
+// Layout primitives (mirrors EndpointDetailPage)
+// ---------------------------------------------------------------------------
+
+function Section({ title, titleClassName, className, bareTitle = false, children }: { title?: string; titleClassName?: string; className?: string; bareTitle?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-xl border bg-card overflow-hidden ${className ?? ''}`}>
+      {title && !bareTitle && (
+        <div className="px-5 py-3 bg-muted">
+          <h2 className={`text-sm font-medium ${titleClassName ?? ''}`}>{title}</h2>
+        </div>
+      )}
+      <div className={bareTitle ? 'p-6' : 'p-5'}>
+        {title && bareTitle && (
+          <h2 className={`mb-5 ${titleClassName ?? 'text-sm font-medium'}`}>{title}</h2>
+        )}
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const SECTION_TITLE = 'text-lg font-semibold'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -303,18 +328,42 @@ export default function EndpointFormPage() {
     navigate(isEdit && id ? `/endpoints/${id}` : '/endpoints')
   }
 
-  const pageTitle = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
+  const pageTitle       = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
+  const pageDescription = isEdit
+    ? 'Update endpoint configuration'
+    : isClone
+    ? 'Create a duplicate of this endpoint'
+    : isFromInbox
+    ? 'Promote a discovered host to a monitored endpoint'
+    : 'Register a new monitored endpoint'
+
+  const breadcrumb = (
+    <Breadcrumb items={[
+      { label: 'Endpoints', to: '/endpoints' },
+      { label: <>{pageTitle}</> },
+    ]} />
+  )
+
+  const header = (
+    <>
+      {breadcrumb}
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+          <Globe className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{pageDescription}</p>
+        </div>
+      </div>
+    </>
+  )
 
   // Loading state
   if ((isEdit || isClone) && !formReady && !loadError) {
     return (
       <div className="space-y-6 max-w-2xl">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCancel}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
-        </div>
+        {header}
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     )
@@ -323,12 +372,7 @@ export default function EndpointFormPage() {
   if (loadError) {
     return (
       <div className="space-y-6 max-w-2xl">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCancel}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
-        </div>
+        {header}
         <p className="text-sm text-destructive">{loadError}</p>
       </div>
     )
@@ -336,13 +380,7 @@ export default function EndpointFormPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={handleCancel}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-2xl font-semibold">{pageTitle}</h1>
-      </div>
+      {header}
 
       {/* Inbox source context */}
       {isFromInbox && inboxIP && (
@@ -351,39 +389,40 @@ export default function EndpointFormPage() {
         </div>
       )}
 
-      {/* Common fields */}
-      <div className="space-y-5">
-        <div className="space-y-1.5">
-          <Label htmlFor="ep-name">
-            Name <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="ep-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Production API, Okta IdP, Internal Root CA"
-          />
-        </div>
+      {/* Basics */}
+      <Section title="Basics" titleClassName={SECTION_TITLE} bareTitle>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="ep-name" className={FIELD_LABEL}>
+              Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="ep-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Production API, Okta IdP, Internal Root CA"
+            />
+          </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="ep-notes">
-            Notes <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <Textarea
-            id="ep-notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={"Owner, support contact, runbook link…\n\nMarkdown is supported."}
-            rows={5}
-          />
-        </div>
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="ep-notes" className={FIELD_LABEL}>
+              Notes <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
+            </Label>
+            <Textarea
+              id="ep-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={"Owner, support contact, runbook link…\n\nMarkdown is supported."}
+              rows={5}
+            />
+          </div>
 
-      {/* Tags */}
-      {categories.length > 0 && (
-        <div className="space-y-2">
-          <Label>Tags <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-          <div className="flex flex-wrap items-center gap-1.5">
+          {categories.length > 0 && (
+            <div className="space-y-2">
+              <Label className={FIELD_LABEL}>
+                Tags <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
+              </Label>
+              <div className="flex flex-wrap items-center gap-1.5">
             {/* Selected tag chips */}
             {Array.from(selectedTagIds).map(tagId => {
               const tag = categories.flatMap(c => c.tags).find(t => t.id === tagId)
@@ -392,14 +431,14 @@ export default function EndpointFormPage() {
               return (
                 <span
                   key={tagId}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
+                  className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium ${categoryColor(tag.categoryId)}`}
                 >
                   <span className="opacity-60">{cat?.name}:</span>
                   {tag.name}
                   <button
                     type="button"
                     onClick={() => setSelectedTagIds(prev => { const n = new Set(prev); n.delete(tagId); return n })}
-                    className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground"
+                    className="ml-0.5 rounded text-muted-foreground hover:text-foreground"
                     aria-label={`Remove ${tag.name}`}
                   >
                     <X className="h-3 w-3" />
@@ -407,19 +446,21 @@ export default function EndpointFormPage() {
                 </span>
               )
             })}
-            {/* Add tags button */}
-            <button
-              type="button"
-              onClick={() => setShowTagPicker(true)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
-            >
-              <Tag className="h-3 w-3" />
-              <Plus className="h-3 w-3" />
-              Add tags
-            </button>
-          </div>
+                {/* Add tags button */}
+                <button
+                  type="button"
+                  onClick={() => setShowTagPicker(true)}
+                  className="inline-flex items-center gap-1 rounded border border-dashed px-2.5 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+                >
+                  <Tag className="h-3 w-3" />
+                  <Plus className="h-3 w-3" />
+                  Add tags
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </Section>
 
       {/* Tag picker dialog */}
       <Dialog open={showTagPicker} onOpenChange={setShowTagPicker}>
@@ -475,46 +516,50 @@ export default function EndpointFormPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Type selector — clickable on create, read-only on edit or from_inbox */}
-      {!isFromInbox && (
-        <div>
-          <p className="text-sm font-medium mb-3">Endpoint Type</p>
-          <div className="grid grid-cols-3 gap-3">
-            {TYPE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleTypeChange(opt.value)}
-                disabled={isEdit}
-                className={cn(
-                  'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
-                  type === opt.value
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                    : 'border-border',
-                  isEdit
-                    ? 'cursor-default opacity-60'
-                    : 'hover:border-muted-foreground/40 hover:bg-muted/30',
-                )}
-              >
-                <p className="text-sm font-medium">{opt.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground leading-snug">{opt.description}</p>
-              </button>
-            ))}
-          </div>
-          {isEdit && (
-            <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
-          )}
-        </div>
-      )}
-
-      {/* Type-specific fields */}
-      {type !== 'manual' && (
+      {/* Type & Connection */}
+      <Section title="Type & Connection" titleClassName={SECTION_TITLE} bareTitle>
         <div className="space-y-5">
+          {/* Type selector — clickable on create, read-only on edit or from_inbox */}
+          {!isFromInbox && (
+            <div>
+              <div className="grid grid-cols-3 gap-3">
+                {TYPE_OPTIONS.map((opt) => {
+                  const selected = type === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleTypeChange(opt.value)}
+                      disabled={isEdit}
+                      className={cn(
+                        'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
+                        selected
+                          ? 'border-transparent bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground'
+                          : 'border-border bg-card',
+                        isEdit
+                          ? 'cursor-default opacity-60'
+                          : !selected && 'hover:border-muted-foreground/40 hover:bg-muted/30',
+                      )}
+                    >
+                      <p className="text-sm font-semibold">{opt.label}</p>
+                      <p className={cn('mt-1 text-xs leading-snug', selected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                        {opt.description}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+              {isEdit && (
+                <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
+              )}
+            </div>
+          )}
+
           {/* Host-specific fields */}
           {type === 'host' && (
             <>
-              <div className="space-y-1.5">
-                <Label htmlFor="ep-dns">
+              <div className="space-y-2">
+                <Label htmlFor="ep-dns" className={FIELD_LABEL}>
                   DNS Name <span className="text-destructive">*</span>
                 </Label>
                 <div className="flex gap-2">
@@ -528,23 +573,22 @@ export default function EndpointFormPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     onClick={handleResolve}
                     disabled={!dnsName.trim() || resolving}
                     className="shrink-0"
                   >
                     {resolving
-                      ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      : <Globe className="mr-1.5 h-3.5 w-3.5" />
+                      ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      : <Globe className="mr-1.5 h-4 w-4" />
                     }
                     Resolve
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="ep-ip">
-                  IP Address <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              <div className="space-y-2">
+                <Label htmlFor="ep-ip" className={FIELD_LABEL}>
+                  IP Address <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
                 </Label>
                 <Input
                   id="ep-ip"
@@ -557,8 +601,8 @@ export default function EndpointFormPage() {
                 )}
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="ep-port">Port</Label>
+              <div className="space-y-2">
+                <Label htmlFor="ep-port" className={FIELD_LABEL}>Port</Label>
                 <Input
                   id="ep-port"
                   type="number"
@@ -574,8 +618,8 @@ export default function EndpointFormPage() {
 
           {/* SAML-specific fields */}
           {type === 'saml' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="ep-url">
+            <div className="space-y-2">
+              <Label htmlFor="ep-url" className={FIELD_LABEL}>
                 Metadata URL <span className="text-destructive">*</span>
               </Label>
               <Input
@@ -590,84 +634,81 @@ export default function EndpointFormPage() {
             </div>
           )}
 
+          {/* Manual — PEM field */}
+          {type === 'manual' && (
+            <div className="space-y-2">
+              <Label htmlFor="ep-pem" className={FIELD_LABEL}>
+                Certificate <span className="normal-case text-[10px] font-normal tracking-normal text-muted-foreground/70">(optional)</span>
+              </Label>
+              <Textarea
+                id="ep-pem"
+                value={pem}
+                onChange={(e) => { setPem(e.target.value); setFileName(null) }}
+                placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
+                rows={6}
+                className="font-mono text-xs"
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pem,.crt,.cer,.cert,.der"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FolderOpen className="mr-1.5 h-4 w-4" />
+                {fileName ?? 'Choose File…'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Paste or browse for a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
+              </p>
+            </div>
+          )}
+
           {/* Scanner — host and saml */}
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-scanner">Scanner</Label>
-            <select
-              id="ep-scanner"
-              value={scannerID}
-              onChange={(e) => setScannerID(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="">Default</option>
-              {scanners.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          {type !== 'manual' && (
+            <div className="space-y-2">
+              <Label htmlFor="ep-scanner" className={FIELD_LABEL}>Scanner</Label>
+              <select
+                id="ep-scanner"
+                value={scannerID}
+                onChange={(e) => setScannerID(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">Default</option>
+                {scanners.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-      )}
+      </Section>
 
-      {/* Manual — PEM field */}
-      {type === 'manual' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="ep-pem">
-            Certificate <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <Textarea
-            id="ep-pem"
-            value={pem}
-            onChange={(e) => { setPem(e.target.value); setFileName(null) }}
-            placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
-            rows={6}
-            className="font-mono text-xs"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pem,.crt,.cer,.cert,.der"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            {fileName ?? 'Browse file…'}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Paste or browse for a PEM-encoded certificate to link it now, or leave blank to link one later from the edit page.
-          </p>
-        </div>
-      )}
-
-      {/* Enabled / Scan Exempt toggles — edit mode only */}
+      {/* Status — edit mode only */}
       {isEdit && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="ep-scan-exempt"
-              checked={scanExempt}
-              onCheckedChange={setScanExempt}
-            />
-            <div>
-              <Label htmlFor="ep-scan-exempt" className="cursor-pointer">Exclude from scanning</Label>
-              <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
+        <Section title="Status" titleClassName={SECTION_TITLE} bareTitle>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="ep-scan-exempt" className="cursor-pointer text-sm font-medium">Exclude from scanning</Label>
+                <p className="text-xs text-muted-foreground">No scanner will probe this endpoint. Certs can still be linked manually.</p>
+              </div>
+              <Switch id="ep-scan-exempt" checked={scanExempt} onCheckedChange={setScanExempt} />
+            </div>
+            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="ep-enabled" className="cursor-pointer text-sm font-medium">Enabled</Label>
+                <p className="text-xs text-muted-foreground">Disabled endpoints stop scanning and drop from active views.</p>
+              </div>
+              <Switch id="ep-enabled" checked={enabled} onCheckedChange={setEnabled} />
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              id="ep-enabled"
-              checked={enabled}
-              onCheckedChange={setEnabled}
-            />
-            <Label htmlFor="ep-enabled" className="cursor-pointer">Enabled</Label>
-          </div>
-        </div>
+        </Section>
       )}
 
       {/* Footer */}

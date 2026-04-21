@@ -39,6 +39,7 @@ type TLSProtocolCounts struct {
 	TLS12 int `json:"tls12"`
 	TLS11 int `json:"tls11"`
 	TLS10 int `json:"tls10"`
+	SSL30 int `json:"ssl30"`
 }
 
 // TLSCipherCount is a single row in the cipher distribution.

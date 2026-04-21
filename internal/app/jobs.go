@@ -8,6 +8,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/notifications"
+	"github.com/tlsentinel/tlsentinel-server/internal/rootstore"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 )
 
@@ -67,6 +68,13 @@ func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) 
 				return
 			}
 			log.Info("purge expiry alerts complete", "deleted", deleted)
+		},
+		models.JobRefreshRootStores: func(ctx context.Context) {
+			if err := rootstore.Refresh(ctx, store, log); err != nil {
+				log.Error("refresh root stores failed", "error", err)
+				return
+			}
+			log.Info("refresh root stores complete")
 		},
 		models.JobPurgeAuditLogs: func(ctx context.Context) {
 			days, err := store.GetAuditLogRetentionDays(ctx)

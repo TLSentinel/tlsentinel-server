@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { KeyRound } from 'lucide-react'
+import { ScrollText } from 'lucide-react'
 import { fmtDate } from '@/lib/utils'
 
 interface CertProgressCardProps {
@@ -29,14 +29,14 @@ export function CertProgressCard({
   const isWarning = !isExpired && daysLeft <= 30
   const pct       = Math.round(Math.min(Math.max((now - issued) / (expiry - issued), 0), 1) * 100)
 
-  const accentClass = isExpired ? 'border-l-red-500'  : isWarning ? 'border-l-amber-500'  : 'border-l-green-500'
-  const barClass    = isExpired ? 'bg-red-500'         : isWarning ? 'bg-amber-500'         : 'bg-green-500'
+  const accentClass = isExpired ? 'border-l-error'     : isWarning ? 'border-l-warning'     : 'border-l-tertiary'
+  const barClass    = isExpired ? 'bg-error'           : isWarning ? 'bg-warning'           : 'bg-tertiary'
 
   return (
-    <div className={`rounded-md border border-l-4 ${accentClass} px-4 py-3 space-y-3`}>
+    <div className={`rounded-xl bg-card border border-l-4 border-border ${accentClass} px-4 py-3 space-y-3`}>
       {/* Label */}
       <div className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <KeyRound className="h-3.5 w-3.5" />
+        <ScrollText className="h-3.5 w-3.5" />
         {label}
       </div>
 
@@ -64,7 +64,7 @@ export function CertProgressCard({
       </div>
 
       {/* Fingerprint */}
-      <div className="border-t border-border/40 pt-2">
+      <div className="border-t border-outline-variant pt-2">
         {isViewing ? (
           <span className="block truncate font-mono text-xs text-muted-foreground/70">{fingerprint}</span>
         ) : (

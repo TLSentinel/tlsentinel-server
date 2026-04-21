@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Plus, Upload, Pencil, Trash2, Copy, MoreVertical, AlertCircle, ChevronDown, Check, Tag, X, ExternalLink, Server, Wifi, WifiOff } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Plus, Upload, Pencil, Trash2, Copy, MoreVertical, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Check, Tag, X, ExternalLink, Server, Wifi, WifiOff } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -169,22 +168,35 @@ function fmtRelative(iso: string, now: number): string {
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2fr_5rem_1.5fr_6rem_7rem_7rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[2.5rem_2fr_5rem_1.5fr_6rem_7rem_7rem_3rem]'
 
 interface EndpointRowProps {
   endpoint: EndpointListItem
   now: number
   admin: boolean
   tagFilter: string
+  selected: boolean
+  onToggle: (id: string) => void
   onTagClick: (id: string) => void
   onDelete: (ep: EndpointListItem) => void
 }
 
-function EndpointRow({ endpoint, now, admin, tagFilter, onTagClick, onDelete }: EndpointRowProps) {
+function EndpointRow({ endpoint, now, admin, tagFilter, selected, onToggle, onTagClick, onDelete }: EndpointRowProps) {
   const navigate = useNavigate()
 
   return (
-    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0`}>
+    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
+
+      {/* Checkbox */}
+      <div className="flex items-center justify-center pt-0.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(endpoint.id)}
+          aria-label={`Select ${endpoint.name}`}
+          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+        />
+      </div>
 
       {/* Name + tags */}
       <div className="min-w-0">
@@ -202,7 +214,7 @@ function EndpointRow({ endpoint, now, admin, tagFilter, onTagClick, onDelete }: 
                 type="button"
                 onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
                 title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                className={`inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
               >
                 <span className="opacity-60">{tag.categoryName}:</span>
                 {tag.name}
@@ -381,6 +393,7 @@ export default function HostsPage() {
   const [tagFilter, setTagFilter]             = useState('')
   const [deleteTarget, setDeleteTarget]       = useState<EndpointListItem | null>(null)
   const [importOpen, setImportOpen]           = useState(false)
+  const [selected, setSelected]               = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
@@ -422,6 +435,30 @@ export default function HostsPage() {
   function handleSortChange(value: SortOption)    { setSortOption(value);   setPage(1) }
   function handleTagChange(tagId: string)          { setTagFilter(tagId);    setPage(1) }
 
+  const pageIds = useMemo(() => endpoints.map(e => e.id), [endpoints])
+  const allPageSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id))
+  const somePageSelected = !allPageSelected && pageIds.some(id => selected.has(id))
+
+  function toggleOne(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allPageSelected) {
+        pageIds.forEach(id => next.delete(id))
+      } else {
+        pageIds.forEach(id => next.add(id))
+      }
+      return next
+    })
+  }
+
   return (
     <div className="space-y-6">
 
@@ -436,11 +473,11 @@ export default function HostsPage() {
         <div className="flex items-center gap-2">
           {admin && (
             <>
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Button variant="outline" onClick={() => setImportOpen(true)} className="h-12 px-4 text-base font-semibold">
                 <Upload className="mr-1.5 h-4 w-4" />
                 Import
               </Button>
-              <Button onClick={() => navigate('/endpoints/new')}>
+              <Button onClick={() => navigate('/endpoints/new')} className="h-12 px-4 text-base font-semibold">
                 <Plus className="mr-1.5 h-4 w-4" />
                 Add Endpoint
               </Button>
@@ -552,26 +589,28 @@ export default function HostsPage() {
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <div className="rounded-lg border">
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            {totalCount === 0
-              ? 'No endpoints'
-              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} ${plural(totalCount, 'endpoint')}`}
-          </p>
-        </div>
+      <div className="rounded-lg border bg-card overflow-hidden">
 
         {/* Column headers */}
-        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              ref={el => { if (el) el.indeterminate = somePageSelected }}
+              onChange={toggleAll}
+              disabled={endpoints.length === 0}
+              aria-label="Select all on page"
+              className="h-4 w-4 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Next Expiry</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Scanned</span>
-          <span />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Actions</span>
         </div>
 
         {/* Rows */}
@@ -592,22 +631,47 @@ export default function HostsPage() {
                 now={now}
                 admin={admin}
                 tagFilter={tagFilter}
+                selected={selected.has(endpoint.id)}
+                onToggle={toggleOne}
                 onTagClick={handleTagChange}
                 onDelete={setDeleteTarget}
               />
             ))}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => p - 1)}
-        onNext={() => setPage(p => p + 1)}
-        noun="endpoint"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No endpoints'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'endpoint')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <DeleteDialog
         endpoint={deleteTarget}

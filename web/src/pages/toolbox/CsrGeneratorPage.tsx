@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Plus, X, Copy, Check, Download, AlertCircle, ShieldAlert } from 'lucide-react'
+import { Plus, X, Copy, Check, Download, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   Select,
   SelectContent,
@@ -157,7 +159,7 @@ function download(filename: string, content: string) {
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
       <Separator />
     </div>
   )
@@ -168,7 +170,7 @@ function PemBlock({ label, value, filename }: { label: string; value: string; fi
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{label}</p>
+        <p className={FIELD_LABEL}>{label}</p>
         <div className="flex items-center gap-1.5">
           <Button variant="ghost" size="sm" onClick={copy} className="h-7 gap-1.5 text-xs">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -234,11 +236,10 @@ export default function CsrGeneratorPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">CSR Generator</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'CSR Generator' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">CSR Generator</h1>
@@ -258,32 +259,32 @@ export default function CsrGeneratorPage() {
         <div className="space-y-3">
           <SectionHeader title="Subject" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="cn">Common Name <span className="text-destructive">*</span></Label>
+            <div className="space-y-2">
+              <Label htmlFor="cn" className={FIELD_LABEL}>Common Name <span className="text-destructive">*</span></Label>
               <Input id="cn" placeholder="example.com" value={cn} onChange={(e) => setCn(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="o">Organization</Label>
+            <div className="space-y-2">
+              <Label htmlFor="o" className={FIELD_LABEL}>Organization</Label>
               <Input id="o" placeholder="Acme Corp" value={o} onChange={(e) => setO(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ou">Organizational Unit</Label>
+            <div className="space-y-2">
+              <Label htmlFor="ou" className={FIELD_LABEL}>Organizational Unit</Label>
               <Input id="ou" placeholder="Engineering" value={ou} onChange={(e) => setOu(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="c">Country</Label>
+            <div className="space-y-2">
+              <Label htmlFor="c" className={FIELD_LABEL}>Country</Label>
               <Input id="c" placeholder="US" maxLength={2} value={c} onChange={(e) => setC(e.target.value.toUpperCase())} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="st">State / Province</Label>
+            <div className="space-y-2">
+              <Label htmlFor="st" className={FIELD_LABEL}>State / Province</Label>
               <Input id="st" placeholder="California" value={st} onChange={(e) => setSt(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l">Locality</Label>
+            <div className="space-y-2">
+              <Label htmlFor="l" className={FIELD_LABEL}>Locality</Label>
               <Input id="l" placeholder="San Francisco" value={l} onChange={(e) => setL(e.target.value)} />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="email" className={FIELD_LABEL}>Email</Label>
               <Input id="email" type="email" placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
           </div>
@@ -350,12 +351,7 @@ export default function CsrGeneratorPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorAlert>{error}</ErrorAlert>}
 
       {/* Output */}
       {result && (

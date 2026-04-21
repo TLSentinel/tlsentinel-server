@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { login } from '@/api/auth'
 import { setToken } from '@/api/client'
 import { ApiError } from '@/types/api'
+import { FIELD_LABEL } from '@/lib/utils'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 async function fetchAuthConfig(): Promise<{ oidcEnabled: boolean; providerHint?: string }> {
   const res = await fetch('/api/v1/auth/config')
@@ -51,19 +53,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mb-4 flex justify-center">
-            <img src="/logo_light_vertical.png" alt="TLSentinel" className="h-64 w-auto" />
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm border border-border gap-6 py-8 shadow-sm">
+        <CardHeader className="text-center gap-3">
+          <div className="flex justify-center">
+            <img src="/logo.png" alt="TLSentinel" className="h-36 w-auto" />
           </div>
-          <CardDescription>Sign in to your account</CardDescription>
+          <h1 className="font-brand text-4xl uppercase tracking-[0.15em]">TLSentinel</h1>
         </CardHeader>
 
         <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username" className={FIELD_LABEL}>Username</Label>
               <Input
                 id="username"
                 type="text"
@@ -76,7 +78,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className={FIELD_LABEL}>Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -87,9 +89,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <ErrorAlert>{error}</ErrorAlert>}
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in…' : 'Sign in'}
@@ -102,8 +102,8 @@ export default function LoginPage() {
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                <div className="relative flex justify-center">
+                  <span className={`bg-card px-2 ${FIELD_LABEL}`}>or</span>
                 </div>
               </div>
 

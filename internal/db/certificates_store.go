@@ -256,6 +256,7 @@ func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.
 		AuthorityKeyID:    c.AuthorityKeyID,
 		IssuerFingerprint: c.IssuerFingerprint,
 		CreatedAt:         c.CreatedAt,
+		IsTrustAnchor:     c.TrustAnchor,
 	}, nil
 }
 

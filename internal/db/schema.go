@@ -23,7 +23,29 @@ type Certificate struct {
 	SubjectDNHash     string    `bun:"subject_dn_hash"`
 	IssuerDNHash      string    `bun:"issuer_dn_hash"`
 	IssuerFingerprint *string   `bun:"issuer_fingerprint"`
+	TrustAnchor       bool      `bun:"trust_anchor"`
 	CreatedAt         time.Time `bun:"created_at"`
+}
+
+// RootStore maps to tlsentinel.root_stores.
+type RootStore struct {
+	bun.BaseModel `bun:"table:tlsentinel.root_stores,alias:rs"`
+
+	ID        string     `bun:"id,pk"`
+	Name      string     `bun:"name"`
+	Kind      string     `bun:"kind"`
+	SourceURL *string    `bun:"source_url"`
+	Enabled   bool       `bun:"enabled"`
+	UpdatedAt *time.Time `bun:"updated_at"`
+	CreatedAt time.Time  `bun:"created_at"`
+}
+
+// RootStoreAnchor maps to tlsentinel.root_store_anchors.
+type RootStoreAnchor struct {
+	bun.BaseModel `bun:"table:tlsentinel.root_store_anchors,alias:rsa"`
+
+	RootStoreID string `bun:"root_store_id,pk"`
+	Fingerprint string `bun:"fingerprint,pk"`
 }
 
 // Endpoint maps to tlsentinel.endpoints.
@@ -68,11 +90,31 @@ type EndpointHost struct {
 }
 
 // EndpointSAML maps to tlsentinel.endpoint_saml.
+// URL is user-owned (set via create/update). Metadata, MetadataXML,
+// MetadataXMLSha256, and MetadataFetchedAt are scanner-owned — written on
+// each successful scan and preserved across user edits.
 type EndpointSAML struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoint_saml,alias:es"`
 
-	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
-	URL        string  `bun:"url"`
+	EndpointID        string          `bun:"endpoint_id,pk,type:uuid"`
+	URL               string          `bun:"url"`
+	Metadata          json.RawMessage `bun:"metadata,type:jsonb"`
+	MetadataXML       *string         `bun:"metadata_xml"`
+	MetadataXMLSha256 *string         `bun:"metadata_xml_sha256"`
+	MetadataFetchedAt *time.Time      `bun:"metadata_fetched_at"`
+}
+
+// SAMLMetadataHistory maps to tlsentinel.saml_metadata_history — one row
+// per distinct metadata document ever observed for an endpoint.
+type SAMLMetadataHistory struct {
+	bun.BaseModel `bun:"table:tlsentinel.saml_metadata_history"`
+
+	ID         string          `bun:"id,pk,type:uuid"`
+	EndpointID string          `bun:"endpoint_id,type:uuid"`
+	Sha256     string          `bun:"sha256"`
+	XML        string          `bun:"xml"`
+	Metadata   json.RawMessage `bun:"metadata,type:jsonb"`
+	CapturedAt time.Time       `bun:"captured_at"`
 }
 
 // Scanner maps to tlsentinel.scanners.
@@ -171,6 +213,7 @@ type EndpointTLSProfile struct {
 
 	EndpointID     string    `bun:"endpoint_id,pk,type:uuid"`
 	ScannedAt      time.Time `bun:"scanned_at"`
+	SSL30          bool      `bun:"ssl30"`
 	TLS10          bool      `bun:"tls10"`
 	TLS11          bool      `bun:"tls11"`
 	TLS12          bool      `bun:"tls12"`

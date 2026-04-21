@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Copy, Check, AlertCircle, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
+import { Copy, Check, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   decodeCert,
   fmtDate,
@@ -20,7 +22,7 @@ import {
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
       <Separator />
     </div>
   )
@@ -29,8 +31,8 @@ function SectionHeader({ title }: { title: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="mt-0.5 text-sm font-medium break-all">{children}</div>
+      <p className={FIELD_LABEL}>{label}</p>
+      <div className="mt-1 text-sm font-medium break-all">{children}</div>
     </div>
   )
 }
@@ -45,8 +47,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
   }, [value])
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="mt-0.5 flex items-center gap-2">
+      <p className={FIELD_LABEL}>{label}</p>
+      <div className="mt-1 flex items-center gap-2">
         <code className="text-xs font-mono break-all text-foreground">{value}</code>
         <button
           onClick={copy}
@@ -164,11 +166,10 @@ export default function CertDecoderPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Certificate Decoder</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'Certificate Decoder' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Certificate Decoder</h1>
@@ -193,19 +194,14 @@ export default function CertDecoderPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorAlert>{error}</ErrorAlert>}
 
       {decoded && (
         <div className="space-y-8">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border p-4">
             <div>
-              <p className="text-xs text-muted-foreground">Common Name</p>
-              <p className="text-sm font-semibold">{decoded.subject['CN']?.[0] ?? decoded.subjectString}</p>
+              <p className={FIELD_LABEL}>Common Name</p>
+              <p className="mt-1 text-sm font-semibold">{decoded.subject['CN']?.[0] ?? decoded.subjectString}</p>
             </div>
             <Separator orientation="vertical" className="h-8 hidden sm:block" />
             <ValidityBadge cert={decoded} />
@@ -260,11 +256,11 @@ export default function CertDecoderPage() {
             <SectionHeader title="Key Usage" />
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Key Usage</p>
+                <p className={`${FIELD_LABEL} mb-1`}>Key Usage</p>
                 <TagList items={decoded.keyUsages} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Extended Key Usage</p>
+                <p className={`${FIELD_LABEL} mb-1`}>Extended Key Usage</p>
                 <TagList items={decoded.extendedKeyUsages} />
               </div>
             </div>
@@ -295,11 +291,11 @@ export default function CertDecoderPage() {
             <SectionHeader title="Authority Info Access" />
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">OCSP</p>
+                <p className={`${FIELD_LABEL} mb-1`}>OCSP</p>
                 <UrlList urls={decoded.ocspUrls} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">CA Issuers</p>
+                <p className={`${FIELD_LABEL} mb-1`}>CA Issuers</p>
                 <UrlList urls={decoded.caIssuerUrls} />
               </div>
             </div>

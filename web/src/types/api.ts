@@ -77,6 +77,47 @@ export interface EndpointListItem {
   tags: TagWithCategory[]
 }
 
+/** One SSO/SLO/ACS endpoint element from SAML metadata. */
+export interface SAMLMetadataEndpoint {
+  binding: string
+  location: string
+  index?: number
+  isDefault?: boolean
+}
+
+/** One ContactPerson from SAML metadata. */
+export interface SAMLMetadataContact {
+  type: string
+  givenName?: string
+  surname?: string
+  emailAddress?: string
+  company?: string
+}
+
+/** The Organization element from SAML metadata. */
+export interface SAMLMetadataOrganization {
+  name?: string
+  displayName?: string
+  url?: string
+}
+
+/** Parsed SAML metadata bag — all fields are optional. */
+export interface SAMLMetadata {
+  entityId?: string
+  validUntil?: string
+  cacheDuration?: string
+  /** "idp", "sp", or "both". */
+  role?: string
+  singleSignOn?: SAMLMetadataEndpoint[]
+  singleLogout?: SAMLMetadataEndpoint[]
+  assertionConsumer?: SAMLMetadataEndpoint[]
+  nameIdFormats?: string[]
+  organization?: SAMLMetadataOrganization
+  contacts?: SAMLMetadataContact[]
+  wantAssertionsSigned?: boolean
+  authnRequestsSigned?: boolean
+}
+
 /** Returned by GET/POST/PUT /endpoints/{id} (full detail). */
 export interface Endpoint {
   id: string
@@ -88,6 +129,8 @@ export interface Endpoint {
   port: number
   // saml-type fields
   url?: string | null
+  samlMetadata?: SAMLMetadata
+  samlFetchedAt?: string
   // common fields
   enabled: boolean
   scanExempt: boolean
@@ -204,6 +247,44 @@ export interface CertificateDetail {
   extKeyUsages: string[]
   ocspUrls: string[]
   crlDistributionPoints: string[]
+  /** Root store IDs whose anchors appear anywhere in this cert's chain. */
+  trustedBy: string[]
+  /** True when this cert is Subject+SKI-equivalent to a CCADB root anchor. */
+  isTrustAnchor: boolean
+}
+
+/** One enabled root store, used by the trust matrix card on cert detail. */
+export interface RootStoreSummary {
+  id: string
+  name: string
+}
+
+// ---------------------------------------------------------------------------
+// Universal search — GET /search?q=...
+// ---------------------------------------------------------------------------
+
+export interface SearchEndpoint {
+  id: string
+  name: string
+  type: string
+  subtitle: string
+}
+
+export interface SearchCertificate {
+  fingerprint: string
+  commonName: string
+  notAfter: string
+}
+
+export interface SearchScanner {
+  id: string
+  name: string
+}
+
+export interface SearchResults {
+  endpoints: SearchEndpoint[]
+  certificates: SearchCertificate[]
+  scanners: SearchScanner[]
 }
 
 /** Body for POST /certificates. Exactly one field must be set. */
@@ -259,9 +340,26 @@ export interface TLSClassification {
   overallSeverity: TLSSeverity
 }
 
+// SSL Labs-style letter grade.
+export type TLSGrade =
+  | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D' | 'E' | 'F'
+  | 'T' // Certificate not trusted.
+  | 'M' // Certificate name mismatch.
+
+export interface TLSScore {
+  protocolScore: number
+  // null when the scanner did not probe key-exchange strength.
+  keyExchangeScore: number | null
+  cipherScore: number
+  score: number
+  grade: TLSGrade
+  warnings?: string[]
+}
+
 export interface EndpointTLSProfile {
   endpointId: string
   scannedAt: string
+  ssl30: boolean
   tls10: boolean
   tls11: boolean
   tls12: boolean
@@ -270,6 +368,7 @@ export interface EndpointTLSProfile {
   selectedCipher: string | null
   scanError: string | null
   classification: TLSClassification
+  score: TLSScore
 }
 
 // ---------------------------------------------------------------------------
@@ -460,6 +559,7 @@ export interface TLSProtocolCounts {
   tls12: number
   tls11: number
   tls10: number
+  ssl30: number
 }
 
 export interface TLSCipherCount {
