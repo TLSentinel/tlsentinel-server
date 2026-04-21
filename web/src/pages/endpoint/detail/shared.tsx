@@ -67,7 +67,7 @@ export function Row({ label, children }: { label: string; children: React.ReactN
 
 export function BackBreadcrumb({ name }: { name: string | null }) {
   return (
-    <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+    <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
       <Link to="/endpoints" className="hover:text-foreground">Endpoints</Link>
       <ChevronRight className="h-3.5 w-3.5" />
       <span className="text-foreground">{name ?? '…'}</span>

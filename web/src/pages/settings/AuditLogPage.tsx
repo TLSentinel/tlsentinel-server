@@ -102,7 +102,7 @@ export default function AuditLogPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Link to="/logs" className="hover:text-foreground transition-colors">Logs</Link>
         <span>/</span>
         <span className="text-foreground">Audit</span>

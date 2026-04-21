@@ -64,7 +64,7 @@ export default function AccountAPIKeysPage() {
 
   return (
     <div className="space-y-4">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Link to="/account" className="hover:text-foreground">Account</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground">API Keys</span>

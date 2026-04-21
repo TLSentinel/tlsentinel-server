@@ -410,7 +410,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Link to="/settings" className="hover:text-foreground">Settings</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground">Users</span>

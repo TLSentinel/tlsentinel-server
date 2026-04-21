@@ -69,7 +69,7 @@ export default function ScoringPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <nav className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground">Help — TLS Score</span>
