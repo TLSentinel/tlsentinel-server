@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Landmark } from 'lucide-react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -15,7 +15,8 @@ const ROW_GRID = 'grid-cols-[2fr_2fr_1.25fr_11rem]'
 const STORE_ORDER = ['microsoft', 'apple', 'mozilla', 'chrome']
 
 export default function RootStoresPage() {
-  const [activeStore, setActiveStore] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeStore, setActiveStore] = useState<string | null>(searchParams.get('store'))
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -63,6 +64,7 @@ export default function RootStoresPage() {
     setPage(1)
     setSearch('')
     setDebouncedSearch('')
+    setSearchParams({ store: id }, { replace: true })
   }
 
   return (

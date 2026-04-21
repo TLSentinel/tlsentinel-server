@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Server, Shield, Clock, AlertCircle, XCircle, ShieldOff, MoreVertical, ExternalLink } from 'lucide-react'
+import { Server, Shield, Clock, AlertCircle, XCircle, ShieldOff, MoreVertical, ExternalLink, Landmark, Lock } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listEndpoints, listErrorEndpoints } from '@/api/endpoints'
 import { listCertificates } from '@/api/certificates'
 import { getExpiringCerts, type ExpiringCertItem } from '@/api/certificates'
 import { getTLSPostureReport } from '@/api/reports'
+import { listRootStores } from '@/api/rootstores'
 import type { EndpointListItem } from '@/types/api'
 import { fmtDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -241,6 +242,11 @@ export default function DashboardPage() {
     queryFn: getTLSPostureReport,
   })
 
+  const { data: rootStores } = useQuery({
+    queryKey: ['dashboard', 'root-stores'],
+    queryFn: listRootStores,
+  })
+
   const hostCount    = endpointData?.totalCount ?? null
   const certCount    = certData?.totalCount ?? null
   const expiring     = expiringData?.items ?? null
@@ -306,9 +312,13 @@ export default function DashboardPage() {
       {/* Panels */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
 
-        {/* Left: TLS Distribution */}
-        <div className="rounded-lg border bg-card p-5 space-y-4 self-start">
-          <h2 className="font-semibold">TLS Distribution</h2>
+        {/* Left: TLS Distribution + Trust Program */}
+        <div className="space-y-6 self-start">
+        <div className="rounded-lg border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold">TLS Distribution</h2>
+          </div>
           {!tlsReport ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : (() => {
@@ -353,6 +363,33 @@ export default function DashboardPage() {
               </div>
             )
           })()}
+        </div>
+
+        {/* Trust Program */}
+        <div className="rounded-lg border bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold">Trust Program</h2>
+          </div>
+          {!rootStores ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : rootStores.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">No programs yet.</div>
+          ) : (
+            <div className="space-y-1">
+              {rootStores.map(store => (
+                <Link
+                  key={store.id}
+                  to={`/root-stores?store=${store.id}`}
+                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
+                >
+                  <span className="text-muted-foreground">{store.name}</span>
+                  <span className="font-semibold tabular-nums">{store.anchorCount.toLocaleString()}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
         </div>
 
         {/* Right: Expiring soon + Scan errors stacked */}
