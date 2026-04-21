@@ -15,7 +15,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import MailConfigPage from '@/pages/settings/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
-import ActivePage from '@/pages/ActivePage'
+import MonitorPage from '@/pages/monitor/MonitorPage'
 import GeneralSettingsPage from '@/pages/settings/GeneralSettingsPage'
 import MaintenancePage from '@/pages/settings/MaintenancePage'
 import NotificationTemplatesPage from '@/pages/settings/NotificationTemplatesPage'
@@ -31,7 +31,6 @@ import APIKeysPage from '@/pages/settings/APIKeysPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
 import AuditLogPage from '@/pages/settings/AuditLogPage'
 import TagsPage from '@/pages/settings/TagsPage'
-import CalendarPage from '@/pages/CalendarPage'
 import ReportsPage from '@/pages/ReportsPage'
 import TLSPosturePage from '@/pages/reports/TLSPosturePage'
 import DiscoveryInboxPage from '@/pages/discovery/DiscoveryInboxPage'
@@ -76,12 +75,16 @@ export default function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="active" element={<ActivePage />} />
+          <Route path="monitor" element={<MonitorPage />} />
+          {/* /active and /calendar were split views — now consolidated into
+              /monitor with a view toggle. Keep redirects so old bookmarks /
+              alert links don't 404. */}
+          <Route path="active" element={<Navigate to="/monitor" replace />} />
+          <Route path="calendar" element={<Navigate to="/monitor?view=calendar" replace />} />
           <Route path="endpoints" element={<EndpointPage />} />
           <Route path="endpoints/new" element={<EndpointFormPage />} />
           <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
           <Route path="endpoints/:id" element={<EndpointDetailPage />} />
-          <Route path="calendar" element={<CalendarPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="reports/tls-posture" element={<TLSPosturePage />} />
           <Route path="discovery/inbox" element={<DiscoveryInboxPage />} />
