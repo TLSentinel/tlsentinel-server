@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Bell, HelpCircle } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Bell, HelpCircle, Landmark } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
 import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
@@ -140,9 +140,10 @@ export default function AppShell() {
             <NavItem to="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
           </NavGroup>
           <NavItem to="/reports" icon={<BarChart2 className="h-4 w-4" />} label="Reports" />
-          <NavGroup icon={<Package className="h-4 w-4" />} label="Inventory" childPaths={['/certificates', '/endpoints']}>
+          <NavGroup icon={<Package className="h-4 w-4" />} label="Inventory" childPaths={['/certificates', '/endpoints', '/root-stores']}>
             <NavItem to="/certificates" icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
             <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
+            <NavItem to="/root-stores" icon={<Landmark className="h-4 w-4" />} label="Root Stores" />
           </NavGroup>
           <NavGroup icon={<Radar className="h-4 w-4" />} label="Discovery" childPaths={['/discovery']}>
             <NavItem to="/discovery/inbox" icon={<Inbox className="h-4 w-4" />} label="Inbox" />

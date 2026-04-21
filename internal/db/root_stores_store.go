@@ -10,27 +10,107 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// ListRootStoreSummaries returns id+name for each enabled root store,
-// ordered by name. Suitable for populating the frontend trust matrix card.
+// ListRootStoreSummaries returns each enabled root store along with its
+// kind, CCADB source URL, last-refresh time, and anchor count. Ordered by
+// name. Drives both the trust-matrix card on cert detail (which uses only
+// id+name) and the /root-stores overview page (which uses everything).
 func (s *Store) ListRootStoreSummaries(ctx context.Context) ([]models.RootStoreSummary, error) {
 	var rows []struct {
-		ID   string `bun:"id"`
-		Name string `bun:"name"`
+		ID          string     `bun:"id"`
+		Name        string     `bun:"name"`
+		Kind        string     `bun:"kind"`
+		SourceURL   string     `bun:"source_url"`
+		AnchorCount int        `bun:"anchor_count"`
+		UpdatedAt   *time.Time `bun:"updated_at"`
 	}
-	err := s.db.NewSelect().
-		Model((*RootStore)(nil)).
-		Column("id", "name").
-		Where("enabled = TRUE").
-		Order("name").
-		Scan(ctx, &rows)
+	err := s.db.NewRaw(`
+		SELECT rs.id, rs.name, rs.kind, COALESCE(rs.source_url, '') AS source_url,
+		       rs.updated_at,
+		       (SELECT COUNT(*) FROM tlsentinel.root_store_anchors rsa
+		         WHERE rsa.root_store_id = rs.id) AS anchor_count
+		FROM tlsentinel.root_stores rs
+		WHERE rs.enabled = TRUE
+		ORDER BY rs.name
+	`).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list root store summaries: %w", err)
 	}
 	out := make([]models.RootStoreSummary, len(rows))
 	for i, r := range rows {
-		out[i] = models.RootStoreSummary{ID: r.ID, Name: r.Name}
+		out[i] = models.RootStoreSummary{
+			ID:          r.ID,
+			Name:        r.Name,
+			Kind:        r.Kind,
+			SourceURL:   r.SourceURL,
+			AnchorCount: r.AnchorCount,
+			UpdatedAt:   r.UpdatedAt,
+		}
 	}
 	return out, nil
+}
+
+// ListRootStoreAnchors returns a paginated list of trust anchors that belong
+// to the given root store, filtered by common-name substring (case-insensitive).
+// Ordered by common_name. Returns a zero-item list (not an error) when the
+// store has no anchors or is unknown.
+func (s *Store) ListRootStoreAnchors(
+	ctx context.Context,
+	storeID, query string,
+	page, pageSize int,
+) (models.RootStoreAnchorList, error) {
+	offset := (page - 1) * pageSize
+	pattern := "%" + query + "%"
+
+	var total int
+	countQ := s.db.NewSelect().
+		TableExpr("tlsentinel.root_store_anchors AS rsa").
+		Join("JOIN tlsentinel.certificates c ON c.fingerprint = rsa.fingerprint").
+		Where("rsa.root_store_id = ?", storeID)
+	if query != "" {
+		countQ = countQ.Where("c.common_name ILIKE ?", pattern)
+	}
+	if err := countQ.ColumnExpr("COUNT(*)").Scan(ctx, &total); err != nil {
+		return models.RootStoreAnchorList{}, fmt.Errorf("failed to count root store anchors: %w", err)
+	}
+
+	var rows []struct {
+		Fingerprint       string    `bun:"fingerprint"`
+		CommonName        string    `bun:"common_name"`
+		NotBefore         time.Time `bun:"not_before"`
+		NotAfter          time.Time `bun:"not_after"`
+		IssuerFingerprint *string   `bun:"issuer_fingerprint"`
+	}
+	listQ := s.db.NewSelect().
+		TableExpr("tlsentinel.root_store_anchors AS rsa").
+		Join("JOIN tlsentinel.certificates c ON c.fingerprint = rsa.fingerprint").
+		ColumnExpr("c.fingerprint, c.common_name, c.not_before, c.not_after, c.issuer_fingerprint").
+		Where("rsa.root_store_id = ?", storeID).
+		OrderExpr("c.common_name").
+		Limit(pageSize).
+		Offset(offset)
+	if query != "" {
+		listQ = listQ.Where("c.common_name ILIKE ?", pattern)
+	}
+	if err := listQ.Scan(ctx, &rows); err != nil {
+		return models.RootStoreAnchorList{}, fmt.Errorf("failed to list root store anchors: %w", err)
+	}
+
+	items := make([]models.RootStoreAnchorItem, len(rows))
+	for i, r := range rows {
+		items[i] = models.RootStoreAnchorItem{
+			Fingerprint:       r.Fingerprint,
+			CommonName:        r.CommonName,
+			NotBefore:         r.NotBefore,
+			NotAfter:          r.NotAfter,
+			IssuerFingerprint: r.IssuerFingerprint,
+		}
+	}
+	return models.RootStoreAnchorList{
+		Items:      items,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: total,
+	}, nil
 }
 
 // GetChainTrustedBy walks the issuer_fingerprint chain from the given leaf

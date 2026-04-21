@@ -79,11 +79,33 @@ type CertificateDetail struct {
 	IsTrustAnchor bool `json:"isTrustAnchor"`
 }
 
-// RootStoreSummary is the lightweight shape returned by GET /root-stores — one
-// row per enabled store, used by the frontend to render the trust matrix.
+// RootStoreSummary is the shape returned by GET /root-stores — one row per
+// enabled store. The Kind/SourceURL/AnchorCount/UpdatedAt fields drive the
+// root-stores overview page; the trust-matrix card on cert detail ignores them.
 type RootStoreSummary struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Kind        string     `json:"kind"`
+	SourceURL   string     `json:"sourceUrl"`
+	AnchorCount int        `json:"anchorCount"`
+	UpdatedAt   *time.Time `json:"updatedAt"`
+}
+
+// RootStoreAnchorItem is one trust anchor in a root store's membership list.
+type RootStoreAnchorItem struct {
+	Fingerprint       string    `json:"fingerprint"`
+	CommonName        string    `json:"commonName"`
+	NotBefore         time.Time `json:"notBefore"`
+	NotAfter          time.Time `json:"notAfter"`
+	IssuerFingerprint *string   `json:"issuerFingerprint"`
+}
+
+// RootStoreAnchorList is the paginated response envelope for anchors listings.
+type RootStoreAnchorList struct {
+	Items      []RootStoreAnchorItem `json:"items"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"pageSize"`
+	TotalCount int                   `json:"totalCount"`
 }
 
 // CertificateList represents a paginated list of certificates.

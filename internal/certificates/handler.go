@@ -242,6 +242,34 @@ func (h *Handler) ListRootStores(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, stores)
 }
 
+// @Summary      List anchors in a root store
+// @Description  Returns a paginated list of trust anchors (certificates) that are members
+// @Description  of the given root store, optionally filtered by common-name substring.
+// @Tags         certificates
+// @Produce      json
+// @Param        id         path   string  true   "Root store ID (e.g. microsoft, apple, mozilla, chrome)"
+// @Param        page       query  int     false  "Page number (default 1)"
+// @Param        page_size  query  int     false  "Page size (default 20, max 100)"
+// @Param        q          query  string  false  "Filter by common name (partial match)"
+// @Success      200  {object}  models.RootStoreAnchorList
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /root-stores/{id}/anchors [get]
+func (h *Handler) ListAnchors(w http.ResponseWriter, r *http.Request) {
+	storeID := chi.URLParam(r, "id")
+	page, pageSize := pagination.Parse(r, 20, 100)
+	q := r.URL.Query().Get("q")
+
+	result, err := h.store.ListRootStoreAnchors(r.Context(), storeID, q, page, pageSize)
+	if err != nil {
+		http.Error(w, "failed to list anchors", http.StatusInternalServerError)
+		return
+	}
+	if result.Items == nil {
+		result.Items = []models.RootStoreAnchorItem{}
+	}
+	response.JSON(w, http.StatusOK, result)
+}
+
 // @Summary      Get endpoints using a certificate
 // @Description  Returns all endpoints whose active certificate matches the given fingerprint
 // @Tags         certificates

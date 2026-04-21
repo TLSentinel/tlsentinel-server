@@ -8,6 +8,7 @@ import EndpointPage from '@/pages/endpoint/EndpointPage'
 import EndpointFormPage from '@/pages/endpoint/EndpointFormPage'
 import CertificatesPage from '@/pages/certificates/CertificatesPage'
 import CertificateDetailPage from '@/pages/certificates/CertificateDetailPage'
+import RootStoresPage from '@/pages/root-stores/RootStoresPage'
 import EndpointDetailPage from '@/pages/endpoint/EndpointDetailPage'
 import UsersPage from '@/pages/settings/UsersPage'
 import DashboardPage from '@/pages/DashboardPage'
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="toolbox/cert-chain" element={<CertChainPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
+          <Route path="root-stores" element={<RootStoresPage />} />
           <Route path="help" element={<HelpPage />} />
           <Route path="help/scoring" element={<ScoringPage />} />
           <Route path="account">

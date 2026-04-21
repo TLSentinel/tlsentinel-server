@@ -253,10 +253,32 @@ export interface CertificateDetail {
   isTrustAnchor: boolean
 }
 
-/** One enabled root store, used by the trust matrix card on cert detail. */
+/** One enabled root store, used by the trust matrix card on cert detail
+ *  (id + name) and the /root-stores overview page (all fields). */
 export interface RootStoreSummary {
   id: string
   name: string
+  kind: string
+  sourceUrl: string
+  anchorCount: number
+  updatedAt: string | null
+}
+
+/** One trust anchor in a root store's membership list. */
+export interface RootStoreAnchorItem {
+  fingerprint: string
+  commonName: string
+  notBefore: string
+  notAfter: string
+  issuerFingerprint: string | null
+}
+
+/** Paginated response for GET /root-stores/{id}/anchors. */
+export interface RootStoreAnchorList {
+  items: RootStoreAnchorItem[]
+  page: number
+  pageSize: number
+  totalCount: number
 }
 
 // ---------------------------------------------------------------------------
