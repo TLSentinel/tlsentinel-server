@@ -48,6 +48,15 @@ type createScannerTokenResponse struct {
 	Token string `json:"token"`
 }
 
+// regenerateScannerTokenResponse is returned once on regeneration with the new raw token.
+// Kept minimal — the caller already has every other field cached; all we add here is the
+// rotated secret.
+type regenerateScannerTokenResponse struct {
+	ID string `json:"id"`
+	// Token is the new raw bearer token. Shown exactly once — not stored.
+	Token string `json:"token"`
+}
+
 // @Summary      List scanner tokens
 // @Description  Returns all registered scanner tokens (without the raw token value)
 // @Tags         scanners
@@ -258,6 +267,54 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 
 	auth.LogAction(r.Context(), h.store, r, audit.ScannerUpdate, "scanner", scannerID)
 	response.JSON(w, http.StatusOK, token)
+}
+
+// @Summary      Regenerate a scanner token
+// @Description  Rotates the scanner's bearer token in place. The previous token is immediately
+// @Description  invalidated. The new raw token is returned once and cannot be retrieved again.
+// @Description  All other scanner configuration (name, schedule, concurrency, default flag,
+// @Description  endpoint assignments) is preserved.
+// @Tags         scanners
+// @Produce      json
+// @Param        scannerID  path      string  true  "Scanner token ID"
+// @Success      200        {object}  regenerateScannerTokenResponse
+// @Failure      404        {string}  string  "scanner token not found"
+// @Failure      500        {string}  string  "internal server error"
+// @Router       /scanners/{scannerID}/regenerate-token [post]
+func (h *Handler) RegenerateToken(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+
+	// Verify the scanner exists before minting a new token, so a 404 doesn't
+	// waste entropy and the audit log only records actual rotations.
+	if _, err := h.store.GetScannerToken(r.Context(), scannerID); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	raw, hash, err := auth.GenerateScannerToken()
+	if err != nil {
+		http.Error(w, "failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.store.RotateScannerTokenHash(r.Context(), scannerID, hash); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to rotate scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	auth.LogAction(r.Context(), h.store, r, audit.ScannerRegenerateToken, "scanner", scannerID)
+	response.JSON(w, http.StatusOK, regenerateScannerTokenResponse{
+		ID:    scannerID,
+		Token: raw,
+	})
 }
 
 // @Summary      Set default scanner token
