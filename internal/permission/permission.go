@@ -9,8 +9,10 @@ const (
 	CertsView = "certs:view"
 	CertsEdit = "certs:edit"
 
-	// Self — any authenticated user can access their own profile
-	SelfRead = "self:read"
+	// Self — any authenticated user can read and modify their own profile
+	// (GET/PUT /me, change own password, rotate calendar token, manage own
+	// API keys and tag subscriptions). Covers both reads and writes.
+	SelfAccess = "self:access"
 
 	// Scanners
 	ScannersView = "scanners:view"
@@ -67,7 +69,7 @@ var RolePermissions = map[string][]string{
 		GroupsView,
 		TagsView,
 		DiscoveryView,
-		SelfRead,
+		SelfAccess,
 	},
 	RoleOperator: {
 		EndpointsView,
@@ -83,7 +85,7 @@ var RolePermissions = map[string][]string{
 		Maintenance,
 		DiscoveryView,
 		DiscoveryEdit,
-		SelfRead,
+		SelfAccess,
 	},
 }
 

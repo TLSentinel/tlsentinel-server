@@ -116,6 +116,22 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 // Tags
 // ---------------------------------------------------------------------------
 
+// @Summary      List tags
+// @Description  Returns all tags with their category embedded, flat-sorted
+// @Tags         tags
+// @Produce      json
+// @Success      200  {array}   models.TagWithCategory
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /tags [get]
+func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
+	tags, err := h.store.ListAllTags(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list tags", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, tags)
+}
+
 // @Summary      Create tag
 // @Tags         tags
 // @Accept       json

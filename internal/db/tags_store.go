@@ -146,6 +146,41 @@ func (s *Store) DeleteTag(ctx context.Context, id string) error {
 	return nil
 }
 
+// ListAllTags returns every tag in the system with its category embedded,
+// flat-sorted by category name then tag name. Useful for filter pickers and
+// autocomplete where the category grouping of ListTagCategories is overkill.
+func (s *Store) ListAllTags(ctx context.Context) ([]models.TagWithCategory, error) {
+	type row struct {
+		TagID           string  `bun:"tag_id"`
+		TagName         string  `bun:"tag_name"`
+		TagDescription  *string `bun:"tag_description"`
+		CategoryID      string  `bun:"category_id"`
+		CategoryName    string  `bun:"category_name"`
+	}
+	var rows []row
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.tags t").
+		ColumnExpr("t.id AS tag_id, t.name AS tag_name, t.description AS tag_description, t.category_id, tc.name AS category_name").
+		Join("JOIN tlsentinel.tag_categories tc ON tc.id = t.category_id").
+		OrderExpr("tc.name ASC, t.name ASC").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tags: %w", err)
+	}
+
+	result := make([]models.TagWithCategory, len(rows))
+	for i, r := range rows {
+		result[i] = models.TagWithCategory{
+			ID:           r.TagID,
+			CategoryID:   r.CategoryID,
+			CategoryName: r.CategoryName,
+			Name:         r.TagName,
+			Description:  r.TagDescription,
+		}
+	}
+	return result, nil
+}
+
 // ---------------------------------------------------------------------------
 // Endpoint tags
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ export const PERM = {
   EndpointsEdit: 'endpoints:edit',
   CertsView:     'certs:view',
   CertsEdit:     'certs:edit',
-  SelfRead:      'self:read',
+  SelfAccess:      'self:access',
   ScannersView:  'scanners:view',
   ScannersEdit:  'scanners:edit',
   UsersView:     'users:view',
@@ -36,14 +36,14 @@ const rolePermissions: Record<string, string[]> = {
     PERM.GroupsView,
     PERM.SettingsView,
     PERM.TagsView, PERM.TagsEdit,
-    PERM.SelfRead,
+    PERM.SelfAccess,
   ],
   viewer: [
     PERM.EndpointsView,
     PERM.CertsView,
     PERM.GroupsView,
     PERM.TagsView,
-    PERM.SelfRead,
+    PERM.SelfAccess,
   ],
 }
 
