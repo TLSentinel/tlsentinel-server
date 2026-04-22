@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, User, Wrench, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, Bell, HelpCircle, Landmark } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, User, Wrench, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, HelpCircle, Landmark } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
 import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
@@ -180,7 +180,11 @@ export default function AppShell() {
 }
 
 // ---------------------------------------------------------------------------
-// TopBar — global search + notifications + help + user menu
+// TopBar — global search + help + user menu
+//
+// A bell/notifications icon lived here previously as a placeholder. Removed
+// until the notifications layer (see FEATURES.md → Notification System) lands,
+// so the UI doesn't imply an in-app channel that doesn't exist yet.
 // ---------------------------------------------------------------------------
 interface TopBarProps {
   identity: TokenIdentity | null
@@ -200,14 +204,6 @@ function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }:
       <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-1">
-        <button
-          type="button"
-          className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-        </button>
-
         <Link
           to="/help"
           className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
