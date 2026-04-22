@@ -290,6 +290,26 @@ func (h *Handler) GetEndpoints(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, endpoints)
 }
 
+// @Summary      Get historical endpoints for a certificate
+// @Description  Returns endpoints that previously had this certificate attached (endpoint_certs.is_current = FALSE), with the date the cert was last observed on each endpoint. Used to explain why a cert cannot be deleted — aged-out scan history and historical endpoint attachments both hold references until the nightly prune job runs.
+// @Tags         certificates
+// @Produce      json
+// @Param        fingerprint  path      string  true  "Certificate fingerprint"
+// @Success      200          {array}   models.HistoricalEndpointItem
+// @Failure      500          {string}  string  "internal server error"
+// @Router       /certificates/{fingerprint}/endpoints/historical [get]
+func (h *Handler) GetHistoricalEndpoints(w http.ResponseWriter, r *http.Request) {
+	fingerprint := chi.URLParam(r, "fingerprint")
+
+	endpoints, err := h.store.GetCertificateHostsHistorical(r.Context(), fingerprint)
+	if err != nil {
+		http.Error(w, "failed to get historical certificate endpoints", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, endpoints)
+}
+
 // @Summary      Delete a certificate
 // @Description  Deletes a certificate by its SHA-256 fingerprint
 // @Tags         certificates

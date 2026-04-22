@@ -98,6 +98,15 @@ type EndpointList struct {
 	TotalCount int                `json:"totalCount"`
 }
 
+// HistoricalEndpointItem is an endpoint that previously had a given cert
+// attached (endpoint_certs.is_current = FALSE) plus the date it was last
+// observed with that cert. Used by the certificate detail page's
+// "Historical Endpoints" section.
+type HistoricalEndpointItem struct {
+	EndpointListItem
+	LastSeenAt time.Time `json:"lastSeenAt"`
+}
+
 // ScannerHost is the slim host payload returned to scanner agents.
 type ScannerHost struct {
 	ID        string  `json:"id"`

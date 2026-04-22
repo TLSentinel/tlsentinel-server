@@ -280,6 +280,45 @@ func (s *Store) GetCertificateHosts(ctx context.Context, fingerprint string) ([]
 	return result, nil
 }
 
+// historicalEndpointRow wraps endpointWithScanner with the last_seen_at
+// timestamp from the endpoint_certs row, so we can render "when did this cert
+// last appear on this endpoint" on the cert detail page.
+type historicalEndpointRow struct {
+	endpointWithScanner
+	CertLastSeenAt time.Time `bun:"cert_last_seen_at"`
+}
+
+// GetCertificateHostsHistorical returns endpoints that previously had this
+// cert attached (endpoint_certs.is_current = FALSE) along with the date the
+// cert was last observed on that endpoint. Rows appear once per endpoint even
+// if the same endpoint rotated through this cert across multiple cert_uses;
+// in practice that's rare, and we keep it simple by ordering by the most
+// recent last_seen_at.
+//
+// Current attachments (is_current = TRUE) are intentionally excluded — those
+// are the "Associated Endpoints" section driven by GetCertificateHosts.
+func (s *Store) GetCertificateHostsHistorical(ctx context.Context, fingerprint string) ([]models.HistoricalEndpointItem, error) {
+	var rows []historicalEndpointRow
+	err := s.selectEndpointWithScanner().
+		ColumnExpr("ec.last_seen_at AS cert_last_seen_at").
+		Join("JOIN tlsentinel.endpoint_certs AS ec ON ec.endpoint_id = h.id AND ec.is_current = FALSE").
+		Where("ec.fingerprint = ?", fingerprint).
+		OrderExpr("ec.last_seen_at DESC").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query historical certificate endpoints: %w", err)
+	}
+
+	result := make([]models.HistoricalEndpointItem, len(rows))
+	for i, r := range rows {
+		result[i] = models.HistoricalEndpointItem{
+			EndpointListItem: endpointRowToListItem(r.endpointWithScanner),
+			LastSeenAt:       r.CertLastSeenAt,
+		}
+	}
+	return result, nil
+}
+
 func (s *Store) InsertCertificate(ctx context.Context, rec models.CertificateRecord) (inserted bool, err error) {
 	c := &Certificate{
 		Fingerprint:    rec.Fingerprint,
