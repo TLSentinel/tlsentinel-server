@@ -88,6 +88,15 @@ once it reaches 1.0.
   that asserted on the 204 status must be updated; any client reading the body
   or checking for 2xx is unaffected.
 
+### Changed
+
+- Bump `lucide-react` to 1.8. lucide 1.0 removed every brand logo from the
+  icon set, so the Help page's "GitHub repository" card now renders a local
+  Octocat mark (inlined under `web/src/components/icons/`, permitted by
+  GitHub's brand guidelines) instead of the bundled brand glyph. Fork
+  maintainers importing any lucide brand icon — `Github`, `Twitter`, `Chrome`,
+  `Figma`, etc. — must swap to a local SVG or alternative before upgrading.
+
 ### Security
 
 - Set read, write, and idle timeouts on the HTTP server to protect against
@@ -136,6 +145,10 @@ once it reaches 1.0.
   audit-log source IP by supplying their own `X-Forwarded-For` header. Now
   XFF is honoured only when the TCP peer lies inside a configured CIDR;
   otherwise the audit IP falls back to the peer address.
+- Pin transitive `hono` to ≥ 4.12.14 via npm `overrides` in
+  `web/package.json`. Clears the advisory against 4.12.12, which reached the
+  dependency tree through `shadcn` → `@modelcontextprotocol/sdk`. Tooling-only
+  — `hono` never makes it into the runtime bundle.
 
 ### Fixed
 
