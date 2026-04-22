@@ -212,9 +212,7 @@ export interface EndpointScanHistoryItem {
   scanError: string | null
 }
 
-export interface EndpointScanHistoryList {
-  items: EndpointScanHistoryItem[]
-}
+export type EndpointScanHistoryList = PaginatedList<EndpointScanHistoryItem>
 
 // ---------------------------------------------------------------------------
 // Certificates

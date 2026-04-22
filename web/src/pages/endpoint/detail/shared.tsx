@@ -290,7 +290,16 @@ function NotesEditDialog({
 // Scan history (tlsVersion + fingerprint fields are null for SAML)
 // ---------------------------------------------------------------------------
 
-export function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[] | null }) {
+export function ScanHistorySection({
+  items,
+  endpointID,
+  totalCount,
+}: {
+  items: EndpointScanHistoryItem[] | null
+  endpointID: string
+  totalCount: number
+}) {
+  const hasMore = items !== null && totalCount > items.length
   return (
     <Section title="Scan History" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
       {items === null ? (
@@ -298,13 +307,25 @@ export function ScanHistorySection({ items }: { items: EndpointScanHistoryItem[]
       ) : items.length === 0 ? (
         <p className="text-sm italic text-muted-foreground">No scan history yet.</p>
       ) : (
-        <div>{items.map((item) => <ScanHistoryRow key={item.id} item={item} />)}</div>
+        <>
+          <div>{items.map((item) => <ScanHistoryRow key={item.id} item={item} />)}</div>
+          {hasMore && (
+            <div className="mt-3 pt-3 border-t border-border/40">
+              <Link
+                to={`/endpoints/${endpointID}/scan-history`}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                View full scan history ({totalCount})
+              </Link>
+            </div>
+          )}
+        </>
       )}
     </Section>
   )
 }
 
-function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
+export function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
   const ok = !item.scanError
   return (
     <div className="py-2.5 border-b border-border/40 last:border-0">
