@@ -299,18 +299,19 @@ type purgeUnreferencedCertsResponse struct {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /maintenance/run/purge-unreferenced-certs [post]
 func (h *Handler) RunPurgeUnreferencedCerts(w http.ResponseWriter, r *http.Request) {
-	deleted, err := h.store.PurgeUnreferencedCerts(r.Context())
+	purged, err := h.store.PurgeUnreferencedCerts(r.Context())
 	if err != nil {
 		http.Error(w, "purge failed", http.StatusInternalServerError)
 		return
 	}
+	deleted := int64(len(purged))
 	if err := h.store.UpdateJobLastRun(r.Context(), models.JobPurgeUnreferencedCerts,
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual unreferenced certs purge", "err", err)
 	}
 	auth.Log(r.Context(), h.store, r, audit.Entry{
 		Action:  audit.MaintenancePurgeUnreferencedCerts,
-		Details: map[string]any{"trigger": "manual", "deleted": deleted},
+		Details: audit.PurgedCertsDetails("manual", purged),
 	})
 	response.JSON(w, http.StatusOK, purgeUnreferencedCertsResponse{Deleted: deleted})
 }

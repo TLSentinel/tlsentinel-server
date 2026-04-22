@@ -3,7 +3,19 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 )
+
+// PurgedCert is the slim identity of a certificate that was removed by
+// PurgeUnreferencedCerts. It's returned so the caller (audit log, UI) can
+// record exactly which certs went away, answering the "where did that cert
+// go?" question without needing a separate lookup table.
+type PurgedCert struct {
+	Fingerprint string    `bun:"fingerprint"`
+	CommonName  string    `bun:"common_name"`
+	SANs        []string  `bun:"sans,array"`
+	NotAfter    time.Time `bun:"not_after"`
+}
 
 // PurgeScanHistory deletes scan history rows older than the given number of days.
 // The most-recent row per endpoint is always preserved, regardless of age.
@@ -69,9 +81,11 @@ func (s *Store) PurgeExpiryAlerts(ctx context.Context) (int64, error) {
 // was pruned today). Convergence is intentional rather than iterative — one
 // pass per night keeps the operation predictable.
 //
-// Returns the number of certificates deleted.
-func (s *Store) PurgeUnreferencedCerts(ctx context.Context) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
+// Returns the slim identity of every certificate that was deleted. The
+// result slice is empty (not nil) when nothing was eligible.
+func (s *Store) PurgeUnreferencedCerts(ctx context.Context) ([]PurgedCert, error) {
+	purged := []PurgedCert{}
+	err := s.db.NewRaw(`
 		DELETE FROM tlsentinel.certificates c
 		WHERE c.trust_anchor = FALSE
 		  AND NOT EXISTS (
@@ -94,15 +108,12 @@ func (s *Store) PurgeUnreferencedCerts(ctx context.Context) (int64, error) {
 		        SELECT 1 FROM tlsentinel.discovery_inbox di
 		        WHERE di.fingerprint = c.fingerprint
 		  )
-	`)
+		RETURNING c.fingerprint, c.common_name, c.sans, c.not_after
+	`).Scan(ctx, &purged)
 	if err != nil {
-		return 0, fmt.Errorf("purge unreferenced certs: %w", err)
+		return nil, fmt.Errorf("purge unreferenced certs: %w", err)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("purge unreferenced certs rows affected: %w", err)
-	}
-	return n, nil
+	return purged, nil
 }
 
 // PurgeAuditLogs deletes audit log entries older than the given number of days.
