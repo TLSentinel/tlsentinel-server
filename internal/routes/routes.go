@@ -130,6 +130,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Use(auth.RequirePermission(permission.CertsView))
 						r.Get("/", certHandler.Get)
 						r.Get("/endpoints", certHandler.GetEndpoints)
+						r.Get("/endpoints/historical", certHandler.GetHistoricalEndpoints)
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.CertsEdit))

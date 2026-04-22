@@ -77,6 +77,15 @@ export interface EndpointListItem {
   tags: TagWithCategory[]
 }
 
+/**
+ * An endpoint that previously had a given cert attached, plus the date the
+ * cert was last observed on that endpoint. Drives the "Historical Endpoints"
+ * section on the certificate detail page.
+ */
+export interface HistoricalEndpointItem extends EndpointListItem {
+  lastSeenAt: string
+}
+
 /** One SSO/SLO/ACS endpoint element from SAML metadata. */
 export interface SAMLMetadataEndpoint {
   binding: string

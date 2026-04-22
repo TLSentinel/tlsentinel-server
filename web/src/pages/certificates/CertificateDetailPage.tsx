@@ -14,9 +14,9 @@ import {
   ShieldCheck,
   XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getCertificate, getCertificateHosts } from '@/api/certificates'
+import { getCertificate, getCertificateHosts, getCertificateHostsHistorical } from '@/api/certificates'
 import { listRootStores } from '@/api/rootstores'
-import type { CertificateDetail, EndpointListItem } from '@/types/api'
+import type { CertificateDetail, EndpointListItem, HistoricalEndpointItem } from '@/types/api'
 import { fmtDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Breadcrumb } from '@/components/Breadcrumb'
@@ -574,6 +574,68 @@ function EndpointsSection({ fingerprint }: { fingerprint: string }) {
   )
 }
 
+// HistoricalEndpointRow mirrors EndpointRow but substitutes the right-side
+// status dot for a "last seen" date — the endpoint's current posture isn't
+// what's relevant here; when the cert was rotated off is.
+function HistoricalEndpointRow({ ep }: { ep: HistoricalEndpointItem }) {
+  const Icon = endpointIcon(ep.type)
+  const subtitle = endpointSubtitle(ep)
+  const subtitleClass = ep.type === 'host'
+    ? 'mt-0.5 text-xs text-muted-foreground truncate font-mono'
+    : 'mt-0.5 text-xs uppercase tracking-widest text-muted-foreground truncate'
+
+  return (
+    <Link
+      to={`/endpoints/${ep.id}`}
+      className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/50"
+    >
+      <div className="shrink-0 w-9 h-9 rounded-md bg-muted/70 flex items-center justify-center">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold truncate">{ep.name}</p>
+        <p className={subtitleClass}>{subtitle}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Last seen</p>
+        <p className="text-xs font-mono text-muted-foreground">{fmtDate(ep.lastSeenAt)}</p>
+      </div>
+    </Link>
+  )
+}
+
+function HistoricalEndpointsSection({ fingerprint }: { fingerprint: string }) {
+  const { data: endpoints, isLoading } = useQuery({
+    queryKey: ['certificate', fingerprint, 'hosts', 'historical'],
+    queryFn: () => getCertificateHostsHistorical(fingerprint),
+  })
+
+  const endpointList: HistoricalEndpointItem[] = endpoints ?? []
+
+  // Hide the card entirely when there's no history — don't burn real estate
+  // on a placeholder for the common case.
+  if (!isLoading && endpointList.length === 0) return null
+
+  return (
+    <div className="rounded-xl bg-card border border-border p-6">
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        Historical Endpoints
+      </h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Endpoints that previously served this certificate.
+      </p>
+
+      {isLoading && <p className="mt-4 text-xs italic text-muted-foreground">Loading…</p>}
+
+      {!isLoading && endpointList.length > 0 && (
+        <div className="mt-4 space-y-1">
+          {endpointList.map((ep) => <HistoricalEndpointRow key={ep.id} ep={ep} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Copy PEM / Download
 // ---------------------------------------------------------------------------
@@ -690,6 +752,7 @@ export default function CertificateDetailPage() {
           <ValidityTimelineCard cert={cert} />
           <RootStoreTrustCard cert={cert} />
           <EndpointsSection fingerprint={cert.fingerprint} />
+          <HistoricalEndpointsSection fingerprint={cert.fingerprint} />
         </div>
 
       </div>
