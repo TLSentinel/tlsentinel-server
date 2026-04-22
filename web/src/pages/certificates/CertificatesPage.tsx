@@ -4,6 +4,8 @@ import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, Al
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
+import BulkActionBar from '@/components/BulkActionBar'
+import BulkDeleteCertificatesDialog from './BulkDeleteCertificatesDialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -151,7 +153,7 @@ interface CertRowProps {
   cert: CertificateListItem
   admin: boolean
   selected: boolean
-  onToggle: (fingerprint: string) => void
+  onToggle: (cert: CertificateListItem) => void
   onDelete: (cert: CertificateListItem) => void
 }
 
@@ -169,7 +171,7 @@ function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => onToggle(cert.fingerprint)}
+          onChange={() => onToggle(cert)}
           aria-label={`Select ${cert.commonName || cert.fingerprint}`}
           className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
         />
@@ -430,7 +432,8 @@ export default function CertificatesPage() {
   const [sortOption, setSortOption]           = useState<SortOption>('')
   const [deleteTarget, setDeleteTarget]       = useState<CertificateListItem | null>(null)
   const [ingestOpen, setIngestOpen]           = useState(false)
-  const [selected, setSelected]               = useState<Set<string>>(new Set())
+  const [selected, setSelected]               = useState<Map<string, CertificateListItem>>(new Map())
+  const [bulkDeleteOpen, setBulkDeleteOpen]   = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
@@ -466,25 +469,45 @@ export default function CertificatesPage() {
   const allPageSelected = pageFingerprints.length > 0 && pageFingerprints.every(fp => selected.has(fp))
   const somePageSelected = !allPageSelected && pageFingerprints.some(fp => selected.has(fp))
 
-  function toggleOne(fp: string) {
+  // Refresh the stored copy for any selected cert that reappears on the current
+  // page — keeps the Map's value in sync with the latest list payload (e.g.
+  // after a refetch) even though the user's selection spans pages.
+  useEffect(() => {
+    if (selected.size === 0 || certs.length === 0) return
+    let changed = false
+    const next = new Map(selected)
+    for (const cert of certs) {
+      if (next.has(cert.fingerprint)) {
+        next.set(cert.fingerprint, cert)
+        changed = true
+      }
+    }
+    if (changed) setSelected(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [certs])
+
+  function toggleOne(cert: CertificateListItem) {
     setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(fp)) next.delete(fp); else next.add(fp)
+      const next = new Map(prev)
+      if (next.has(cert.fingerprint)) next.delete(cert.fingerprint)
+      else next.set(cert.fingerprint, cert)
       return next
     })
   }
 
   function toggleAll() {
     setSelected(prev => {
-      const next = new Set(prev)
+      const next = new Map(prev)
       if (allPageSelected) {
-        pageFingerprints.forEach(fp => next.delete(fp))
+        certs.forEach(c => next.delete(c.fingerprint))
       } else {
-        pageFingerprints.forEach(fp => next.add(fp))
+        certs.forEach(c => next.set(c.fingerprint, c))
       }
       return next
     })
   }
+
+  const selectedCerts = useMemo(() => [...selected.values()], [selected])
 
   return (
     <div className="space-y-6">
@@ -561,6 +584,20 @@ export default function CertificatesPage() {
           value={sortOption}
           onSelect={v => handleSortChange(v as SortOption)}
         />
+        {admin && (
+          <BulkActionBar
+            className="ml-auto"
+            count={selected.size}
+            onClear={() => setSelected(new Map())}
+            actions={[
+              {
+                label: 'Delete',
+                variant: 'destructive',
+                onClick: () => setBulkDeleteOpen(true),
+              },
+            ]}
+          />
+        )}
       </div>
 
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
@@ -653,6 +690,15 @@ export default function CertificatesPage() {
         cert={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={refetch}
+      />
+      <BulkDeleteCertificatesDialog
+        open={bulkDeleteOpen}
+        certificates={selectedCerts}
+        onClose={() => setBulkDeleteOpen(false)}
+        onDone={() => {
+          setSelected(new Map())
+          refetch()
+        }}
       />
     </div>
   )
