@@ -180,7 +180,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if inserted {
 		status = http.StatusCreated
-		auth.LogAction(r.Context(), h.store, r, audit.CertIngest, "certificate", rec.Fingerprint)
+		auth.Log(r.Context(), h.store, r, audit.Entry{
+			Action:       audit.CertIngest,
+			ResourceType: "certificate",
+			ResourceID:   rec.Fingerprint,
+		})
 	}
 	response.JSON(w, status, stored)
 }
@@ -340,7 +344,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.CertDelete, "certificate", fingerprint)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.CertDelete,
+		ResourceType: "certificate",
+		ResourceID:   fingerprint,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

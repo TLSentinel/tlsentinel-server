@@ -135,7 +135,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.ScannerCreate, "scanner", token.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerCreate,
+		ResourceType: "scanner",
+		ResourceID:   token.ID,
+	})
 	response.JSON(w, http.StatusCreated, createScannerTokenResponse{
 		ID:         token.ID,
 		Name:       token.Name,
@@ -186,7 +190,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.ScannerUpdate, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerUpdate,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+	})
 	response.JSON(w, http.StatusOK, token)
 }
 
@@ -265,7 +273,11 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.ScannerUpdate, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerUpdate,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+	})
 	response.JSON(w, http.StatusOK, token)
 }
 
@@ -310,7 +322,11 @@ func (h *Handler) RegenerateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.ScannerRegenerateToken, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerRegenerateToken,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+	})
 	response.JSON(w, http.StatusOK, regenerateScannerTokenResponse{
 		ID:    scannerID,
 		Token: raw,
@@ -337,7 +353,11 @@ func (h *Handler) SetDefault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.ScannerSetDefault, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerSetDefault,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -361,6 +381,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.ScannerDelete, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerDelete,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

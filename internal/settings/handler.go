@@ -96,7 +96,7 @@ func (h *Handler) SetAlertThresholds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.AlertThresholdsUpdate, "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: audit.AlertThresholdsUpdate})
 	response.JSON(w, http.StatusOK, alertThresholdsResponse{Thresholds: sorted})
 }
 
@@ -179,7 +179,7 @@ func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 		h.sched.Reload(name, req.CronExpression, req.Enabled, fn)
 	}
 
-	auth.LogAction(r.Context(), h.store, r, "settings.scheduled_job.update", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "settings.scheduled_job.update"})
 	response.JSON(w, http.StatusOK, job)
 }
 
@@ -204,7 +204,7 @@ func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 		http.Error(w, "failed to save scan history retention", http.StatusInternalServerError)
 		return
 	}
-	auth.LogAction(r.Context(), h.store, r, "settings.scan_history_retention.update", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "settings.scan_history_retention.update"})
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: req.Days})
 }
 
@@ -235,7 +235,7 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual purge", "err", err)
 	}
-	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_scan_history.run", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_scan_history.run"})
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
 
@@ -261,7 +261,7 @@ func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual expiry alerts purge", "err", err)
 	}
-	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_expiry_alerts.run", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_expiry_alerts.run"})
 	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
 }
 
@@ -287,7 +287,7 @@ func (h *Handler) RunPurgeUnreferencedCerts(w http.ResponseWriter, r *http.Reque
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual unreferenced certs purge", "err", err)
 	}
-	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_unreferenced_certs.run", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_unreferenced_certs.run"})
 	response.JSON(w, http.StatusOK, purgeUnreferencedCertsResponse{Deleted: deleted})
 }
 
@@ -331,7 +331,7 @@ func (h *Handler) SetAuditLogRetention(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save audit log retention", http.StatusInternalServerError)
 		return
 	}
-	auth.LogAction(r.Context(), h.store, r, "settings.audit_log_retention.update", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "settings.audit_log_retention.update"})
 	response.JSON(w, http.StatusOK, auditLogRetentionResponse{Days: req.Days})
 }
 
@@ -362,7 +362,7 @@ func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual audit log purge", "err", err)
 	}
-	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_audit_logs.run", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_audit_logs.run"})
 	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
 }
 
@@ -387,6 +387,6 @@ func (h *Handler) RunRefreshRootStores(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.UpdateJobLastRun(r.Context(), models.JobRefreshRootStores, "manual run"); err != nil {
 		slog.Warn("failed to update job last run after manual root store refresh", "err", err)
 	}
-	auth.LogAction(r.Context(), h.store, r, "maintenance.refresh_root_stores.run", "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.refresh_root_stores.run"})
 	response.JSON(w, http.StatusOK, refreshRootStoresResponse{Status: "ok"})
 }

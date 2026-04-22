@@ -107,7 +107,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.GroupCreate, "group", group.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.GroupCreate,
+		ResourceType: "group",
+		ResourceID:   group.ID,
+	})
 	response.JSON(w, http.StatusCreated, group)
 }
 
@@ -144,7 +148,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.GroupUpdate, "group", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.GroupUpdate,
+		ResourceType: "group",
+		ResourceID:   id,
+	})
 	response.JSON(w, http.StatusOK, group)
 }
 
@@ -161,6 +169,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.GroupDelete, "group", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.GroupDelete,
+		ResourceType: "group",
+		ResourceID:   id,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

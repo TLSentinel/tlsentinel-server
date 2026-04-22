@@ -160,7 +160,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.EndpointCreate, "endpoint", endpoint.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointCreate,
+		ResourceType: "endpoint",
+		ResourceID:   endpoint.ID,
+	})
 	response.JSON(w, http.StatusCreated, endpoint)
 }
 
@@ -262,7 +266,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+	})
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -412,7 +420,11 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+	})
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -436,7 +448,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.EndpointDelete, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointDelete,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -610,7 +626,11 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+	})
 
 	endpoint, err := h.store.GetEndpoint(r.Context(), endpointID)
 	if err != nil {
@@ -748,7 +768,11 @@ func (h *Handler) BulkImport(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		auth.LogAction(r.Context(), h.store, r, audit.EndpointCreate, "endpoint", endpoint.ID)
+		auth.Log(r.Context(), h.store, r, audit.Entry{
+			Action:       audit.EndpointCreate,
+			ResourceType: "endpoint",
+			ResourceID:   endpoint.ID,
+		})
 		result.ID = &endpoint.ID
 		resp.Created++
 		resp.Results = append(resp.Results, result)
