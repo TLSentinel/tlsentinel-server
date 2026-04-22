@@ -27,6 +27,9 @@ import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import BulkImportDialog from '@/components/BulkImportDialog'
+import BulkActionBar from '@/components/BulkActionBar'
+import BulkDeleteEndpointsDialog from './BulkDeleteEndpointsDialog'
+import BulkTagEndpointsDialog from './BulkTagEndpointsDialog'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
@@ -176,7 +179,7 @@ interface EndpointRowProps {
   admin: boolean
   tagFilter: string
   selected: boolean
-  onToggle: (id: string) => void
+  onToggle: (ep: EndpointListItem) => void
   onTagClick: (id: string) => void
   onDelete: (ep: EndpointListItem) => void
 }
@@ -192,7 +195,7 @@ function EndpointRow({ endpoint, now, admin, tagFilter, selected, onToggle, onTa
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => onToggle(endpoint.id)}
+          onChange={() => onToggle(endpoint)}
           aria-label={`Select ${endpoint.name}`}
           className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
         />
@@ -393,7 +396,13 @@ export default function HostsPage() {
   const [tagFilter, setTagFilter]             = useState('')
   const [deleteTarget, setDeleteTarget]       = useState<EndpointListItem | null>(null)
   const [importOpen, setImportOpen]           = useState(false)
-  const [selected, setSelected]               = useState<Set<string>>(new Set())
+  // Selection is kept as a Map<id, EndpointListItem> so bulk dialogs have
+  // names + tags + DNS names even for rows the user picked on a different
+  // page. Set<string> would force a re-fetch or silently drop off-page
+  // entries.
+  const [selected, setSelected]               = useState<Map<string, EndpointListItem>>(new Map())
+  const [bulkDeleteOpen, setBulkDeleteOpen]   = useState(false)
+  const [bulkTagOpen, setBulkTagOpen]         = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
@@ -436,28 +445,54 @@ export default function HostsPage() {
   function handleTagChange(tagId: string)          { setTagFilter(tagId);    setPage(1) }
 
   const pageIds = useMemo(() => endpoints.map(e => e.id), [endpoints])
-  const allPageSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id))
+  const allPageSelected  = pageIds.length > 0 && pageIds.every(id => selected.has(id))
   const somePageSelected = !allPageSelected && pageIds.some(id => selected.has(id))
 
-  function toggleOne(id: string) {
+  function toggleOne(ep: EndpointListItem) {
     setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      const next = new Map(prev)
+      if (next.has(ep.id)) next.delete(ep.id); else next.set(ep.id, ep)
       return next
     })
   }
 
   function toggleAll() {
     setSelected(prev => {
-      const next = new Set(prev)
+      const next = new Map(prev)
       if (allPageSelected) {
-        pageIds.forEach(id => next.delete(id))
+        for (const id of pageIds) next.delete(id)
       } else {
-        pageIds.forEach(id => next.add(id))
+        for (const ep of endpoints) next.set(ep.id, ep)
       }
       return next
     })
   }
+
+  function clearSelection() {
+    setSelected(new Map())
+  }
+
+  // Refresh already-selected rows with the latest payload when they reappear
+  // on the current page — keeps tag chips / DNS name in sync if another tab
+  // mutated them. Cheap: only touches entries that are both selected AND in
+  // the current page.
+  useEffect(() => {
+    if (selected.size === 0 || endpoints.length === 0) return
+    setSelected(prev => {
+      let changed = false
+      const next = new Map(prev)
+      for (const ep of endpoints) {
+        if (next.has(ep.id) && next.get(ep.id) !== ep) {
+          next.set(ep.id, ep)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoints])
+
+  const selectedList = useMemo(() => Array.from(selected.values()), [selected])
 
   return (
     <div className="space-y-6">
@@ -569,6 +604,21 @@ export default function HostsPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {/* Bulk action bar — trailing edge of the filter row, hidden when
+            nothing is selected. Admin-only actions (tags, delete). */}
+        {admin && (
+          <div className="ml-auto">
+            <BulkActionBar
+              count={selected.size}
+              onClear={clearSelection}
+              actions={[
+                { label: 'Update Tags', onClick: () => setBulkTagOpen(true) },
+                { label: 'Delete',      onClick: () => setBulkDeleteOpen(true), variant: 'destructive' },
+              ]}
+            />
+          </div>
         )}
       </div>
 
@@ -683,6 +733,27 @@ export default function HostsPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onComplete={refetch}
+      />
+
+      <BulkDeleteEndpointsDialog
+        open={bulkDeleteOpen}
+        endpoints={selectedList}
+        onClose={() => setBulkDeleteOpen(false)}
+        onDone={() => {
+          clearSelection()
+          refetch()
+        }}
+      />
+
+      <BulkTagEndpointsDialog
+        open={bulkTagOpen}
+        endpoints={selectedList}
+        categories={categories}
+        onClose={() => setBulkTagOpen(false)}
+        onDone={() => {
+          clearSelection()
+          refetch()
+        }}
       />
     </div>
   )
