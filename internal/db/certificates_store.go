@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/uptrace/bun"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
@@ -439,9 +441,77 @@ func (s *Store) BackfillSubjectOrgOU(ctx context.Context) (int64, error) {
 	return updated, rows.Err()
 }
 
+// CertReferences counts rows in each table that still reference a given
+// certificate fingerprint. Used to explain why a manual delete was refused —
+// see the project_cert_retention memory entry for why these FKs intentionally
+// hard-block rather than CASCADE/SET NULL.
+type CertReferences struct {
+	ActiveEndpoints int // endpoints.active_fingerprint
+	EndpointCerts   int // endpoint_certs.fingerprint (historical seen-list)
+	ScanHistory     int // endpoint_scan_history.fingerprint
+	IssuedCerts     int // certificates.issuer_fingerprint (self-ref)
+}
+
+// ErrCertHasReferences is returned by DeleteCertificate when the target cert
+// is still referenced by at least one row in a table with an ON DELETE NO
+// ACTION FK. The Refs field carries per-table counts so callers can build a
+// helpful message.
+type ErrCertHasReferences struct {
+	Fingerprint string
+	Refs        CertReferences
+}
+
+func (e *ErrCertHasReferences) Error() string {
+	var parts []string
+	if e.Refs.ActiveEndpoints > 0 {
+		parts = append(parts, fmt.Sprintf("%d active %s", e.Refs.ActiveEndpoints, pluralize(e.Refs.ActiveEndpoints, "endpoint", "endpoints")))
+	}
+	if e.Refs.EndpointCerts > 0 {
+		parts = append(parts, fmt.Sprintf("%d endpoint %s (historical)", e.Refs.EndpointCerts, pluralize(e.Refs.EndpointCerts, "attachment", "attachments")))
+	}
+	if e.Refs.ScanHistory > 0 {
+		parts = append(parts, fmt.Sprintf("%d scan history %s", e.Refs.ScanHistory, pluralize(e.Refs.ScanHistory, "record", "records")))
+	}
+	if e.Refs.IssuedCerts > 0 {
+		parts = append(parts, fmt.Sprintf("%d issued %s", e.Refs.IssuedCerts, pluralize(e.Refs.IssuedCerts, "certificate", "certificates")))
+	}
+	if len(parts) == 0 {
+		// Shouldn't happen — we only construct this error when at least one
+		// ref was found — but degrade gracefully rather than print "still
+		// referenced by " with a trailing space.
+		return "certificate is still referenced"
+	}
+	return "still referenced by " + strings.Join(parts, ", ")
+}
+
+func pluralize(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// DeleteCertificate removes a cert by fingerprint. If the cert is referenced
+// by another row (endpoint_certs, endpoints.active_fingerprint,
+// endpoint_scan_history.fingerprint, or certificates.issuer_fingerprint), the
+// DB raises a foreign_key_violation (SQLSTATE 23503) and this method returns
+// an *ErrCertHasReferences with per-table counts — callers surface that to
+// users rather than a generic failure. See project_cert_retention for why
+// these FKs are intentionally NO ACTION.
 func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error {
 	res, err := s.db.NewDelete().Model((*Certificate)(nil)).Where("fingerprint = ?", fingerprint).Exec(ctx)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23503" {
+			refs, refErr := s.countCertReferences(ctx, fingerprint)
+			if refErr != nil {
+				// Couldn't enumerate refs — still tell the caller it was an FK
+				// block rather than a generic failure; just leave counts zero.
+				slog.Warn("countCertReferences failed after FK violation",
+					"fingerprint", fingerprint, "error", refErr)
+			}
+			return &ErrCertHasReferences{Fingerprint: fingerprint, Refs: refs}
+		}
 		return fmt.Errorf("failed to delete certificate: %w", err)
 	}
 	n, _ := res.RowsAffected()
@@ -449,4 +519,23 @@ func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error
 		return ErrNotFound
 	}
 	return nil
+}
+
+// countCertReferences returns per-table reference counts for a fingerprint.
+// One round-trip, four subqueries. Kept separate from DeleteCertificate so the
+// fast path (no FK violation) doesn't pay for it.
+func (s *Store) countCertReferences(ctx context.Context, fingerprint string) (CertReferences, error) {
+	var refs CertReferences
+	err := s.db.NewRaw(`
+		SELECT
+			(SELECT COUNT(*) FROM tlsentinel.endpoints             WHERE active_fingerprint  = ?),
+			(SELECT COUNT(*) FROM tlsentinel.endpoint_certs        WHERE fingerprint         = ?),
+			(SELECT COUNT(*) FROM tlsentinel.endpoint_scan_history WHERE fingerprint         = ?),
+			(SELECT COUNT(*) FROM tlsentinel.certificates          WHERE issuer_fingerprint  = ?)
+	`, fingerprint, fingerprint, fingerprint, fingerprint).
+		Scan(ctx, &refs.ActiveEndpoints, &refs.EndpointCerts, &refs.ScanHistory, &refs.IssuedCerts)
+	if err != nil {
+		return CertReferences{}, fmt.Errorf("count cert references: %w", err)
+	}
+	return refs, nil
 }
