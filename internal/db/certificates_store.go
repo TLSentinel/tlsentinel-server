@@ -446,10 +446,10 @@ func (s *Store) BackfillSubjectOrgOU(ctx context.Context) (int64, error) {
 // see the project_cert_retention memory entry for why these FKs intentionally
 // hard-block rather than CASCADE/SET NULL.
 type CertReferences struct {
-	ActiveEndpoints int // endpoints.active_fingerprint
-	EndpointCerts   int // endpoint_certs.fingerprint (historical seen-list)
-	ScanHistory     int // endpoint_scan_history.fingerprint
-	IssuedCerts     int // certificates.issuer_fingerprint (self-ref)
+	CurrentEndpoints    int // endpoint_certs WHERE is_current = TRUE
+	HistoricalEndpoints int // endpoint_certs WHERE is_current = FALSE
+	ScanHistory         int // endpoint_scan_history.fingerprint
+	IssuedCerts         int // certificates.issuer_fingerprint (self-ref)
 }
 
 // ErrCertHasReferences is returned by DeleteCertificate when the target cert
@@ -463,11 +463,11 @@ type ErrCertHasReferences struct {
 
 func (e *ErrCertHasReferences) Error() string {
 	var parts []string
-	if e.Refs.ActiveEndpoints > 0 {
-		parts = append(parts, fmt.Sprintf("%d active %s", e.Refs.ActiveEndpoints, pluralize(e.Refs.ActiveEndpoints, "endpoint", "endpoints")))
+	if e.Refs.CurrentEndpoints > 0 {
+		parts = append(parts, fmt.Sprintf("%d active %s", e.Refs.CurrentEndpoints, pluralize(e.Refs.CurrentEndpoints, "endpoint", "endpoints")))
 	}
-	if e.Refs.EndpointCerts > 0 {
-		parts = append(parts, fmt.Sprintf("%d endpoint %s (historical)", e.Refs.EndpointCerts, pluralize(e.Refs.EndpointCerts, "attachment", "attachments")))
+	if e.Refs.HistoricalEndpoints > 0 {
+		parts = append(parts, fmt.Sprintf("%d historical endpoint %s", e.Refs.HistoricalEndpoints, pluralize(e.Refs.HistoricalEndpoints, "attachment", "attachments")))
 	}
 	if e.Refs.ScanHistory > 0 {
 		parts = append(parts, fmt.Sprintf("%d scan history %s", e.Refs.ScanHistory, pluralize(e.Refs.ScanHistory, "record", "records")))
@@ -492,7 +492,7 @@ func pluralize(n int, one, many string) string {
 }
 
 // DeleteCertificate removes a cert by fingerprint. If the cert is referenced
-// by another row (endpoint_certs, endpoints.active_fingerprint,
+// by another row (endpoint_certs current/historical,
 // endpoint_scan_history.fingerprint, or certificates.issuer_fingerprint), the
 // DB raises a foreign_key_violation (SQLSTATE 23503) and this method returns
 // an *ErrCertHasReferences with per-table counts — callers surface that to
@@ -528,16 +528,20 @@ func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error
 // countCertReferences returns per-table reference counts for a fingerprint.
 // One round-trip, four subqueries. Kept separate from DeleteCertificate so the
 // fast path (no FK violation) doesn't pay for it.
+//
+// Note: endpoints.active_fingerprint was dropped in migration 25 — the
+// endpoint↔cert relationship is now fully tracked in endpoint_certs with an
+// is_current flag, so we count current vs historical attachments separately.
 func (s *Store) countCertReferences(ctx context.Context, fingerprint string) (CertReferences, error) {
 	var refs CertReferences
 	err := s.db.NewRaw(`
 		SELECT
-			(SELECT COUNT(*) FROM tlsentinel.endpoints             WHERE active_fingerprint  = ?),
-			(SELECT COUNT(*) FROM tlsentinel.endpoint_certs        WHERE fingerprint         = ?),
+			(SELECT COUNT(*) FROM tlsentinel.endpoint_certs        WHERE fingerprint         = ? AND is_current = TRUE),
+			(SELECT COUNT(*) FROM tlsentinel.endpoint_certs        WHERE fingerprint         = ? AND is_current = FALSE),
 			(SELECT COUNT(*) FROM tlsentinel.endpoint_scan_history WHERE fingerprint         = ?),
 			(SELECT COUNT(*) FROM tlsentinel.certificates          WHERE issuer_fingerprint  = ?)
 	`, fingerprint, fingerprint, fingerprint, fingerprint).
-		Scan(ctx, &refs.ActiveEndpoints, &refs.EndpointCerts, &refs.ScanHistory, &refs.IssuedCerts)
+		Scan(ctx, &refs.CurrentEndpoints, &refs.HistoricalEndpoints, &refs.ScanHistory, &refs.IssuedCerts)
 	if err != nil {
 		return CertReferences{}, fmt.Errorf("count cert references: %w", err)
 	}
