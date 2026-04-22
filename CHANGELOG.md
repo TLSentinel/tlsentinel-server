@@ -10,6 +10,15 @@ once it reaches 1.0.
 
 ### Added
 
+- **In-place scanner token regeneration.** New
+  `POST /scanners/{scannerID}/regenerate-token` rotates the bearer token
+  without deleting the scanner, so the schedule, thread count, default
+  flag, and any endpoint assignments tied to the scanner survive the
+  rotation. Previous workflow required revoke-and-recreate, which wiped
+  every custom assignment. Audited as `scanner.regenerate_token`.
+  Surfaced in the UI from both the row kebab and the Edit Scanner modal
+  footer; the existing one-time token reveal is reused with a "Rotated"
+  badge.
 - **CCADB-backed trust anchor tracking.** New `root_stores` and
   `root_store_anchors` tables, plus a daily refresh job that pulls CCADB's
   trust matrix (Apple, Chrome, Microsoft, Mozilla) and the matching PEM

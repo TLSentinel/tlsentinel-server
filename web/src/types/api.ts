@@ -344,6 +344,12 @@ export interface ScannerTokenCreated extends ScannerToken {
   token: string
 }
 
+/** Returned on POST /scanners/{id}/regenerate-token — new token shown once. */
+export interface ScannerTokenRegenerated {
+  id: string
+  token: string
+}
+
 // ---------------------------------------------------------------------------
 // TLS profiles — returned by GET /endpoints/{id}/tls-profile
 // ---------------------------------------------------------------------------

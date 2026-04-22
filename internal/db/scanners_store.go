@@ -113,6 +113,26 @@ func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash, scanCro
 	return scannerToResponse(*row), nil
 }
 
+// RotateScannerTokenHash replaces the token_hash for the given scanner.
+// All other fields (name, schedule, concurrency, default flag, endpoint
+// assignments, last_used_at) are preserved. Returns ErrNotFound if the
+// scanner does not exist.
+func (s *Store) RotateScannerTokenHash(ctx context.Context, id, tokenHash string) error {
+	res, err := s.db.NewUpdate().
+		TableExpr("tlsentinel.scanners").
+		Set("token_hash = ?", tokenHash).
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to rotate scanner token hash: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpdateScannerToken updates the name and scan settings for a scanner token.
 func (s *Store) UpdateScannerToken(ctx context.Context, id, name, scanCronExpression string, scanConcurrency int) (models.ScannerTokenResponse, error) {
 	res, err := s.db.NewUpdate().

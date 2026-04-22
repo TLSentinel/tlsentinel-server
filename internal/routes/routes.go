@@ -104,6 +104,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Patch("/", tokenHandler.Patch)
 						r.Delete("/", tokenHandler.Delete)
 						r.Post("/default", tokenHandler.SetDefault)
+						r.Post("/regenerate-token", tokenHandler.RegenerateToken)
 					})
 				})
 			})

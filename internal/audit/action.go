@@ -16,10 +16,11 @@ const (
 	CertDelete = "certificate.delete"
 
 	// Scanners
-	ScannerCreate     = "scanner.create"
-	ScannerUpdate     = "scanner.update"
-	ScannerDelete     = "scanner.delete"
-	ScannerSetDefault = "scanner.set_default"
+	ScannerCreate           = "scanner.create"
+	ScannerUpdate           = "scanner.update"
+	ScannerDelete           = "scanner.delete"
+	ScannerSetDefault       = "scanner.set_default"
+	ScannerRegenerateToken  = "scanner.regenerate_token"
 
 	// Users
 	UserCreate         = "user.create"
