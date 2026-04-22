@@ -296,6 +296,7 @@ func (h *Handler) GetEndpoints(w http.ResponseWriter, r *http.Request) {
 // @Param        fingerprint  path  string  true  "Certificate fingerprint"
 // @Success      204
 // @Failure      404  {string}  string  "certificate not found"
+// @Failure      409  {string}  string  "certificate is still referenced — the message lists per-table reference counts"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/{fingerprint} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -304,6 +305,15 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.DeleteCertificate(r.Context(), fingerprint); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "certificate not found", http.StatusNotFound)
+			return
+		}
+		// FK-blocked delete — surface which tables still reference the cert so
+		// the UI (and bulk delete) can explain why instead of showing a bare
+		// 500. See project_cert_retention for the rationale: these FKs are
+		// intentionally NO ACTION, so this 409 is the real failure mode.
+		var refsErr *db.ErrCertHasReferences
+		if errors.As(err, &refsErr) {
+			http.Error(w, refsErr.Error(), http.StatusConflict)
 			return
 		}
 		http.Error(w, "failed to delete certificate", http.StatusInternalServerError)
