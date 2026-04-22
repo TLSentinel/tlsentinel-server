@@ -288,6 +288,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/run/purge-scan-history", settingsHandler.RunPurgeScanHistory)
 				r.Post("/run/purge-audit-logs", settingsHandler.RunPurgeAuditLogs)
 				r.Post("/run/purge-expiry-alerts", settingsHandler.RunPurgeExpiryAlerts)
+				r.Post("/run/purge-unreferenced-certs", settingsHandler.RunPurgeUnreferencedCerts)
 				r.Post("/run/refresh-root-stores", settingsHandler.RunRefreshRootStores)
 			})
 

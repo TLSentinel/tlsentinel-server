@@ -81,6 +81,14 @@ export function runPurgeExpiryAlerts(): Promise<PurgeExpiryAlertsResponse> {
   return api.post<PurgeExpiryAlertsResponse>('/maintenance/run/purge-expiry-alerts')
 }
 
+export interface PurgeUnreferencedCertsResponse {
+  deleted: number
+}
+
+export function runPurgeUnreferencedCerts(): Promise<PurgeUnreferencedCertsResponse> {
+  return api.post<PurgeUnreferencedCertsResponse>('/maintenance/run/purge-unreferenced-certs')
+}
+
 export interface RefreshRootStoresResponse {
   status: string
 }

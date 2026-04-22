@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-  Archive, Bell, ScrollText, BellOff, ShieldCheck, Play, Pencil,
+  Archive, Bell, ScrollText, BellOff, ShieldCheck, FileX, Play, Pencil,
   Power, PowerOff, Clock, MoreVertical, CheckCircle2, XCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -22,7 +22,8 @@ import {
   getScanHistoryRetention, setScanHistoryRetention,
   getAuditLogRetention, setAuditLogRetention,
   getScheduledJobs, updateScheduledJob,
-  runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts, runRefreshRootStores,
+  runPurgeScanHistory, runPurgeAuditLogs, runPurgeExpiryAlerts,
+  runPurgeUnreferencedCerts, runRefreshRootStores,
   type ScheduledJob,
 } from '@/api/settings'
 
@@ -155,6 +156,17 @@ const JOBS: JobConfig[] = [
       queryKey: ['audit-log-retention'],
       label: 'Retention',
       hint:  'Keep logs for',
+    },
+  },
+  {
+    name: 'purge_unreferenced_certs',
+    icon: FileX,
+    tone: 'amber',
+    title: 'Purge Unreferenced Certificates',
+    description: 'Delete certificates no longer referenced by any endpoint, scan-history row, discovery-inbox entry, root store, or other certificate\'s issuer chain. Trust anchors are never removed.',
+    runner: async () => {
+      const r = await runPurgeUnreferencedCerts()
+      return r.deleted === 1 ? 'Removed 1 certificate.' : `Removed ${r.deleted} certificates.`
     },
   },
   {
