@@ -177,7 +177,7 @@ function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
         />
       </div>
 
-      {/* Common Name */}
+      {/* Common Name + fingerprint (SHA-256, shortened; hover for full) */}
       <div className="min-w-0">
         <Link
           to={`/certificates/${cert.fingerprint}`}
@@ -185,6 +185,12 @@ function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
         >
           {cert.commonName || '—'}
         </Link>
+        <div
+          className="mt-0.5 truncate font-mono text-xs text-muted-foreground"
+          title={cert.fingerprint}
+        >
+          {cert.fingerprint.slice(0, 16)}…
+        </div>
       </div>
 
       {/* SANs */}
