@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
@@ -498,11 +498,15 @@ func pluralize(n int, one, many string) string {
 // an *ErrCertHasReferences with per-table counts — callers surface that to
 // users rather than a generic failure. See project_cert_retention for why
 // these FKs are intentionally NO ACTION.
+//
+// Runtime errors come from bun's pgdriver (not lib/pq, which is only wired in
+// for migrations), so we match on the pgdriver.Error value type and its
+// Field('C') SQLSTATE.
 func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error {
 	res, err := s.db.NewDelete().Model((*Certificate)(nil)).Where("fingerprint = ?", fingerprint).Exec(ctx)
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23503" {
+		var pgErr pgdriver.Error
+		if errors.As(err, &pgErr) && pgErr.Field('C') == "23503" {
 			refs, refErr := s.countCertReferences(ctx, fingerprint)
 			if refErr != nil {
 				// Couldn't enumerate refs — still tell the caller it was an FK
