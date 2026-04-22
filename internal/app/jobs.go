@@ -69,6 +69,14 @@ func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) 
 			}
 			log.Info("purge expiry alerts complete", "deleted", deleted)
 		},
+		models.JobPurgeUnreferencedCerts: func(ctx context.Context) {
+			deleted, err := store.PurgeUnreferencedCerts(ctx)
+			if err != nil {
+				log.Error("purge unreferenced certs failed", "error", err)
+				return
+			}
+			log.Info("purge unreferenced certs complete", "deleted", deleted)
+		},
 		models.JobRefreshRootStores: func(ctx context.Context) {
 			if err := rootstore.Refresh(ctx, store, log); err != nil {
 				log.Error("refresh root stores failed", "error", err)

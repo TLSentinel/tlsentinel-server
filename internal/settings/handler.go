@@ -265,6 +265,32 @@ func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
 }
 
+// purgeUnreferencedCertsResponse is the response envelope for an unreferenced-cert purge run.
+type purgeUnreferencedCertsResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
+// @Summary      Run purge unreferenced certificates
+// @Description  Immediately deletes certificates that are no longer referenced by any endpoint, scan-history row, discovery-inbox entry, root store, or other certificate's issuer chain. Trust anchors are never deleted.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  purgeUnreferencedCertsResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/purge-unreferenced-certs [post]
+func (h *Handler) RunPurgeUnreferencedCerts(w http.ResponseWriter, r *http.Request) {
+	deleted, err := h.store.PurgeUnreferencedCerts(r.Context())
+	if err != nil {
+		http.Error(w, "purge failed", http.StatusInternalServerError)
+		return
+	}
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobPurgeUnreferencedCerts,
+		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
+		slog.Warn("failed to update job last run after manual unreferenced certs purge", "err", err)
+	}
+	auth.LogAction(r.Context(), h.store, r, "maintenance.purge_unreferenced_certs.run", "", "")
+	response.JSON(w, http.StatusOK, purgeUnreferencedCertsResponse{Deleted: deleted})
+}
+
 // auditLogRetentionResponse is the response envelope for audit log retention endpoints.
 type auditLogRetentionResponse struct {
 	Days int `json:"days"`
