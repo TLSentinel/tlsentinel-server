@@ -46,8 +46,16 @@ export function getTLSProfile(id: string): Promise<EndpointTLSProfile> {
   return api.get<EndpointTLSProfile>(`/endpoints/${id}/tls-profile`)
 }
 
-export function getScanHistory(id: string, limit = 20): Promise<EndpointScanHistoryList> {
-  return api.get<EndpointScanHistoryList>(`/endpoints/${id}/history?limit=${limit}`)
+export function getScanHistory(
+  id: string,
+  page = 1,
+  pageSize = 20,
+): Promise<EndpointScanHistoryList> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  return api.get<EndpointScanHistoryList>(`/endpoints/${id}/history?${params}`)
 }
 
 export function linkCertificate(id: string, pem: string): Promise<Endpoint> {

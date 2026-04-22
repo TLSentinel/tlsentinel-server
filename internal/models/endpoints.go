@@ -190,9 +190,12 @@ type ScanResultRequest struct {
 	PEMs              []string `json:"pems"`
 }
 
-// EndpointScanHistoryList is the response envelope for scan history.
+// EndpointScanHistoryList is the paginated response envelope for scan history.
 type EndpointScanHistoryList struct {
-	Items []EndpointScanHistory `json:"items"`
+	Items      []EndpointScanHistory `json:"items"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"pageSize"`
+	TotalCount int                   `json:"totalCount"`
 }
 
 // EndpointScanHistory represents a single scan result recorded for an endpoint.

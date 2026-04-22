@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
@@ -538,32 +537,26 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Get scan history
-// @Description  Returns the most recent scan results for an endpoint, newest first
+// @Description  Returns a paginated page of scan results for an endpoint, newest first.
 // @Tags         endpoints
 // @Produce      json
 // @Param        endpointID  path      string  true   "Endpoint ID"
-// @Param        limit       query     int     false  "Max rows to return (default 20, max 100)"
+// @Param        page        query     int     false  "Page number (default 1)"
+// @Param        page_size   query     int     false  "Page size (default 20, max 100)"
 // @Success      200         {object}  models.EndpointScanHistoryList
 // @Failure      500         {string}  string  "internal server error"
 // @Router       /endpoints/{endpointID}/history [get]
 func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	endpointID := chi.URLParam(r, "endpointID")
+	page, pageSize := pagination.Parse(r, 20, 100)
 
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil || limit < 1 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	items, err := h.store.GetEndpointScanHistory(r.Context(), endpointID, limit)
+	result, err := h.store.GetEndpointScanHistory(r.Context(), endpointID, page, pageSize)
 	if err != nil {
 		http.Error(w, "failed to get scan history", http.StatusInternalServerError)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, models.EndpointScanHistoryList{Items: items})
+	response.JSON(w, http.StatusOK, result)
 }
 
 // @Summary      Link a certificate to an endpoint

@@ -508,16 +508,23 @@ func (s *Store) GetScannerSAMLEndpoints(ctx context.Context, scannerID string) (
 	return result, nil
 }
 
-func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, limit int) ([]models.EndpointScanHistory, error) {
+// GetEndpointScanHistory returns a page of scan history rows for an endpoint,
+// newest first. Rows are the raw audit ledger — see scanResultChanged for the
+// rules that decide when a new row is written. We expose a paginated view
+// rather than a hard limit because for CDN/geo-LB targets the resolved IP
+// shifts between scans, which is a legitimate change by the ledger's
+// definition but would drown out the detail-page UI without paging.
+func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, page, pageSize int) (models.EndpointScanHistoryList, error) {
 	var rows []EndpointScanHistory
-	err := s.db.NewSelect().
+	total, err := s.db.NewSelect().
 		Model(&rows).
 		Where("endpoint_id = ?", hostID).
 		OrderExpr("scanned_at DESC").
-		Limit(limit).
-		Scan(ctx)
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		ScanAndCount(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query scan history: %w", err)
+		return models.EndpointScanHistoryList{}, fmt.Errorf("failed to query scan history: %w", err)
 	}
 
 	items := make([]models.EndpointScanHistory, len(rows))
@@ -532,7 +539,12 @@ func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, limit
 			ScanError:   r.ScanError,
 		}
 	}
-	return items, nil
+	return models.EndpointScanHistoryList{
+		Items:      items,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: total,
+	}, nil
 }
 
 // scanResultChanged returns true when the incoming result differs meaningfully from

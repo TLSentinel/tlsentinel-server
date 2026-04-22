@@ -10,6 +10,7 @@ import CertificatesPage from '@/pages/certificates/CertificatesPage'
 import CertificateDetailPage from '@/pages/certificates/CertificateDetailPage'
 import RootStoresPage from '@/pages/root-stores/RootStoresPage'
 import EndpointDetailPage from '@/pages/endpoint/EndpointDetailPage'
+import EndpointScanHistoryPage from '@/pages/endpoint/EndpointScanHistoryPage'
 import UsersPage from '@/pages/settings/UsersPage'
 import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="endpoints/new" element={<EndpointFormPage />} />
           <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
           <Route path="endpoints/:id" element={<EndpointDetailPage />} />
+          <Route path="endpoints/:id/scan-history" element={<EndpointScanHistoryPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="reports/tls-posture" element={<TLSPosturePage />} />
           <Route path="discovery/inbox" element={<DiscoveryInboxPage />} />

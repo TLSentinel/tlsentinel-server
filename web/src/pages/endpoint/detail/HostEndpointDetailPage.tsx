@@ -498,8 +498,8 @@ export default function HostEndpointDetailPage({ endpoint }: { endpoint: Endpoin
   })
 
   const { data: historyData } = useQuery({
-    queryKey: ['endpoint', id, 'history'],
-    queryFn: () => getScanHistory(id),
+    queryKey: ['endpoint', id, 'history', 'recent'],
+    queryFn: () => getScanHistory(id, 1, 10),
   })
 
   const { data: tagsData } = useQuery({
@@ -518,6 +518,7 @@ export default function HostEndpointDetailPage({ endpoint }: { endpoint: Endpoin
   })
 
   const history: EndpointScanHistoryItem[] | null = historyData?.items ?? null
+  const historyTotal = historyData?.totalCount ?? 0
   const tags: TagWithCategory[] = tagsData ?? []
 
   let tlsState: TLSState
@@ -562,7 +563,7 @@ export default function HostEndpointDetailPage({ endpoint }: { endpoint: Endpoin
             onToggleScanning={(on) => toggleScanning(!on)}
           />
           <NotesSection endpoint={endpoint} />
-          <ScanHistorySection items={history} />
+          <ScanHistorySection items={history} endpointID={id} totalCount={historyTotal} />
         </div>
 
         <div className="space-y-5 lg:col-span-2">
