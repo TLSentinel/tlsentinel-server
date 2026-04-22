@@ -158,7 +158,20 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: audit.MailConfigUpdate})
+	// SMTP password is intentionally excluded from details.
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action: audit.MailConfigUpdate,
+		Details: map[string]any{
+			"enabled":      cfg.Enabled,
+			"smtpHost":     cfg.SMTPHost,
+			"smtpPort":     cfg.SMTPPort,
+			"authType":     cfg.AuthType,
+			"smtpUsername": cfg.SMTPUsername,
+			"fromAddress":  cfg.FromAddress,
+			"fromName":     cfg.FromName,
+			"tlsMode":      cfg.TLSMode,
+		},
+	})
 	response.JSON(w, http.StatusOK, cfg.ToResponse())
 }
 

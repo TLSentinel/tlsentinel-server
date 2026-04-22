@@ -164,8 +164,36 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.EndpointCreate,
 		ResourceType: "endpoint",
 		ResourceID:   endpoint.ID,
+		Label:        endpoint.Name,
+		Details:      endpointAuditDetails(endpoint),
 	})
 	response.JSON(w, http.StatusCreated, endpoint)
+}
+
+// endpointAuditDetails extracts the structured change context for audit logs.
+// Returns a typed map so the audit row records exactly what was saved without
+// reaching back into the endpoint model at render time.
+func endpointAuditDetails(e models.Endpoint) map[string]any {
+	d := map[string]any{
+		"type":    e.Type,
+		"enabled": e.Enabled,
+	}
+	switch e.Type {
+	case "host":
+		d["dnsName"] = e.DNSName
+		d["port"] = e.Port
+		if e.IPAddress != nil {
+			d["ipAddress"] = *e.IPAddress
+		}
+	case "saml":
+		if e.URL != nil {
+			d["url"] = *e.URL
+		}
+	}
+	if e.ScannerID != nil {
+		d["scannerId"] = *e.ScannerID
+	}
+	return d
 }
 
 // @Summary      Get an endpoint
@@ -270,6 +298,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.EndpointUpdate,
 		ResourceType: "endpoint",
 		ResourceID:   endpointID,
+		Label:        endpoint.Name,
+		Details:      endpointAuditDetails(endpoint),
 	})
 	response.JSON(w, http.StatusOK, endpoint)
 }
@@ -424,6 +454,8 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.EndpointUpdate,
 		ResourceType: "endpoint",
 		ResourceID:   endpointID,
+		Label:        endpoint.Name,
+		Details:      endpointAuditDetails(endpoint),
 	})
 	response.JSON(w, http.StatusOK, endpoint)
 }
@@ -439,6 +471,16 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	endpointID := chi.URLParam(r, "endpointID")
 
+	// Capture the endpoint name + type before deletion so the audit row is
+	// readable. A failed lookup isn't fatal — the delete can still proceed and
+	// the audit row will fall back to just the ID.
+	var label string
+	var details map[string]any
+	if before, lookupErr := h.store.GetEndpoint(r.Context(), endpointID); lookupErr == nil {
+		label = before.Name
+		details = endpointAuditDetails(before)
+	}
+
 	if err := h.store.DeleteEndpoint(r.Context(), endpointID); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "endpoint not found", http.StatusNotFound)
@@ -452,6 +494,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.EndpointDelete,
 		ResourceType: "endpoint",
 		ResourceID:   endpointID,
+		Label:        label,
+		Details:      details,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -626,17 +670,22 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.Log(r.Context(), h.store, r, audit.Entry{
-		Action:       audit.EndpointUpdate,
-		ResourceType: "endpoint",
-		ResourceID:   endpointID,
-	})
-
 	endpoint, err := h.store.GetEndpoint(r.Context(), endpointID)
 	if err != nil {
 		http.Error(w, "failed to fetch updated endpoint", http.StatusInternalServerError)
 		return
 	}
+
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+		Label:        endpoint.Name,
+		Details: map[string]any{
+			"linkedCertificate": rec.Fingerprint,
+			"certUse":           certUse,
+		},
+	})
 
 	response.JSON(w, http.StatusOK, endpoint)
 }
@@ -772,6 +821,8 @@ func (h *Handler) BulkImport(w http.ResponseWriter, r *http.Request) {
 			Action:       audit.EndpointCreate,
 			ResourceType: "endpoint",
 			ResourceID:   endpoint.ID,
+			Label:        endpoint.Name,
+			Details:      endpointAuditDetails(endpoint),
 		})
 		result.ID = &endpoint.ID
 		resp.Created++

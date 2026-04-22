@@ -111,6 +111,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.GroupCreate,
 		ResourceType: "group",
 		ResourceID:   group.ID,
+		Label:        group.Name,
+		Details:      map[string]any{"hostCount": len(req.HostIDs)},
 	})
 	response.JSON(w, http.StatusCreated, group)
 }
@@ -152,6 +154,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.GroupUpdate,
 		ResourceType: "group",
 		ResourceID:   id,
+		Label:        group.Name,
+		Details:      map[string]any{"hostCount": len(req.HostIDs)},
 	})
 	response.JSON(w, http.StatusOK, group)
 }
@@ -159,6 +163,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 // Delete removes a group by ID.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "groupID")
+
+	// Snapshot the name pre-delete for the audit row.
+	var label string
+	if before, lookupErr := h.store.GetGroupByID(r.Context(), id); lookupErr == nil {
+		label = before.Name
+	}
 
 	if err := h.store.DeleteGroup(r.Context(), id); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -173,6 +183,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.GroupDelete,
 		ResourceType: "group",
 		ResourceID:   id,
+		Label:        label,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }

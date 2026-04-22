@@ -159,6 +159,14 @@ func (h *Handler) CreateNetwork(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.DiscoveryNetworkCreate,
 		ResourceType: "discovery_network",
 		ResourceID:   net.ID,
+		Label:        net.Name,
+		Details: map[string]any{
+			"range":          net.Range,
+			"ports":          net.Ports,
+			"cronExpression": net.CronExpression,
+			"enabled":        net.Enabled,
+			"scannerId":      net.ScannerID,
+		},
 	})
 	response.JSON(w, http.StatusCreated, net)
 }
@@ -218,6 +226,14 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.DiscoveryNetworkUpdate,
 		ResourceType: "discovery_network",
 		ResourceID:   id,
+		Label:        net.Name,
+		Details: map[string]any{
+			"range":          net.Range,
+			"ports":          net.Ports,
+			"cronExpression": net.CronExpression,
+			"enabled":        net.Enabled,
+			"scannerId":      net.ScannerID,
+		},
 	})
 	response.JSON(w, http.StatusOK, net)
 }
@@ -233,6 +249,14 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "networkID")
 
+	// Snapshot the name + range pre-delete for audit readability.
+	var label string
+	var details map[string]any
+	if before, lookupErr := h.store.GetDiscoveryNetwork(r.Context(), id); lookupErr == nil {
+		label = before.Name
+		details = map[string]any{"range": before.Range}
+	}
+
 	if err := h.store.DeleteDiscoveryNetwork(r.Context(), id); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "discovery network not found", http.StatusNotFound)
@@ -246,6 +270,8 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.DiscoveryNetworkDelete,
 		ResourceType: "discovery_network",
 		ResourceID:   id,
+		Label:        label,
+		Details:      details,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -350,6 +376,12 @@ func (h *Handler) PromoteInboxItem(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.DiscoveryInboxPromote,
 		ResourceType: "endpoint",
 		ResourceID:   endpoint.ID,
+		Label:        endpoint.Name,
+		Details: map[string]any{
+			"dnsName":      endpoint.DNSName,
+			"port":         endpoint.Port,
+			"inboxItemId":  id,
+		},
 	})
 	response.JSON(w, http.StatusCreated, endpoint)
 }
