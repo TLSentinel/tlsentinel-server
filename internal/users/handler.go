@@ -222,7 +222,11 @@ func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.MyPasswordChange, "user", identity.UserID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.MyPasswordChange,
+		ResourceType: "user",
+		ResourceID:   identity.UserID,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -399,7 +403,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.UserCreate, "user", user.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserCreate,
+		ResourceType: "user",
+		ResourceID:   user.ID,
+	})
 	response.JSON(w, http.StatusCreated, user.ToResponse())
 }
 
@@ -479,7 +487,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.UserUpdate, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserUpdate,
+		ResourceType: "user",
+		ResourceID:   userID,
+	})
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
@@ -525,7 +537,11 @@ func (h *Handler) SetEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.UserEnabledChange, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserEnabledChange,
+		ResourceType: "user",
+		ResourceID:   userID,
+	})
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
@@ -568,7 +584,11 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.UserPasswordChange, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserPasswordChange,
+		ResourceType: "user",
+		ResourceID:   userID,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -623,6 +643,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.UserDelete, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserDelete,
+		ResourceType: "user",
+		ResourceID:   userID,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

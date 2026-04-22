@@ -158,7 +158,7 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.MailConfigUpdate, "", "")
+	auth.Log(r.Context(), h.store, r, audit.Entry{Action: audit.MailConfigUpdate})
 	response.JSON(w, http.StatusOK, cfg.ToResponse())
 }
 

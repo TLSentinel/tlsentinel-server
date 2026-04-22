@@ -155,7 +155,11 @@ func (h *Handler) CreateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryNetworkCreate, "discovery_network", net.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryNetworkCreate,
+		ResourceType: "discovery_network",
+		ResourceID:   net.ID,
+	})
 	response.JSON(w, http.StatusCreated, net)
 }
 
@@ -210,7 +214,11 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryNetworkUpdate, "discovery_network", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryNetworkUpdate,
+		ResourceType: "discovery_network",
+		ResourceID:   id,
+	})
 	response.JSON(w, http.StatusOK, net)
 }
 
@@ -234,7 +242,11 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryNetworkDelete, "discovery_network", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryNetworkDelete,
+		ResourceType: "discovery_network",
+		ResourceID:   id,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -334,7 +346,11 @@ func (h *Handler) PromoteInboxItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.LogAction(r.Context(), h.store, r, audit.DiscoveryInboxPromote, "endpoint", endpoint.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryInboxPromote,
+		ResourceType: "endpoint",
+		ResourceID:   endpoint.ID,
+	})
 	response.JSON(w, http.StatusCreated, endpoint)
 }
 
