@@ -25,6 +25,28 @@ func Log(ctx context.Context, store *db.Store, r *http.Request, e audit.Entry) {
 		Action:    e.Action,
 		IPAddress: &ip,
 	}
+	applyEntry(&row, e)
+	writeRow(ctx, store, row, e.Action)
+}
+
+// SystemUsername is the username attributed to audit rows emitted by
+// internal triggers (cron, startup tasks, etc.) that have no HTTP identity.
+const SystemUsername = "system"
+
+// LogSystem records an audit event with no authenticated user — used for
+// scheduler-triggered jobs and other internal triggers. The row is stamped
+// with username=system and no IP address.
+func LogSystem(ctx context.Context, store *db.Store, e audit.Entry) {
+	row := db.AuditLog{
+		Username: SystemUsername,
+		Action:   e.Action,
+	}
+	applyEntry(&row, e)
+	writeRow(ctx, store, row, e.Action)
+}
+
+// applyEntry folds the optional Entry fields into an AuditLog row.
+func applyEntry(row *db.AuditLog, e audit.Entry) {
 	if e.ResourceType != "" {
 		row.ResourceType = &e.ResourceType
 	}
@@ -42,7 +64,10 @@ func Log(ctx context.Context, store *db.Store, r *http.Request, e audit.Entry) {
 			row.Details = raw
 		}
 	}
+}
+
+func writeRow(ctx context.Context, store *db.Store, row db.AuditLog, action string) {
 	if err := store.LogAuditEvent(ctx, row); err != nil {
-		slog.Error("audit log failed", "error", err)
+		slog.Error("audit log failed", "action", action, "error", err)
 	}
 }

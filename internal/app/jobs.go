@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/tlsentinel/tlsentinel-server/internal/audit"
+	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
@@ -11,6 +13,11 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/rootstore"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
 )
+
+// scheduledTrigger tags audit rows emitted by the cron-driven path so they
+// can be distinguished from manual "Run Now" entries without relying on the
+// username column.
+const scheduledTrigger = "scheduled"
 
 // loadScheduledJobs reads enabled jobs from the database and registers each
 // one with the scheduler. Unknown or disabled jobs are skipped with a log
@@ -46,56 +53,110 @@ func loadScheduledJobs(ctx context.Context, store *db.Store, sched *scheduler.Sc
 func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) map[string]func(context.Context) {
 	return map[string]func(context.Context){
 		models.JobExpiryAlerts: func(ctx context.Context) {
+			// RunExpiryAlerts logs its own progress and doesn't surface counts yet.
+			// For now we just record "it ran" so the audit log shows the cron fired.
 			notifications.RunExpiryAlerts(ctx, store, enc, log)
+			auth.LogSystem(ctx, store, audit.Entry{
+				Action:  audit.MaintenanceExpiryAlerts,
+				Details: map[string]any{"trigger": scheduledTrigger},
+			})
 		},
 		models.JobPurgeScanHistory: func(ctx context.Context) {
 			days, err := store.GetScanHistoryRetentionDays(ctx)
 			if err != nil {
 				log.Error("purge scan history: failed to get retention setting", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenancePurgeScanHistory,
+					Details: map[string]any{"trigger": scheduledTrigger, "error": err.Error()},
+				})
 				return
 			}
 			deleted, err := store.PurgeScanHistory(ctx, days)
 			if err != nil {
 				log.Error("purge scan history failed", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenancePurgeScanHistory,
+					Details: map[string]any{"trigger": scheduledTrigger, "retentionDays": days, "error": err.Error()},
+				})
 				return
 			}
 			log.Info("purge scan history complete", "deleted", deleted, "retention_days", days)
+			auth.LogSystem(ctx, store, audit.Entry{
+				Action:  audit.MaintenancePurgeScanHistory,
+				Details: map[string]any{"trigger": scheduledTrigger, "deleted": deleted, "retentionDays": days},
+			})
 		},
 		models.JobPurgeExpiryAlerts: func(ctx context.Context) {
 			deleted, err := store.PurgeExpiryAlerts(ctx)
 			if err != nil {
 				log.Error("purge expiry alerts failed", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenancePurgeExpiryAlerts,
+					Details: map[string]any{"trigger": scheduledTrigger, "error": err.Error()},
+				})
 				return
 			}
 			log.Info("purge expiry alerts complete", "deleted", deleted)
+			auth.LogSystem(ctx, store, audit.Entry{
+				Action:  audit.MaintenancePurgeExpiryAlerts,
+				Details: map[string]any{"trigger": scheduledTrigger, "deleted": deleted},
+			})
 		},
 		models.JobPurgeUnreferencedCerts: func(ctx context.Context) {
 			deleted, err := store.PurgeUnreferencedCerts(ctx)
 			if err != nil {
 				log.Error("purge unreferenced certs failed", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenancePurgeUnreferencedCerts,
+					Details: map[string]any{"trigger": scheduledTrigger, "error": err.Error()},
+				})
 				return
 			}
 			log.Info("purge unreferenced certs complete", "deleted", deleted)
+			auth.LogSystem(ctx, store, audit.Entry{
+				Action:  audit.MaintenancePurgeUnreferencedCerts,
+				Details: map[string]any{"trigger": scheduledTrigger, "deleted": deleted},
+			})
 		},
 		models.JobRefreshRootStores: func(ctx context.Context) {
 			if err := rootstore.Refresh(ctx, store, log); err != nil {
 				log.Error("refresh root stores failed", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenanceRefreshRootStores,
+					Details: map[string]any{"trigger": scheduledTrigger, "error": err.Error()},
+				})
 				return
 			}
 			log.Info("refresh root stores complete")
+			auth.LogSystem(ctx, store, audit.Entry{
+				Action:  audit.MaintenanceRefreshRootStores,
+				Details: map[string]any{"trigger": scheduledTrigger},
+			})
 		},
 		models.JobPurgeAuditLogs: func(ctx context.Context) {
 			days, err := store.GetAuditLogRetentionDays(ctx)
 			if err != nil {
 				log.Error("purge audit logs: failed to get retention setting", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenancePurgeAuditLogs,
+					Details: map[string]any{"trigger": scheduledTrigger, "error": err.Error()},
+				})
 				return
 			}
 			deleted, err := store.PurgeAuditLogs(ctx, days)
 			if err != nil {
 				log.Error("purge audit logs failed", "error", err)
+				auth.LogSystem(ctx, store, audit.Entry{
+					Action:  audit.MaintenancePurgeAuditLogs,
+					Details: map[string]any{"trigger": scheduledTrigger, "retentionDays": days, "error": err.Error()},
+				})
 				return
 			}
 			log.Info("purge audit logs complete", "deleted", deleted, "retention_days", days)
+			auth.LogSystem(ctx, store, audit.Entry{
+				Action:  audit.MaintenancePurgeAuditLogs,
+				Details: map[string]any{"trigger": scheduledTrigger, "deleted": deleted, "retentionDays": days},
+			})
 		},
 	}
 }

@@ -44,4 +44,14 @@ const (
 	// Settings
 	MailConfigUpdate      = "settings.mail_config_update"
 	AlertThresholdsUpdate = "settings.alert_thresholds_update"
+
+	// Maintenance — emitted for both manual "Run Now" and scheduler-triggered
+	// runs. The details payload carries "trigger": "manual" or "scheduled" so
+	// the two can be distinguished without relying on the username column.
+	MaintenancePurgeScanHistory       = "maintenance.purge_scan_history.run"
+	MaintenancePurgeExpiryAlerts      = "maintenance.purge_expiry_alerts.run"
+	MaintenancePurgeUnreferencedCerts = "maintenance.purge_unreferenced_certs.run"
+	MaintenancePurgeAuditLogs         = "maintenance.purge_audit_logs.run"
+	MaintenanceRefreshRootStores      = "maintenance.refresh_root_stores.run"
+	MaintenanceExpiryAlerts           = "maintenance.expiry_alerts.run"
 )

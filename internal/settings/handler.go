@@ -251,8 +251,8 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("failed to update job last run after manual purge", "err", err)
 	}
 	auth.Log(r.Context(), h.store, r, audit.Entry{
-		Action:  "maintenance.purge_scan_history.run",
-		Details: map[string]any{"deleted": deleted, "retentionDays": days},
+		Action:  audit.MaintenancePurgeScanHistory,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted, "retentionDays": days},
 	})
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
@@ -280,8 +280,8 @@ func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("failed to update job last run after manual expiry alerts purge", "err", err)
 	}
 	auth.Log(r.Context(), h.store, r, audit.Entry{
-		Action:  "maintenance.purge_expiry_alerts.run",
-		Details: map[string]any{"deleted": deleted},
+		Action:  audit.MaintenancePurgeExpiryAlerts,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted},
 	})
 	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
 }
@@ -309,8 +309,8 @@ func (h *Handler) RunPurgeUnreferencedCerts(w http.ResponseWriter, r *http.Reque
 		slog.Warn("failed to update job last run after manual unreferenced certs purge", "err", err)
 	}
 	auth.Log(r.Context(), h.store, r, audit.Entry{
-		Action:  "maintenance.purge_unreferenced_certs.run",
-		Details: map[string]any{"deleted": deleted},
+		Action:  audit.MaintenancePurgeUnreferencedCerts,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted},
 	})
 	response.JSON(w, http.StatusOK, purgeUnreferencedCertsResponse{Deleted: deleted})
 }
@@ -390,8 +390,8 @@ func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("failed to update job last run after manual audit log purge", "err", err)
 	}
 	auth.Log(r.Context(), h.store, r, audit.Entry{
-		Action:  "maintenance.purge_audit_logs.run",
-		Details: map[string]any{"deleted": deleted, "retentionDays": days},
+		Action:  audit.MaintenancePurgeAuditLogs,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted, "retentionDays": days},
 	})
 	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
 }
@@ -417,6 +417,9 @@ func (h *Handler) RunRefreshRootStores(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.UpdateJobLastRun(r.Context(), models.JobRefreshRootStores, "manual run"); err != nil {
 		slog.Warn("failed to update job last run after manual root store refresh", "err", err)
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.refresh_root_stores.run"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.MaintenanceRefreshRootStores,
+		Details: map[string]any{"trigger": "manual"},
+	})
 	response.JSON(w, http.StatusOK, refreshRootStoresResponse{Status: "ok"})
 }
