@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { CheckCircle2, XCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getEndpoint, getScanHistory } from '@/api/endpoints'
 import type { EndpointScanHistoryItem } from '@/types/api'
 import { Breadcrumb } from '@/components/Breadcrumb'
-import TablePagination from '@/components/TablePagination'
+import { Button } from '@/components/ui/button'
 import { fmtDateTime } from '@/lib/utils'
 
 const PAGE_SIZE = 50
@@ -40,6 +40,8 @@ export default function EndpointScanHistoryPage() {
   const items = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
 
   return (
     <div className="space-y-6">
@@ -80,16 +82,29 @@ export default function EndpointScanHistoryPage() {
             {items.map((item) => <Row key={item.id} item={item} />)}
           </div>
         )}
-      </div>
 
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-        noun="scan"
-      />
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No entries'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> entries</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -98,24 +113,34 @@ function Row({ item }: { item: EndpointScanHistoryItem }) {
   const ok = !item.scanError
   return (
     <div className="border-b border-border/40 last:border-0">
-      <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-3`}>
-        {ok
-          ? <CheckCircle2 className="h-4 w-4 text-tertiary" />
-          : <XCircle      className="h-4 w-4 text-error" />}
-        <span className="text-sm whitespace-nowrap">{fmtDateTime(item.scannedAt)}</span>
-        <span className="text-xs text-muted-foreground">{item.tlsVersion ?? '—'}</span>
-        <span className="text-xs font-mono text-muted-foreground truncate">{item.resolvedIp ?? '—'}</span>
-        {item.fingerprint ? (
-          <Link
-            to={`/certificates/${item.fingerprint}`}
-            className="min-w-0 truncate font-mono text-xs text-muted-foreground/80 hover:text-primary hover:underline"
-            title={item.fingerprint}
-          >
-            {item.fingerprint}
-          </Link>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        )}
+      <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4`}>
+        <div className="pt-0.5">
+          {ok
+            ? <CheckCircle2 className="h-4 w-4 text-tertiary" />
+            : <XCircle      className="h-4 w-4 text-error" />}
+        </div>
+        <div className="pt-0.5">
+          <span className="text-sm whitespace-nowrap">{fmtDateTime(item.scannedAt)}</span>
+        </div>
+        <div className="pt-0.5">
+          <span className="text-xs text-muted-foreground">{item.tlsVersion ?? '—'}</span>
+        </div>
+        <div className="min-w-0 pt-0.5">
+          <span className="text-xs font-mono text-muted-foreground truncate block">{item.resolvedIp ?? '—'}</span>
+        </div>
+        <div className="min-w-0 pt-0.5">
+          {item.fingerprint ? (
+            <Link
+              to={`/certificates/${item.fingerprint}`}
+              className="block truncate font-mono text-xs text-muted-foreground/80 hover:text-primary hover:underline"
+              title={item.fingerprint}
+            >
+              {item.fingerprint}
+            </Link>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
       </div>
       {item.scanError && (
         <div className="px-5 pb-3 -mt-1 pl-[calc(1.25rem+1.5rem+1rem)] text-xs text-destructive">
