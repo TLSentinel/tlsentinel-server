@@ -1,8 +1,14 @@
+import type { ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { ExternalLink, Gauge, BookOpen, Github, Info, Keyboard, Landmark, Search } from 'lucide-react'
+import { ExternalLink, Gauge, BookOpen, Info, Keyboard, Landmark, Search } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { GitHubMark } from '@/components/icons/GitHubMark'
 import { helpDocs } from './registry'
+
+// Icons can be either a lucide icon or a local SVG component that accepts
+// className (e.g. GitHubMark — lucide 1.x dropped all brand logos).
+type TopicIcon = LucideIcon | ComponentType<{ className?: string }>
 
 // ---------------------------------------------------------------------------
 // Help landing page. Serves as a table of contents for in-app topics plus
@@ -15,7 +21,7 @@ import { helpDocs } from './registry'
 interface TopicEntry {
   title: string
   blurb: string
-  icon: LucideIcon
+  icon: TopicIcon
   to?: string
   href?: string
 }
@@ -60,7 +66,7 @@ const EXTERNAL_TOPICS: TopicEntry[] = [
   {
     title: 'GitHub repository',
     blurb: 'Source code, issues, and release notes.',
-    icon: Github,
+    icon: GitHubMark,
     href: 'https://github.com/tlsentinel/tlsentinel-server',
   },
 ]
