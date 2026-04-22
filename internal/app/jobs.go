@@ -103,7 +103,7 @@ func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) 
 			})
 		},
 		models.JobPurgeUnreferencedCerts: func(ctx context.Context) {
-			deleted, err := store.PurgeUnreferencedCerts(ctx)
+			purged, err := store.PurgeUnreferencedCerts(ctx)
 			if err != nil {
 				log.Error("purge unreferenced certs failed", "error", err)
 				auth.LogSystem(ctx, store, audit.Entry{
@@ -112,10 +112,10 @@ func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) 
 				})
 				return
 			}
-			log.Info("purge unreferenced certs complete", "deleted", deleted)
+			log.Info("purge unreferenced certs complete", "deleted", len(purged))
 			auth.LogSystem(ctx, store, audit.Entry{
 				Action:  audit.MaintenancePurgeUnreferencedCerts,
-				Details: map[string]any{"trigger": scheduledTrigger, "deleted": deleted},
+				Details: audit.PurgedCertsDetails(scheduledTrigger, purged),
 			})
 		},
 		models.JobRefreshRootStores: func(ctx context.Context) {
