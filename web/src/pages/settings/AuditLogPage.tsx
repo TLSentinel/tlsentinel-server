@@ -69,6 +69,7 @@ const ACTION_LABELS: Record<string, string> = {
   'maintenance.purge_unreferenced_certs.run':  'Unreferenced Certs Purged',
   'maintenance.purge_audit_logs.run':          'Audit Logs Purged',
   'maintenance.refresh_root_stores.run':       'Root Stores Refreshed',
+  'maintenance.expiry_alerts.run':             'Expiry Alerts Run',
 }
 
 function formatAction(action: string): string {
@@ -213,7 +214,9 @@ export default function AuditLogPage() {
                     </div>
                     <div className="min-w-0 pt-0.5">
                       <span className="text-sm font-medium truncate block">
-                        {log.username || <span className="text-muted-foreground italic">system</span>}
+                        {log.username === '' || log.username === 'system'
+                          ? <span className="text-muted-foreground italic">system</span>
+                          : log.username}
                       </span>
                     </div>
                     <div className="pt-0.5">
