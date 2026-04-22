@@ -45,8 +45,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	if err != nil {
 		return nil, err
 	}
-	tokenHandler := scanners.NewHandler(store)
-	scannerHandler := probe.NewHandler(store)
+	scannerHandler := scanners.NewHandler(store)
+	probeHandler := probe.NewHandler(store)
 	userHandler := users.NewHandler(store)
 	settingsHandler := settings.NewHandler(store, sched)
 	certHandler := certificates.NewHandler(store)
@@ -93,25 +93,23 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 			r.Route("/scanners", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersView))
-					r.Get("/", tokenHandler.List)
-					r.Get("/{scannerID}", tokenHandler.Get)
+					r.Get("/", scannerHandler.List)
+					r.Get("/{scannerID}", scannerHandler.Get)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersEdit))
-					r.Post("/", tokenHandler.Create)
+					r.Post("/", scannerHandler.Create)
 					r.Route("/{scannerID}", func(r chi.Router) {
-						r.Put("/", tokenHandler.Update)
-						r.Patch("/", tokenHandler.Patch)
-						r.Delete("/", tokenHandler.Delete)
-						r.Post("/default", tokenHandler.SetDefault)
-						r.Post("/regenerate-token", tokenHandler.RegenerateToken)
+						r.Put("/", scannerHandler.Update)
+						r.Patch("/", scannerHandler.Patch)
+						r.Delete("/", scannerHandler.Delete)
+						r.Post("/default", scannerHandler.SetDefault)
+						r.Post("/regenerate-token", scannerHandler.RegenerateToken)
 					})
 				})
 			})
 
-			r.Route("/alerts", func(r chi.Router) {
-				// TODO IGNORE FOR NOW
-			})
+			// TODO: /alerts subtree — wiring pending.
 
 			r.Route("/certificates", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
@@ -176,7 +174,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 
 			// /me — any authenticated user, scoped to themselves.
 			r.Route("/me", func(r chi.Router) {
-				r.Use(auth.RequirePermission(permission.SelfRead))
+				r.Use(auth.RequirePermission(permission.SelfAccess))
 				r.Get("/", userHandler.Me)
 				r.Put("/", userHandler.UpdateMe)
 				r.Patch("/password", userHandler.ChangeMyPassword)
@@ -316,6 +314,10 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 					})
 				})
 				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.TagsView))
+					r.Get("/", tagHandler.ListTags)
+				})
+				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.TagsEdit))
 					r.Post("/", tagHandler.CreateTag)
 					r.Put("/{tagID}", tagHandler.UpdateTag)
@@ -364,13 +366,13 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 
 			r.Route("/probe", func(r chi.Router) {
 				r.Use(probe.RequireScanner)
-				r.Get("/config", scannerHandler.Config)
-				r.Get("/hosts", scannerHandler.Hosts)
-				r.Post("/hosts/{hostID}/result", scannerHandler.Result)
-				r.Post("/hosts/{hostID}/tls-profile", scannerHandler.TLSProfile)
-				r.Get("/saml", scannerHandler.SAMLEndpoints)
-				r.Post("/saml/{endpointID}/result", scannerHandler.SAMLResult)
-				r.Post("/discovery", scannerHandler.ReportDiscovery)
+				r.Get("/config", probeHandler.Config)
+				r.Get("/hosts", probeHandler.Hosts)
+				r.Post("/hosts/{hostID}/result", probeHandler.Result)
+				r.Post("/hosts/{hostID}/tls-profile", probeHandler.TLSProfile)
+				r.Get("/saml", probeHandler.SAMLEndpoints)
+				r.Post("/saml/{endpointID}/result", probeHandler.SAMLResult)
+				r.Post("/discovery", probeHandler.ReportDiscovery)
 			})
 		})
 
