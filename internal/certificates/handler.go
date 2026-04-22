@@ -184,6 +184,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			Action:       audit.CertIngest,
 			ResourceType: "certificate",
 			ResourceID:   rec.Fingerprint,
+			Label:        stored.CommonName,
+			Details: map[string]any{
+				"sans":      stored.SANs,
+				"notAfter":  stored.NotAfter,
+				"subjectOrg": stored.SubjectOrg,
+			},
 		})
 	}
 	response.JSON(w, status, stored)
@@ -326,6 +332,19 @@ func (h *Handler) GetHistoricalEndpoints(w http.ResponseWriter, r *http.Request)
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	fingerprint := chi.URLParam(r, "fingerprint")
 
+	// Capture subject CN + SANs pre-delete so "cert deleted" is readable
+	// without a fingerprint lookup. Soft-fail on lookup errors — the delete
+	// request itself is what matters.
+	var label string
+	var details map[string]any
+	if before, lookupErr := h.store.GetCertificate(r.Context(), fingerprint); lookupErr == nil {
+		label = before.CommonName
+		details = map[string]any{
+			"sans":     before.SANs,
+			"notAfter": before.NotAfter,
+		}
+	}
+
 	if err := h.store.DeleteCertificate(r.Context(), fingerprint); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "certificate not found", http.StatusNotFound)
@@ -348,6 +367,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.CertDelete,
 		ResourceType: "certificate",
 		ResourceID:   fingerprint,
+		Label:        label,
+		Details:      details,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -459,7 +459,10 @@ export interface AuditLog {
   action: string
   resourceType?: string
   resourceId?: string
+  resourceLabel?: string
   ipAddress?: string
+  /** Free-form JSON payload describing what changed (the shape varies by action). */
+  details?: Record<string, unknown>
   createdAt: string
 }
 

@@ -226,6 +226,7 @@ func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.MyPasswordChange,
 		ResourceType: "user",
 		ResourceID:   identity.UserID,
+		Label:        identity.Username,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -407,6 +408,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.UserCreate,
 		ResourceType: "user",
 		ResourceID:   user.ID,
+		Label:        user.Username,
+		Details: map[string]any{
+			"role":     user.Role,
+			"provider": user.Provider,
+			"notify":   user.Notify,
+			"email":    user.Email,
+		},
 	})
 	response.JSON(w, http.StatusCreated, user.ToResponse())
 }
@@ -491,6 +499,13 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.UserUpdate,
 		ResourceType: "user",
 		ResourceID:   userID,
+		Label:        user.Username,
+		Details: map[string]any{
+			"role":     user.Role,
+			"provider": user.Provider,
+			"notify":   user.Notify,
+			"email":    user.Email,
+		},
 	})
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
@@ -541,6 +556,8 @@ func (h *Handler) SetEnabled(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.UserEnabledChange,
 		ResourceType: "user",
 		ResourceID:   userID,
+		Label:        user.Username,
+		Details:      map[string]any{"enabled": req.Enabled},
 	})
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
@@ -584,11 +601,18 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.Log(r.Context(), h.store, r, audit.Entry{
+	entry := audit.Entry{
 		Action:       audit.UserPasswordChange,
 		ResourceType: "user",
 		ResourceID:   userID,
-	})
+	}
+	// Look up the username after the password succeeds so the audit row is
+	// readable without having to cross-reference by user ID. Swallow errors —
+	// audit must not fail the request.
+	if target, lookupErr := h.store.GetUserByID(r.Context(), userID); lookupErr == nil {
+		entry.Label = target.Username
+	}
+	auth.Log(r.Context(), h.store, r, entry)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -647,6 +671,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action:       audit.UserDelete,
 		ResourceType: "user",
 		ResourceID:   userID,
+		Label:        target.Username,
+		Details: map[string]any{
+			"role":     target.Role,
+			"provider": target.Provider,
+		},
 	})
 	w.WriteHeader(http.StatusNoContent)
 }

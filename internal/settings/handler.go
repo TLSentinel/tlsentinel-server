@@ -96,7 +96,10 @@ func (h *Handler) SetAlertThresholds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: audit.AlertThresholdsUpdate})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.AlertThresholdsUpdate,
+		Details: map[string]any{"thresholds": sorted},
+	})
 	response.JSON(w, http.StatusOK, alertThresholdsResponse{Thresholds: sorted})
 }
 
@@ -179,7 +182,16 @@ func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 		h.sched.Reload(name, req.CronExpression, req.Enabled, fn)
 	}
 
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "settings.scheduled_job.update"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       "settings.scheduled_job.update",
+		ResourceType: "scheduled_job",
+		ResourceID:   name,
+		Label:        job.DisplayName,
+		Details: map[string]any{
+			"cronExpression": req.CronExpression,
+			"enabled":        req.Enabled,
+		},
+	})
 	response.JSON(w, http.StatusOK, job)
 }
 
@@ -204,7 +216,10 @@ func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 		http.Error(w, "failed to save scan history retention", http.StatusInternalServerError)
 		return
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "settings.scan_history_retention.update"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "settings.scan_history_retention.update",
+		Details: map[string]any{"days": req.Days},
+	})
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: req.Days})
 }
 
@@ -235,7 +250,10 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual purge", "err", err)
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_scan_history.run"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "maintenance.purge_scan_history.run",
+		Details: map[string]any{"deleted": deleted, "retentionDays": days},
+	})
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
 
@@ -261,7 +279,10 @@ func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual expiry alerts purge", "err", err)
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_expiry_alerts.run"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "maintenance.purge_expiry_alerts.run",
+		Details: map[string]any{"deleted": deleted},
+	})
 	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
 }
 
@@ -287,7 +308,10 @@ func (h *Handler) RunPurgeUnreferencedCerts(w http.ResponseWriter, r *http.Reque
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual unreferenced certs purge", "err", err)
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_unreferenced_certs.run"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "maintenance.purge_unreferenced_certs.run",
+		Details: map[string]any{"deleted": deleted},
+	})
 	response.JSON(w, http.StatusOK, purgeUnreferencedCertsResponse{Deleted: deleted})
 }
 
@@ -331,7 +355,10 @@ func (h *Handler) SetAuditLogRetention(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save audit log retention", http.StatusInternalServerError)
 		return
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "settings.audit_log_retention.update"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "settings.audit_log_retention.update",
+		Details: map[string]any{"days": req.Days},
+	})
 	response.JSON(w, http.StatusOK, auditLogRetentionResponse{Days: req.Days})
 }
 
@@ -362,7 +389,10 @@ func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual audit log purge", "err", err)
 	}
-	auth.Log(r.Context(), h.store, r, audit.Entry{Action: "maintenance.purge_audit_logs.run"})
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "maintenance.purge_audit_logs.run",
+		Details: map[string]any{"deleted": deleted, "retentionDays": days},
+	})
 	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
 }
 

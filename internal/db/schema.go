@@ -262,15 +262,16 @@ type Group struct {
 type AuditLog struct {
 	bun.BaseModel `bun:"table:tlsentinel.audit_logs"`
 
-	ID           string          `bun:"id,pk,type:uuid"`
-	UserID       *string         `bun:"user_id,type:uuid"`
-	Username     string          `bun:"username"`
-	Action       string          `bun:"action"`
-	ResourceType *string         `bun:"resource_type"`
-	ResourceID   *string         `bun:"resource_id"`
-	IPAddress    *string         `bun:"ip_address"`
-	Changes      json.RawMessage `bun:"changes,type:jsonb"`
-	CreatedAt    time.Time       `bun:"created_at"`
+	ID            string          `bun:"id,pk,type:uuid"`
+	UserID        *string         `bun:"user_id,type:uuid"`
+	Username      string          `bun:"username"`
+	Action        string          `bun:"action"`
+	ResourceType  *string         `bun:"resource_type"`
+	ResourceID    *string         `bun:"resource_id"`
+	ResourceLabel *string         `bun:"resource_label"`
+	IPAddress     *string         `bun:"ip_address"`
+	Details       json.RawMessage `bun:"details,type:jsonb"`
+	CreatedAt     time.Time       `bun:"created_at"`
 }
 
 // HostGroup maps to tlsentinel.host_groups.

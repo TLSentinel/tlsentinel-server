@@ -36,14 +36,16 @@ func (s *Store) ListAuditLogs(ctx context.Context, page, pageSize int, username,
 	items := make([]models.AuditLog, len(rows))
 	for i, r := range rows {
 		items[i] = models.AuditLog{
-			ID:           r.ID,
-			UserID:       r.UserID,
-			Username:     r.Username,
-			Action:       r.Action,
-			ResourceType: r.ResourceType,
-			ResourceID:   r.ResourceID,
-			IPAddress:    r.IPAddress,
-			CreatedAt:    r.CreatedAt,
+			ID:            r.ID,
+			UserID:        r.UserID,
+			Username:      r.Username,
+			Action:        r.Action,
+			ResourceType:  r.ResourceType,
+			ResourceID:    r.ResourceID,
+			ResourceLabel: r.ResourceLabel,
+			IPAddress:     r.IPAddress,
+			Details:       r.Details,
+			CreatedAt:     r.CreatedAt,
 		}
 	}
 
