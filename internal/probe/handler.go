@@ -220,15 +220,19 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 		}
 		if i == 0 {
 			leafOK = true
-			// Evaluate the freshly-ingested leaf against every enabled root
-			// program so its row in the trust matrix is available immediately,
-			// without waiting for the next weekly ReevaluateAll pass.
-			h.evaluateAndPersist(r.Context(), cert, rec.Fingerprint)
-		} else if h.trustEv != nil {
+		}
+		if h.trustEv != nil {
 			// Opportunistically add chain intermediates to the shared pool so
 			// later leaves whose issuer happens to be this cert can build a
-			// complete path. No-op for non-CA certs.
+			// complete path. No-op for non-CA certs, so it's safe for the
+			// leaf at i=0 too.
 			h.trustEv.AddIntermediate(cert)
+			// Evaluate every cert in the submitted chain — not just the leaf
+			// at i=0. An intermediate chains to whichever roots sign it; an
+			// anchor chains trivially to any program pool it belongs to. The
+			// matrix row lands in certificate_trust immediately, without
+			// waiting for the next weekly ReevaluateAll pass.
+			h.evaluateAndPersist(r.Context(), cert, rec.Fingerprint)
 		}
 	}
 	if !leafOK {
