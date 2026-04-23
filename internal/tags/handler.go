@@ -101,11 +101,16 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 // @Tags         tags
 // @Param        categoryID  path  string  true  "Category ID"
 // @Success      204
+// @Failure      404  {string}  string  "category not found"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /tags/categories/{categoryID} [delete]
 func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "categoryID")
 	if err := h.store.DeleteTagCategory(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "category not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "failed to delete category", http.StatusInternalServerError)
 		return
 	}
@@ -194,11 +199,16 @@ func (h *Handler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 // @Tags         tags
 // @Param        tagID  path  string  true  "Tag ID"
 // @Success      204
+// @Failure      404  {string}  string  "tag not found"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /tags/{tagID} [delete]
 func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "tagID")
 	if err := h.store.DeleteTag(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "tag not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "failed to delete tag", http.StatusInternalServerError)
 		return
 	}

@@ -89,9 +89,13 @@ func (s *Store) UpdateTagCategory(ctx context.Context, id string, req models.Upd
 }
 
 func (s *Store) DeleteTagCategory(ctx context.Context, id string) error {
-	_, err := s.db.NewDelete().Model((*TagCategory)(nil)).Where("id = ?", id).Exec(ctx)
+	res, err := s.db.NewDelete().Model((*TagCategory)(nil)).Where("id = ?", id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete tag category: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -139,9 +143,13 @@ func (s *Store) UpdateTag(ctx context.Context, id string, req models.UpdateTagRe
 }
 
 func (s *Store) DeleteTag(ctx context.Context, id string) error {
-	_, err := s.db.NewDelete().Model((*Tag)(nil)).Where("id = ?", id).Exec(ctx)
+	res, err := s.db.NewDelete().Model((*Tag)(nil)).Where("id = ?", id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete tag: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
