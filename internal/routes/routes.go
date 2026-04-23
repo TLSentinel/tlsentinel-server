@@ -33,12 +33,13 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/search"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/tags"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
 	"github.com/tlsentinel/tlsentinel-server/internal/utils"
 	tlsetinelWeb "github.com/tlsentinel/tlsentinel-server/web"
 )
 
-func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Scheduler) (http.Handler, error) {
+func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Scheduler, trustEv *trust.Evaluator) (http.Handler, error) {
 
 	authHandler := auth.NewHandler(store, cfg)
 	oidcHandler, err := oidc.NewHandler(context.Background(), store, cfg)
@@ -46,9 +47,9 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 		return nil, err
 	}
 	scannerHandler := scanners.NewHandler(store)
-	probeHandler := probe.NewHandler(store)
+	probeHandler := probe.NewHandler(store, trustEv)
 	userHandler := users.NewHandler(store)
-	settingsHandler := settings.NewHandler(store, sched)
+	settingsHandler := settings.NewHandler(store, sched, trustEv)
 	certHandler := certificates.NewHandler(store)
 	endpointHandler := endpoints.NewHandler(store)
 	utilsHandler := utils.NewHandler()

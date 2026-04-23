@@ -113,48 +113,27 @@ func (s *Store) ListRootStoreAnchors(
 	}, nil
 }
 
-// GetChainTrustedBy walks the issuer_fingerprint chain from the given leaf
-// and returns the distinct root_store_id values whose anchors validate it.
+// GetChainTrustedBy returns the root_store_id values that currently trust
+// the given leaf. Reads from certificate_trust, which is populated by the
+// in-process x509.Verify evaluator (internal/trust) at probe ingest and
+// re-evaluated after every rootstore.Refresh.
 //
-// Match semantics: for each cert in the chain, find any known anchor that
-// shares the same Subject DN (subject_dn_hash), additionally requiring
-// Subject Key ID agreement when both sides publish one. This mirrors
-// RFC 5280 path-building — a browser's local trust store entry need only
-// match the chain-served cert's Subject + SKI, not its exact fingerprint.
-// Without that, cross-signed intermediates (e.g. GTS Root R1 served under
-// GlobalSign R1) wouldn't resolve to their canonical anchor copy.
-//
-// Recursion is depth-bounded; c.fingerprint != chain.fingerprint stops
-// self-signed root expansion.
+// If certificate_trust has no rows for this fingerprint — a brand-new cert
+// that hasn't yet been evaluated, or one ingested before the
+// certificate_trust migration ran — the result is an empty slice, not an
+// error. The caller renders that as "no trust data available" rather than
+// "untrusted by everything"; the difference matters to users.
 func (s *Store) GetChainTrustedBy(ctx context.Context, leafFingerprint string) ([]string, error) {
 	var ids []string
-	err := s.db.NewRaw(`
-		WITH RECURSIVE chain AS (
-			SELECT fingerprint, issuer_fingerprint, subject_key_id, subject_dn_hash, 1 AS depth
-			FROM tlsentinel.certificates
-			WHERE fingerprint = ?
-		  UNION ALL
-			SELECT c.fingerprint, c.issuer_fingerprint, c.subject_key_id, c.subject_dn_hash, chain.depth + 1
-			FROM tlsentinel.certificates c
-			JOIN chain ON c.fingerprint = chain.issuer_fingerprint
-			WHERE c.fingerprint != chain.fingerprint
-			  AND chain.depth < 10
-		)
-		SELECT DISTINCT rsa.root_store_id
-		FROM chain
-		JOIN tlsentinel.certificates anchor_cert
-		  ON anchor_cert.subject_dn_hash = chain.subject_dn_hash
-		 AND (
-			  chain.subject_key_id = ''
-		   OR anchor_cert.subject_key_id = ''
-		   OR anchor_cert.subject_key_id = chain.subject_key_id
-		 )
-		JOIN tlsentinel.root_store_anchors rsa
-		  ON rsa.fingerprint = anchor_cert.fingerprint
-		ORDER BY rsa.root_store_id
-	`, leafFingerprint).Scan(ctx, &ids)
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.certificate_trust AS ct").
+		ColumnExpr("ct.root_store_id").
+		Where("ct.fingerprint = ?", leafFingerprint).
+		Where("ct.trusted = TRUE").
+		OrderExpr("ct.root_store_id").
+		Scan(ctx, &ids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute trust matrix for %s: %w", leafFingerprint, err)
+		return nil, fmt.Errorf("failed to read trust matrix for %s: %w", leafFingerprint, err)
 	}
 	return ids, nil
 }

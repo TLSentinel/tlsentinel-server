@@ -16,18 +16,21 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/rootstore"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
 // Handler handles HTTP requests for the settings endpoints.
 type Handler struct {
-	store *db.Store
-	sched *scheduler.Scheduler
+	store   *db.Store
+	sched   *scheduler.Scheduler
+	trustEv *trust.Evaluator
 }
 
-// NewHandler creates a new Handler.
-func NewHandler(store *db.Store, sched *scheduler.Scheduler) *Handler {
-	return &Handler{store: store, sched: sched}
+// NewHandler creates a new Handler. trustEv may be nil during testing; the
+// manual root-store refresh path tolerates that by skipping pool reload.
+func NewHandler(store *db.Store, sched *scheduler.Scheduler, trustEv *trust.Evaluator) *Handler {
+	return &Handler{store: store, sched: sched, trustEv: trustEv}
 }
 
 // alertThresholdsResponse is the response envelope for alert threshold endpoints.
@@ -414,6 +417,17 @@ func (h *Handler) RunRefreshRootStores(w http.ResponseWriter, r *http.Request) {
 		slog.Error("manual root store refresh failed", "err", err)
 		http.Error(w, "refresh failed", http.StatusInternalServerError)
 		return
+	}
+	// Match the scheduled-job path: reload the in-memory pools and
+	// re-evaluate every leaf against the new anchors so the trust matrix
+	// reflects the refresh before the caller's poll for "was it applied"
+	// comes back.
+	if h.trustEv != nil {
+		if err := h.trustEv.LoadPools(r.Context(), h.store); err != nil {
+			slog.Warn("manual refresh: pool reload failed", "err", err)
+		} else if err := h.trustEv.ReevaluateAll(r.Context(), h.store); err != nil {
+			slog.Warn("manual refresh: reevaluation failed", "err", err)
+		}
 	}
 	if err := h.store.UpdateJobLastRun(r.Context(), models.JobRefreshRootStores, "manual run"); err != nil {
 		slog.Warn("failed to update job last run after manual root store refresh", "err", err)
