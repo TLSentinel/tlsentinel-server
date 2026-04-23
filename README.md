@@ -7,8 +7,9 @@
 <h1>TLSentinel — Server</h1>
 
 <p>
-  A self-hosted TLS certificate monitoring platform. Track expiry, measure
-  TLS hygiene, and audit trust posture across your infrastructure.
+  Self-hosted TLS & PKI hub for infrastructure admins — certificate
+  monitoring with expiry alerts, CCADB-backed root program trust
+  matrix, and a PKI toolbox (decoder, CSR, chain validator, diff).
 </p>
 
 <h3>
@@ -43,6 +44,10 @@
 - **Per-program root store browser.** Tab between programs, search
   anchors by common name or organization, click through to the
   certificate detail page.
+- **PKI toolbox.** In-browser utilities that never transmit data off
+  your machine: certificate and CSR decoders, CSR generator (keys stay
+  local), chain builder/validator, certificate diff, and PEM/DER
+  converter.
 - **SAML metadata history.** Each distinct metadata document observed per
   SAML endpoint is persisted with a SHA-256 digest so you can diff
   historical signing certificates and SP/IdP configuration changes.
