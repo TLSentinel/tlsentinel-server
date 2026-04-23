@@ -7,6 +7,7 @@ package scheduler
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/netresearch/go-cron"
@@ -52,8 +53,22 @@ func (s *Scheduler) Func(name string) func(context.Context) {
 // Add registers a job with the given cron spec. Call before Start.
 // Each invocation runs with a fresh context derived from the scheduler's
 // parent context and bounded by DefaultJobTimeout.
+//
+// A per-job atomic.Bool guards against overlapping invocations: if a tick
+// fires while the previous run of the same job is still executing, the
+// new run is skipped with a warning rather than queued. This prevents
+// long-running jobs (e.g. a purge that exceeds its interval) from
+// stacking concurrent goroutines that contend on the same tables.
+// Every Add call — including re-adds via Reload — gets a fresh guard.
 func (s *Scheduler) Add(spec, name string, fn func(context.Context)) {
+	var running atomic.Bool
 	id, err := s.c.AddFunc(spec, func() {
+		if !running.CompareAndSwap(false, true) {
+			slog.Warn("skipping job: previous invocation still running", "job", name)
+			return
+		}
+		defer running.Store(false)
+
 		slog.Info("job starting", "job", name)
 		ctx, cancel := context.WithTimeout(s.parent, s.timeout)
 		defer cancel()
