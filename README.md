@@ -89,10 +89,10 @@
 
 <p align="center">
   <picture>
-    <img src="https://tlsentinel.github.io/assets/screenshots/dashboard.png" width="400" alt="Dashboard" />
+    <img src="https://www.tlsentinel.com/assets/screenshots/02-dashboard.desktop.png" width="400" alt="Dashboard" />
   </picture>
   <picture>
-    <img src="https://tlsentinel.github.io/assets/screenshots/host_detail.png" width="400" alt="Endpoint detail" />
+    <img src="https://www.tlsentinel.com/assets/screenshots/04-endpoint-detail.desktop.png" width="400" alt="Endpoint detail" />
   </picture>
 </p>
 
