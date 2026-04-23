@@ -116,12 +116,12 @@ func toPEM(t *testing.T, der []byte) string {
 	return buf.String()
 }
 
-// fakeSource is an in-memory PoolSource/LeafSource/TrustSink for tests.
+// fakeSource is an in-memory PoolSource/CertSource/TrustSink for tests.
 type fakeSource struct {
 	mu             sync.Mutex
 	anchorsByStore map[string][]string
 	nonAnchors     map[string]string
-	leaves         map[string]string // fingerprint → PEM, for ForEachLeafCert
+	allCerts       map[string]string // fingerprint → PEM, for ForEachCert
 	verdicts       map[string]map[string]Result
 	upsertErr      error
 }
@@ -134,8 +134,8 @@ func (f *fakeSource) ListNonAnchorCertPEMs(_ context.Context) (map[string]string
 	return f.nonAnchors, nil
 }
 
-func (f *fakeSource) ForEachLeafCert(_ context.Context, fn func(fingerprint, pemStr string) error) error {
-	for fp, p := range f.leaves {
+func (f *fakeSource) ForEachCert(_ context.Context, fn func(fingerprint, pemStr string) error) error {
+	for fp, p := range f.allCerts {
 		if err := fn(fp, p); err != nil {
 			return err
 		}
@@ -296,9 +296,9 @@ func TestLoadPoolsFiltersLeavesFromIntermediates(t *testing.T) {
 	}
 }
 
-// TestReevaluateAllPersistsVerdicts walks every leaf via the LeafSource and
-// writes the verdict map via TrustSink. Covers the startup-backfill and
-// post-refresh paths.
+// TestReevaluateAllPersistsVerdicts walks every cert via the CertSource
+// and writes the verdict map via TrustSink. Covers the startup-backfill
+// and post-refresh paths.
 func TestReevaluateAllPersistsVerdicts(t *testing.T) {
 	root := mintCA(t, "Root")
 	leaf := mintLeaf(t, "leaf.test", root)
@@ -308,7 +308,7 @@ func TestReevaluateAllPersistsVerdicts(t *testing.T) {
 	src := &fakeSource{
 		anchorsByStore: map[string][]string{"apple": {root.pem}},
 		nonAnchors:     map[string]string{},
-		leaves: map[string]string{
+		allCerts: map[string]string{
 			"fp-leaf":    leaf.pem,
 			"fp-foreign": foreignLeaf.pem,
 		},
@@ -327,6 +327,64 @@ func TestReevaluateAllPersistsVerdicts(t *testing.T) {
 	if v, ok := src.verdicts["fp-foreign"]["apple"]; !ok || v.Trusted {
 		t.Errorf("fp-foreign/apple verdict: got=%+v ok=%v, want trusted=false", v, ok)
 	}
+}
+
+// TestReevaluateAllCoversAnchorsAndIntermediates is the regression test
+// for the "Amazon Root CA 1 shows as untrusted by everything" bug: the
+// root-store page lists a cert as an anchor of Microsoft's program, the
+// user clicks in, and the old code produced an empty matrix because the
+// CA was silently skipped. After the fix, every cert — anchor, intermediate,
+// and leaf — gets its own verdict row.
+func TestReevaluateAllCoversAnchorsAndIntermediates(t *testing.T) {
+	// One program (apple) with a single anchor. An intermediate chains to
+	// the anchor; a leaf chains to the intermediate.
+	anchor := mintCA(t, "Root")
+	intCA := mintIntermediate(t, "Intermediate", anchor)
+	leaf := mintLeaf(t, "leaf.test", intCA)
+
+	src := &fakeSource{
+		anchorsByStore: map[string][]string{"apple": {anchor.pem}},
+		nonAnchors:     map[string]string{"int": intCA.pem},
+		// Every cert — including the anchor — is in allCerts, because
+		// the DB table doesn't filter by IsCA or trust_anchor anymore.
+		allCerts: map[string]string{
+			"fp-anchor": anchor.pem,
+			"fp-int":    intCA.pem,
+			"fp-leaf":   leaf.pem,
+		},
+	}
+	ev := New(nil)
+	if err := ev.LoadPools(context.Background(), src); err != nil {
+		t.Fatalf("LoadPools: %v", err)
+	}
+	if err := ev.ReevaluateAll(context.Background(), src); err != nil {
+		t.Fatalf("ReevaluateAll: %v", err)
+	}
+
+	// Anchor verifies against its own program's pool (chain-of-one).
+	if v, ok := src.verdicts["fp-anchor"]["apple"]; !ok || !v.Trusted {
+		t.Errorf("fp-anchor/apple: got=%+v ok=%v, want trusted=true", v, ok)
+	}
+	// Intermediate chains to the anchor.
+	if v, ok := src.verdicts["fp-int"]["apple"]; !ok || !v.Trusted {
+		t.Errorf("fp-int/apple: got=%+v ok=%v, want trusted=true", v, ok)
+	}
+	// Leaf chains to the intermediate to the anchor.
+	if v, ok := src.verdicts["fp-leaf"]["apple"]; !ok || !v.Trusted {
+		t.Errorf("fp-leaf/apple: got=%+v ok=%v, want trusted=true", v, ok)
+	}
+	// All three fingerprints got a row — no silent skips.
+	if len(src.verdicts) != 3 {
+		t.Errorf("expected verdicts for 3 certs, got %d: %v", len(src.verdicts), keysOf(src.verdicts))
+	}
+}
+
+func keysOf(m map[string]map[string]Result) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 // TestEvaluateNilLeaf guards against panic and returns an empty map.

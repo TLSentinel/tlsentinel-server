@@ -59,15 +59,16 @@ func (s *Store) ListNonAnchorCertPEMs(ctx context.Context) (map[string]string, e
 	return out, nil
 }
 
-// ForEachLeafCert implements trust.LeafSource. Yields every cert we
-// want the evaluator to produce a verdict for — i.e. every non-anchor.
+// ForEachCert implements trust.CertSource. Yields every certificate in
+// the DB — leaves, intermediates, and anchors alike — so the evaluator
+// can produce a verdict for each.
 //
-// The caller parses each PEM and is expected to skip CAs itself (via
-// cert.IsCA) — rather than duplicating that test here, we keep the DB
-// query cheap and let the caller filter after parse. ForEachLeafCert
-// therefore really means "for each cert worth considering for trust
-// evaluation," which today is "every non-anchor."
-func (s *Store) ForEachLeafCert(ctx context.Context, fn func(fingerprint, pemStr string) error) error {
+// Anchors are included deliberately. A self-signed root whose fingerprint
+// is in a program's pool will Verify trivially against that pool
+// (chain-of-one), giving the user the honest answer on the cert detail
+// page: "trusted by microsoft" for a Microsoft anchor, rather than a
+// blank matrix that contradicts what the root-store page just told them.
+func (s *Store) ForEachCert(ctx context.Context, fn func(fingerprint, pemStr string) error) error {
 	var rows []struct {
 		Fingerprint string `bun:"fingerprint"`
 		PEM         string `bun:"pem"`
@@ -75,10 +76,9 @@ func (s *Store) ForEachLeafCert(ctx context.Context, fn func(fingerprint, pemStr
 	err := s.db.NewSelect().
 		TableExpr("tlsentinel.certificates AS c").
 		ColumnExpr("c.fingerprint, c.pem").
-		Where("c.trust_anchor = FALSE").
 		Scan(ctx, &rows)
 	if err != nil {
-		return fmt.Errorf("failed to iterate non-anchor certs: %w", err)
+		return fmt.Errorf("failed to iterate certs: %w", err)
 	}
 	for _, r := range rows {
 		if err := fn(r.Fingerprint, r.PEM); err != nil {
@@ -142,7 +142,7 @@ func (s *Store) DeleteCertificateTrustForStore(ctx context.Context, storeID stri
 // at a less obvious call site.
 var (
 	_ trust.PoolSource       = (*Store)(nil)
-	_ trust.LeafSource       = (*Store)(nil)
+	_ trust.CertSource       = (*Store)(nil)
 	_ trust.TrustSink        = (*Store)(nil)
 	_ trust.ReevaluatorStore = (*Store)(nil)
 )

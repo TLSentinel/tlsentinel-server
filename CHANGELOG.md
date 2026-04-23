@@ -26,8 +26,11 @@ once it reaches 1.0.
   `trust_anchor` flag and per-store membership. An in-process trust
   evaluator (`internal/trust`) keeps per-program `crypto/x509.CertPool`s
   in memory — one root pool per program, one shared intermediates pool —
-  and runs `x509.Verify()` on every leaf at ingest and after every root
-  refresh. Verdicts land in a new `certificate_trust` table, one row per
+  and runs `x509.Verify()` on every certificate (leaves, intermediates,
+  and anchors alike) at ingest and after every root refresh. An anchor
+  verifies trivially against any program pool that contains it; an
+  intermediate chains to whichever roots sign it; a leaf chains through
+  both. Verdicts land in a new `certificate_trust` table, one row per
   `(fingerprint, root_store_id)`, with the Verify error string attached
   to failures so "not trusted by Apple" always comes with a reason.
   `GET /certificates/{fingerprint}` exposes `trustedBy` (stores whose
