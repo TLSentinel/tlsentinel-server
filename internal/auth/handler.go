@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -15,6 +16,27 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
+
+// dummyPasswordHash is a valid bcrypt hash of a random secret, used to keep
+// the login timing side-channel closed when the submitted username does not
+// exist. bcrypt.CompareHashAndPassword short-circuits on malformed hashes,
+// so it is critical this value be a real hash generated at the same cost
+// as real user passwords (bcrypt.DefaultCost) — otherwise "user not found"
+// returns in microseconds while "bad password" takes ~100ms, letting an
+// attacker enumerate valid usernames by response time.
+//
+// The plaintext does not matter; the hash is never compared against a known
+// password. It is generated once at package load and kept in memory.
+var dummyPasswordHash = func() []byte {
+	h, err := bcrypt.GenerateFromPassword([]byte("dummy-never-compared"), bcrypt.DefaultCost)
+	if err != nil {
+		// Unreachable under any realistic condition — bcrypt only errors on
+		// impossible inputs. Panic so the server refuses to start rather than
+		// running with the timing side-channel wide open.
+		panic(fmt.Sprintf("auth: failed to generate dummy bcrypt hash: %v", err))
+	}
+	return h
+}()
 
 type Handler struct {
 	store        *db.Store
@@ -100,8 +122,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.store.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
-		// Always do a bcrypt comparison to prevent timing-based username enumeration.
-		bcrypt.CompareHashAndPassword([]byte("$2a$10$dummydummydummydummydummydummydummydummydummy"), []byte(req.Password)) //nolint:errcheck
+		// Always do a full bcrypt comparison against a valid dummy hash so the
+		// unknown-username path takes the same ~100ms as the wrong-password
+		// path. See dummyPasswordHash for rationale.
+		bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(req.Password)) //nolint:errcheck
 		h.logAudit(r, db.AuditLog{Username: req.Username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
