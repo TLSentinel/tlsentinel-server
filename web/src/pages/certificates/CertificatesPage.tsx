@@ -87,17 +87,19 @@ interface StatCardProps {
 }
 
 function StatCard({ icon, label, value, signal = 'neutral', active, onClick }: StatCardProps) {
+  const base = 'w-full text-left rounded-lg border border-l-4 p-5 space-y-3 transition-colors'
+  const surface = active
+    ? 'bg-primary border-primary text-primary-foreground shadow-sm'
+    : `bg-card ${SIGNAL_BORDER[signal]} ${onClick ? 'cursor-pointer hover:bg-muted/40' : 'cursor-default'}`
+  const accent = active ? 'text-primary-foreground' : SIGNAL_VALUE[signal]
+  const labelColor = active ? 'text-primary-foreground/80' : 'text-muted-foreground'
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left rounded-lg border border-l-4 ${SIGNAL_BORDER[signal]} p-5 space-y-3 transition-colors ${onClick ? 'cursor-pointer hover:bg-muted/40' : 'cursor-default'} ${active ? 'bg-muted/40 ring-1 ring-inset ring-border' : ''}`}
-    >
+    <button type="button" onClick={onClick} className={`${base} ${surface}`}>
       <div className="flex items-center gap-2">
-        <span className={`shrink-0 ${SIGNAL_VALUE[signal]}`}>{icon}</span>
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className={`shrink-0 ${accent}`}>{icon}</span>
+        <span className={`text-sm font-medium ${labelColor}`}>{label}</span>
       </div>
-      <p className={`text-3xl font-bold tracking-tight ${SIGNAL_VALUE[signal]}`}>{value}</p>
+      <p className={`text-3xl font-bold tracking-tight ${accent}`}>{value}</p>
     </button>
   )
 }

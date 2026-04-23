@@ -93,7 +93,7 @@ export default function RootStoresPage() {
                     'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
                     active
                       ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                      : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                      : 'border-border bg-card text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                   )}
                 >
                   <Landmark className={cn('h-4 w-4', active ? 'text-primary-foreground' : 'text-muted-foreground')} />
