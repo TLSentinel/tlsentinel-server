@@ -16,6 +16,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/routes"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/uptrace/bun"
 )
 
@@ -83,14 +84,37 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	enc := crypto.NewEncryptor(cfg.EncryptionKey)
 
-	registry := buildJobRegistry(store, enc, log)
+	// Trust evaluator: in-process x509.Verify() path that replaces the
+	// old recursive-CTE name-match. Built once, shared across every probe
+	// ingest and every root-store refresh. We block on the initial pool
+	// load so that by the time the HTTP listener opens, /certificates/*
+	// trust columns already have a valid evaluator behind them. A failure
+	// here is non-fatal — the server keeps running with an empty
+	// evaluator; verdicts will simply be "not trusted" until the next
+	// refresh succeeds.
+	trustEv := trust.New(log)
+	if err := trustEv.LoadPools(context.Background(), store); err != nil {
+		log.Warn("initial trust pool load failed, continuing with empty pools", "error", err)
+	}
+
+	registry := buildJobRegistry(store, enc, log, trustEv)
 	sched := scheduler.New(registry)
 	loadScheduledJobs(context.Background(), store, sched, registry, log)
 
-	r, err := routes.RegisterRoutes(store, cfg, sched)
+	r, err := routes.RegisterRoutes(store, cfg, sched, trustEv)
 	if err != nil {
 		return nil, fmt.Errorf("routes: %w", err)
 	}
+
+	// Backfill certificate_trust in the background. On first boot after
+	// the 000046 migration the table is empty; this walks every leaf and
+	// fills in verdicts without blocking startup. Subsequent boots see
+	// little to do since probe ingest keeps the table current.
+	go func() {
+		if err := trustEv.ReevaluateAll(context.Background(), store); err != nil {
+			log.Warn("startup trust reevaluation failed", "error", err)
+		}
+	}()
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr(),

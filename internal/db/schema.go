@@ -50,6 +50,20 @@ type RootStoreAnchor struct {
 	Fingerprint string `bun:"fingerprint,pk"`
 }
 
+// CertificateTrust maps to tlsentinel.certificate_trust — the per-program
+// verdict produced by the in-process x509.Verify evaluator in
+// internal/trust. One row per (fingerprint, root_store_id). Reason is the
+// Verify error string when Trusted is FALSE, empty otherwise.
+type CertificateTrust struct {
+	bun.BaseModel `bun:"table:tlsentinel.certificate_trust,alias:ct"`
+
+	Fingerprint string    `bun:"fingerprint,pk"`
+	RootStoreID string    `bun:"root_store_id,pk"`
+	Trusted     bool      `bun:"trusted"`
+	Reason      string    `bun:"reason"`
+	EvaluatedAt time.Time `bun:"evaluated_at"`
+}
+
 // Endpoint maps to tlsentinel.endpoints.
 type Endpoint struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoints,alias:h"`

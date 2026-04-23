@@ -12,6 +12,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/notifications"
 	"github.com/tlsentinel/tlsentinel-server/internal/rootstore"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 )
 
 // scheduledTrigger tags audit rows emitted by the cron-driven path so they
@@ -50,7 +51,7 @@ func loadScheduledJobs(ctx context.Context, store *db.Store, sched *scheduler.Sc
 	}
 }
 
-func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) map[string]func(context.Context) {
+func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger, trustEv *trust.Evaluator) map[string]func(context.Context) {
 	return map[string]func(context.Context){
 		models.JobExpiryAlerts: func(ctx context.Context) {
 			// RunExpiryAlerts logs its own progress and doesn't surface counts yet.
@@ -126,6 +127,15 @@ func buildJobRegistry(store *db.Store, enc *crypto.Encryptor, log *slog.Logger) 
 					Details: map[string]any{"trigger": scheduledTrigger, "error": err.Error()},
 				})
 				return
+			}
+			// A refreshed anchor set can flip every existing verdict. Rebuild
+			// the in-memory pools and re-evaluate every leaf so
+			// certificate_trust reflects the new matrix before the audit log
+			// says we're done.
+			if err := trustEv.LoadPools(ctx, store); err != nil {
+				log.Warn("refresh root stores: pool reload failed", "error", err)
+			} else if err := trustEv.ReevaluateAll(ctx, store); err != nil {
+				log.Warn("refresh root stores: reevaluation failed", "error", err)
 			}
 			log.Info("refresh root stores complete")
 			auth.LogSystem(ctx, store, audit.Entry{

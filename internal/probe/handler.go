@@ -1,6 +1,8 @@
 package probe
 
 import (
+	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -11,6 +13,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -18,12 +21,33 @@ import (
 
 // Handler handles scanner-specific API endpoints.
 type Handler struct {
-	store *db.Store
+	store   *db.Store
+	trustEv *trust.Evaluator
 }
 
-// NewHandler creates a new scanner Handler.
-func NewHandler(store *db.Store) *Handler {
-	return &Handler{store: store}
+// NewHandler creates a new scanner Handler. trustEv may be nil in tests
+// or in very early startup; the Result path tolerates a nil evaluator by
+// skipping per-leaf trust evaluation and intermediates-pool updates.
+func NewHandler(store *db.Store, trustEv *trust.Evaluator) *Handler {
+	return &Handler{store: store, trustEv: trustEv}
+}
+
+// evaluateAndPersist runs the trust evaluator on the given leaf and
+// persists the verdict to certificate_trust. Best-effort: failures are
+// logged and swallowed so a slow DB or partial pool never blocks cert
+// ingest.
+func (h *Handler) evaluateAndPersist(ctx context.Context, cert *x509.Certificate, fingerprint string) {
+	if h.trustEv == nil || cert == nil {
+		return
+	}
+	verdicts := h.trustEv.Evaluate(cert)
+	if len(verdicts) == 0 {
+		return
+	}
+	if err := h.store.UpsertCertificateTrust(ctx, fingerprint, verdicts); err != nil {
+		slog.Warn("failed to persist certificate_trust at ingest",
+			"fingerprint", fingerprint, "error", err)
+	}
 }
 
 // RequireScanner is a middleware that allows only scanner identities through.
@@ -196,6 +220,15 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 		}
 		if i == 0 {
 			leafOK = true
+			// Evaluate the freshly-ingested leaf against every enabled root
+			// program so its row in the trust matrix is available immediately,
+			// without waiting for the next weekly ReevaluateAll pass.
+			h.evaluateAndPersist(r.Context(), cert, rec.Fingerprint)
+		} else if h.trustEv != nil {
+			// Opportunistically add chain intermediates to the shared pool so
+			// later leaves whose issuer happens to be this cert can build a
+			// complete path. No-op for non-CA certs.
+			h.trustEv.AddIntermediate(cert)
 		}
 	}
 	if !leafOK {

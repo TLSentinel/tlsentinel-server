@@ -19,13 +19,21 @@ once it reaches 1.0.
   Surfaced in the UI from both the row kebab and the Edit Scanner modal
   footer; the existing one-time token reveal is reused with a "Rotated"
   badge.
-- **CCADB-backed trust anchor tracking.** New `root_stores` and
-  `root_store_anchors` tables, plus a daily refresh job that pulls CCADB's
-  trust matrix (Apple, Chrome, Microsoft, Mozilla) and the matching PEM
-  bundles, tagging every ingested certificate with a `trust_anchor` flag
-  and per-store membership. `GET /certificates/{fingerprint}` now exposes
-  `trustedBy` (root store IDs whose anchors appear anywhere in the chain)
-  and `isTrustAnchor` (Subject+SKI-equivalent to a CCADB anchor). Anchor
+- **CCADB-backed trust anchor tracking with real chain verification.** New
+  `root_stores` and `root_store_anchors` tables, plus a daily refresh job
+  that pulls CCADB's trust matrix (Apple, Chrome, Microsoft, Mozilla) and
+  the matching PEM bundles, tagging every ingested certificate with a
+  `trust_anchor` flag and per-store membership. An in-process trust
+  evaluator (`internal/trust`) keeps per-program `crypto/x509.CertPool`s
+  in memory — one root pool per program, one shared intermediates pool —
+  and runs `x509.Verify()` on every leaf at ingest and after every root
+  refresh. Verdicts land in a new `certificate_trust` table, one row per
+  `(fingerprint, root_store_id)`, with the Verify error string attached
+  to failures so "not trusted by Apple" always comes with a reason.
+  `GET /certificates/{fingerprint}` exposes `trustedBy` (stores whose
+  `x509.Verify` accepted the leaf — signature, validity window, name
+  constraints, EKU=serverAuth, and path length all enforced) and
+  `isTrustAnchor` (Subject+SKI-equivalent to a CCADB anchor). Anchor
   resolution keys on Subject DN + Subject Key ID, so cross-signed copies
   of a root (e.g. GTS Root R1 served under GlobalSign R1) resolve to the
   canonical anchor instead of walking past it. A new `GET /root-stores`
