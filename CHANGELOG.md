@@ -10,6 +10,24 @@ once it reaches 1.0.
 
 ### Added
 
+- **Typed endpoint list surfaces.** The single Endpoints page is split into
+  three typed lists — Host, SAML, Manual — nested under a new Inventory
+  group in the sidebar alongside Certificates and Root Stores. Each list
+  is the same `EndpointPage` component parametrized by a `type` prop,
+  with a per-type config driving title, description, search placeholder,
+  sort options, column grid, and the empty-state copy. Manual endpoints
+  drop the address, last-scanned, and scan-errors affordances since they
+  don't apply to offline imports. A new `?type=host|saml|manual` query
+  param on `GET /endpoints` does the server-side filter; the DB query
+  gates on the `endpoints.type` discriminator. Routes are now
+  hierarchical — `/endpoints/host`, `/endpoints/saml`, `/endpoints/manual`
+  for lists; `/endpoints/:id`, `/endpoints/:id/edit`,
+  `/endpoints/:id/scan-history` for details — and `/endpoints` keeps a
+  redirect to `/endpoints/host` so old links still land. The create/edit
+  form hides the type picker entirely when the type is locked (edit,
+  `?type=`, or from-inbox) and the page title + breadcrumb carry the
+  type context instead ("Edit Host Endpoint", "Host Endpoints → …").
+  Detail and scan-history breadcrumbs point back to the typed list too.
 - **In-place scanner token regeneration.** New
   `POST /scanners/{scannerID}/regenerate-token` rotates the bearer token
   without deleting the scanner, so the schedule, thread count, default
