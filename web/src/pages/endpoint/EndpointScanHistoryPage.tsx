@@ -7,6 +7,7 @@ import type { EndpointScanHistoryItem } from '@/types/api'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/ui/button'
 import { fmtDateTime } from '@/lib/utils'
+import { TYPE_LABEL } from './detail/shared'
 
 const PAGE_SIZE = 50
 // Status icon · Time · TLS · Resolved IP · Fingerprint
@@ -46,7 +47,9 @@ export default function EndpointScanHistoryPage() {
   return (
     <div className="space-y-6">
       <Breadcrumb items={[
-        { label: 'Endpoints', to: '/endpoints' },
+        endpoint
+          ? { label: `${TYPE_LABEL[endpoint.type] ?? ''} Endpoints`.trim(), to: `/endpoints/${endpoint.type}` }
+          : { label: 'Endpoints', to: '/endpoints' },
         { label: endpoint?.name ?? '…', to: endpointID ? `/endpoints/${endpointID}` : undefined },
         { label: 'Scan History' },
       ]} />

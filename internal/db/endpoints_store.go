@@ -122,7 +122,8 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 // search: case-insensitive contains match on name or dns_name.
 // status: "" = all, "enabled" = enabled only, "disabled" = disabled only.
 // sort: "" or "newest" (default), "name", "dns_name", "last_scanned".
-func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError bool, search, status, sort, tagID string) (models.EndpointList, error) {
+// endpointType: "" = all, "host" | "saml" | "manual" = filter to that type.
+func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError bool, search, status, sort, tagID, endpointType string) (models.EndpointList, error) {
 	var rows []endpointWithScanner
 
 	var orderExpr string
@@ -153,6 +154,10 @@ func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError 
 		q = q.Where("h.enabled = TRUE")
 	case "disabled":
 		q = q.Where("h.enabled = FALSE")
+	}
+	switch endpointType {
+	case "host", "saml", "manual":
+		q = q.Where("h.type = ?", endpointType)
 	}
 	if tagID != "" {
 		q = q.Where("EXISTS (SELECT 1 FROM tlsentinel.endpoint_tags et WHERE et.endpoint_id = h.id AND et.tag_id = ?)", tagID)

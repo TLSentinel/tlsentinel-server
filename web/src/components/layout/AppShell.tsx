@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, User, Wrench, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, HelpCircle, Landmark } from 'lucide-react'
+import { Server, LogOut, LayoutDashboard, Settings, User, Wrench, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network, HelpCircle, Landmark, KeyRound, FileText } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
 import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
@@ -136,10 +136,20 @@ export default function AppShell() {
         <nav className="flex-1 space-y-1 p-3 font-display">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
           <NavItem to="/monitor" icon={<SquareActivity className="h-4 w-4" />} label="Monitor" />
-          <NavGroup icon={<Package className="h-4 w-4" />} label="Inventory" childPaths={['/certificates', '/endpoints', '/root-stores']}>
-            <NavItem to="/certificates" icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
-            <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
-            <NavItem to="/root-stores" icon={<Landmark className="h-4 w-4" />} label="Root Stores" />
+          <NavGroup
+            icon={<Package className="h-4 w-4" />}
+            label="Inventory"
+            // /endpoints covers all three typed lists plus detail/new/edit.
+            childPaths={['/endpoints', '/certificates', '/root-stores']}
+          >
+            {/* Labels are short so they fit the w-56 sidebar with uppercase
+                tracking. Full names ("Host Endpoints" etc.) render in the
+                page title; the Inventory group supplies the noun. */}
+            <NavItem to="/endpoints/host"    icon={<Server className="h-4 w-4" />}     label="Host" />
+            <NavItem to="/endpoints/saml"    icon={<KeyRound className="h-4 w-4" />}   label="SAML" />
+            <NavItem to="/endpoints/manual"  icon={<FileText className="h-4 w-4" />}   label="Manual" />
+            <NavItem to="/certificates"      icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
+            <NavItem to="/root-stores"       icon={<Landmark className="h-4 w-4" />}   label="Root Stores" />
           </NavGroup>
           <NavGroup icon={<Radar className="h-4 w-4" />} label="Discovery" childPaths={['/discovery']}>
             <NavItem to="/discovery/inbox" icon={<Inbox className="h-4 w-4" />} label="Inbox" />

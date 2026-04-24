@@ -33,11 +33,39 @@ import BulkTagEndpointsDialog from './BulkTagEndpointsDialog'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
-// Filter / sort options
+// Per-type configuration
+//
+// The list surface is shared across /host-endpoints, /saml-endpoints, and
+// /manual-endpoints — callers pass `type` and a config drives per-type:
+//   - page title + description
+//   - stat-card set (manual has no scan errors)
+//   - column set (manual has no address / last-scanned columns)
+//   - search placeholder + sort options
+//   - empty-state copy
+//   - the /endpoints/new?type=… target for the Add button
+//
+// When per-type divergence outgrows this config, split into dedicated pages
+// — see _notes/BACKLOG.md ("Split 'Endpoints' nav").
 // ---------------------------------------------------------------------------
 
-type HostStatus = '' | 'enabled' | 'disabled'
-type SortOption = '' | 'name' | 'dns_name' | 'last_scanned'
+type EndpointType = 'host' | 'saml' | 'manual'
+type HostStatus   = '' | 'enabled' | 'disabled'
+type SortOption   = '' | 'name' | 'dns_name' | 'last_scanned'
+
+interface TypeConfig {
+  title:             string
+  description:       string
+  /** Title-cased singular noun, e.g. "Host Endpoint". Pluralized via `plural()` for counts. */
+  noun:              string
+  searchPlaceholder: string
+  sortOptions:       { value: SortOption; label: string }[]
+  showAddress:       boolean
+  addressLabel:      string
+  showLastScanned:   boolean
+  showScanErrorsCard: boolean
+  addButtonLabel:    string
+  emptyMessage:      React.ReactNode
+}
 
 const STATUS_OPTIONS: { value: HostStatus; label: string }[] = [
   { value: '',         label: 'All' },
@@ -45,12 +73,69 @@ const STATUS_OPTIONS: { value: HostStatus; label: string }[] = [
   { value: 'disabled', label: 'Disabled' },
 ]
 
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: '',             label: 'Newest first' },
-  { value: 'name',         label: 'Name A→Z' },
-  { value: 'dns_name',     label: 'DNS name A→Z' },
-  { value: 'last_scanned', label: 'Last scanned' },
-]
+const TYPE_CONFIGS: Record<EndpointType, TypeConfig> = {
+  host: {
+    title:             'Host Endpoints',
+    description:       'Host:port TLS endpoints the scanner probes each cycle.',
+    noun:              'Host Endpoint',
+    searchPlaceholder: 'Search name or DNS…',
+    sortOptions: [
+      { value: '',             label: 'Newest first' },
+      { value: 'name',         label: 'Name A→Z' },
+      { value: 'dns_name',     label: 'DNS name A→Z' },
+      { value: 'last_scanned', label: 'Last scanned' },
+    ],
+    showAddress:        true,
+    addressLabel:       'Address',
+    showLastScanned:    true,
+    showScanErrorsCard: true,
+    addButtonLabel:     'Add Host Endpoint',
+    emptyMessage:       <>No host endpoints yet. Click <strong>Add Host Endpoint</strong> to get started.</>,
+  },
+  saml: {
+    title:             'SAML Endpoints',
+    description:       'SAML IdP/SP metadata URLs with document history and signing-cert tracking.',
+    noun:              'SAML Endpoint',
+    searchPlaceholder: 'Search name or URL…',
+    sortOptions: [
+      { value: '',             label: 'Newest first' },
+      { value: 'name',         label: 'Name A→Z' },
+      { value: 'last_scanned', label: 'Last scanned' },
+    ],
+    showAddress:        true,
+    addressLabel:       'Metadata URL',
+    showLastScanned:    true,
+    showScanErrorsCard: true,
+    addButtonLabel:     'Add SAML Endpoint',
+    emptyMessage:       <>No SAML endpoints yet. Click <strong>Add SAML Endpoint</strong> to get started.</>,
+  },
+  manual: {
+    title:             'Manual Endpoints',
+    description:       'Uploaded certificates not tied to a live endpoint — no scanning, expiry tracking only.',
+    noun:              'Manual Endpoint',
+    searchPlaceholder: 'Search name…',
+    sortOptions: [
+      { value: '',     label: 'Newest first' },
+      { value: 'name', label: 'Name A→Z' },
+    ],
+    showAddress:        false,
+    addressLabel:       '',
+    showLastScanned:    false,
+    showScanErrorsCard: false,
+    addButtonLabel:     'Add Manual Endpoint',
+    emptyMessage:       <>No manual endpoints yet. Click <strong>Add Manual Endpoint</strong> to upload a certificate.</>,
+  },
+}
+
+// Grid templates per type. Inlined as full literal strings so Tailwind's JIT
+// scan picks them up (computed template strings would be stripped).
+const ROW_GRID_BY_TYPE: Record<EndpointType, string> = {
+  //      checkbox | name | address | status | expiry | last-scanned | actions
+  host:   'grid-cols-[2.5rem_2fr_1.5fr_6rem_7rem_7rem_3rem]',
+  saml:   'grid-cols-[2.5rem_2fr_2fr_6rem_7rem_7rem_3rem]',
+  //      checkbox | name | status | expiry | actions
+  manual: 'grid-cols-[2.5rem_2fr_6rem_7rem_3rem]',
+}
 
 // ---------------------------------------------------------------------------
 // Stat card
@@ -96,30 +181,6 @@ function StatCard({ icon, label, value, signal = 'neutral', active, onClick }: S
       </div>
       <p className={`text-3xl font-bold tracking-tight ${accent}`}>{value}</p>
     </button>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Type badge
-// ---------------------------------------------------------------------------
-
-const TYPE_STYLE: Record<string, string> = {
-  host:   'bg-muted text-blue-500 dark:text-blue-400',
-  saml:   'bg-muted text-purple-500 dark:text-purple-400',
-  manual: 'bg-muted text-muted-foreground',
-}
-
-const TYPE_LABEL: Record<string, string> = {
-  host:   'Host',
-  saml:   'SAML',
-  manual: 'Manual',
-}
-
-function TypeBadge({ type }: { type: string }) {
-  return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase ${TYPE_STYLE[type] ?? 'bg-muted text-muted-foreground'}`}>
-      {TYPE_LABEL[type] ?? type}
-    </span>
   )
 }
 
@@ -173,24 +234,24 @@ function fmtRelative(iso: string, now: number): string {
 // Row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[2.5rem_2fr_5rem_1.5fr_6rem_7rem_7rem_3rem]'
-
 interface EndpointRowProps {
-  endpoint: EndpointListItem
-  now: number
-  admin: boolean
-  tagFilter: string
-  selected: boolean
-  onToggle: (ep: EndpointListItem) => void
+  endpoint:   EndpointListItem
+  type:       EndpointType
+  cfg:        TypeConfig
+  now:        number
+  admin:      boolean
+  tagFilter:  string
+  selected:   boolean
+  onToggle:   (ep: EndpointListItem) => void
   onTagClick: (id: string) => void
-  onDelete: (ep: EndpointListItem) => void
+  onDelete:   (ep: EndpointListItem) => void
 }
 
-function EndpointRow({ endpoint, now, admin, tagFilter, selected, onToggle, onTagClick, onDelete }: EndpointRowProps) {
+function EndpointRow({ endpoint, type, cfg, now, admin, tagFilter, selected, onToggle, onTagClick, onDelete }: EndpointRowProps) {
   const navigate = useNavigate()
 
   return (
-    <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
+    <div className={`grid ${ROW_GRID_BY_TYPE[type]} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
 
       {/* Checkbox */}
       <div className="flex items-center justify-center pt-0.5">
@@ -229,25 +290,20 @@ function EndpointRow({ endpoint, now, admin, tagFilter, selected, onToggle, onTa
         )}
       </div>
 
-      {/* Type */}
-      <div className="pt-0.5">
-        <TypeBadge type={endpoint.type} />
-      </div>
-
-      {/* Address */}
-      <div className="min-w-0 pt-0.5">
-        {endpoint.type === 'host' ? (
-          <span className="text-sm text-muted-foreground font-mono truncate block">
-            {endpoint.dnsName}:{endpoint.port}
-          </span>
-        ) : endpoint.type === 'saml' ? (
-          <span className="text-sm text-muted-foreground truncate block" title={endpoint.url ?? ''}>
-            {endpoint.url ?? '—'}
-          </span>
-        ) : (
-          <span className="text-sm text-muted-foreground italic">Manual</span>
-        )}
-      </div>
+      {/* Address — host: dns:port, saml: url */}
+      {cfg.showAddress && (
+        <div className="min-w-0 pt-0.5">
+          {type === 'host' ? (
+            <span className="text-sm text-muted-foreground font-mono truncate block">
+              {endpoint.dnsName}:{endpoint.port}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground truncate block" title={endpoint.url ?? ''}>
+              {endpoint.url ?? '—'}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Status */}
       <div className="pt-0.5">
@@ -264,21 +320,23 @@ function EndpointRow({ endpoint, now, admin, tagFilter, selected, onToggle, onTa
           : <span className="text-sm text-muted-foreground">—</span>}
       </div>
 
-      {/* Last scanned */}
-      <div className="pt-0.5">
-        {endpoint.lastScannedAt ? (
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            {fmtRelative(endpoint.lastScannedAt, now)}
-            {endpoint.lastScanError && (
-              <span title={endpoint.lastScanError}>
-                <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="text-sm text-muted-foreground">Never</span>
-        )}
-      </div>
+      {/* Last scanned — host/saml only */}
+      {cfg.showLastScanned && (
+        <div className="pt-0.5">
+          {endpoint.lastScannedAt ? (
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              {fmtRelative(endpoint.lastScannedAt, now)}
+              {endpoint.lastScanError && (
+                <span title={endpoint.lastScanError}>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">Never</span>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div>
@@ -385,7 +443,17 @@ function DeleteDialog({ endpoint, onClose, onDeleted }: DeleteDialogProps) {
 
 const PAGE_SIZE = 20
 
-export default function HostsPage() {
+interface EndpointPageProps {
+  /**
+   * Which endpoint subtype this list surface is for. Drives title, column
+   * set, sort options, stat cards, Add-button target, and the type filter
+   * passed to the listEndpoints API.
+   */
+  type: EndpointType
+}
+
+export default function EndpointPage({ type }: EndpointPageProps) {
+  const cfg = TYPE_CONFIGS[type]
   const admin = can('endpoints:edit')
   const navigate = useNavigate()
   const [now] = useState(Date.now)
@@ -411,9 +479,21 @@ export default function HostsPage() {
     return () => clearTimeout(t)
   }, [search])
 
+  // Reset UI state when switching between typed nav items — otherwise
+  // filters/selection/page bleed across types.
+  useEffect(() => {
+    setPage(1)
+    setSearch('')
+    setDebouncedSearch('')
+    setStatusFilter('')
+    setSortOption('')
+    setTagFilter('')
+    setSelected(new Map())
+  }, [type])
+
   const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
-    queryKey: ['endpoints', page, debouncedSearch, statusFilter, sortOption, tagFilter],
-    queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter),
+    queryKey: ['endpoints', type, page, debouncedSearch, statusFilter, sortOption, tagFilter],
+    queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter, type),
     placeholderData: keepPreviousData,
   })
 
@@ -422,10 +502,14 @@ export default function HostsPage() {
     queryFn:  listTagCategories,
   })
 
-  const { data: totalData }    = useQuery({ queryKey: ['endpoints-count', 'all'],      queryFn: () => listEndpoints(1, 1) })
-  const { data: enabledData }  = useQuery({ queryKey: ['endpoints-count', 'enabled'],  queryFn: () => listEndpoints(1, 1, '', 'enabled') })
-  const { data: disabledData } = useQuery({ queryKey: ['endpoints-count', 'disabled'], queryFn: () => listEndpoints(1, 1, '', 'disabled') })
-  const { data: errorData }    = useQuery({ queryKey: ['endpoints-count', 'errors'],   queryFn: () => listErrorEndpoints(1, 1) })
+  const { data: totalData }    = useQuery({ queryKey: ['endpoints-count', type, 'all'],      queryFn: () => listEndpoints(1, 1, '', '', '', '', type) })
+  const { data: enabledData }  = useQuery({ queryKey: ['endpoints-count', type, 'enabled'],  queryFn: () => listEndpoints(1, 1, '', 'enabled', '', '', type) })
+  const { data: disabledData } = useQuery({ queryKey: ['endpoints-count', type, 'disabled'], queryFn: () => listEndpoints(1, 1, '', 'disabled', '', '', type) })
+  const { data: errorData }    = useQuery({
+    queryKey: ['endpoints-count', type, 'errors'],
+    queryFn:  () => listErrorEndpoints(1, 1, type),
+    enabled:  cfg.showScanErrorsCard,
+  })
 
   const totalAll      = totalData?.totalCount   ?? null
   const totalEnabled  = enabledData?.totalCount ?? null
@@ -496,15 +580,22 @@ export default function HostsPage() {
 
   const selectedList = useMemo(() => Array.from(selected.values()), [selected])
 
+  // Number of stat cards shown — controls the grid. Manual hides Scan Errors,
+  // so it lays out in 3 columns instead of 4.
+  const statCardCount = cfg.showScanErrorsCard ? 4 : 3
+  const statGridClass = statCardCount === 4
+    ? 'grid grid-cols-2 gap-4 sm:grid-cols-4'
+    : 'grid grid-cols-1 gap-4 sm:grid-cols-3'
+
   return (
     <div className="space-y-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Endpoints</h1>
+          <h1 className="text-2xl font-semibold">{cfg.title}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            All monitored endpoints and their certificate health.
+            {cfg.description}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -514,9 +605,9 @@ export default function HostsPage() {
                 <Upload className="mr-1.5 h-4 w-4" />
                 Import
               </Button>
-              <Button onClick={() => navigate('/endpoints/new')} className="h-12 px-4 text-base font-semibold">
+              <Button onClick={() => navigate(`/endpoints/new?type=${type}`)} className="h-12 px-4 text-base font-semibold">
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Endpoint
+                {cfg.addButtonLabel}
               </Button>
             </>
           )}
@@ -524,7 +615,7 @@ export default function HostsPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className={statGridClass}>
         <StatCard
           icon={<Server className="h-4 w-4" />}
           label="Total"
@@ -549,12 +640,14 @@ export default function HostsPage() {
           active={statusFilter === 'disabled'}
           onClick={() => handleStatusChange('disabled')}
         />
-        <StatCard
-          icon={<AlertCircle className="h-4 w-4" />}
-          label="Scan Errors"
-          value={totalErrors ?? '—'}
-          signal={totalErrors === null ? 'neutral' : totalErrors === 0 ? 'green' : 'red'}
-        />
+        {cfg.showScanErrorsCard && (
+          <StatCard
+            icon={<AlertCircle className="h-4 w-4" />}
+            label="Scan Errors"
+            value={totalErrors ?? '—'}
+            signal={totalErrors === null ? 'neutral' : totalErrors === 0 ? 'green' : 'red'}
+          />
+        )}
       </div>
 
       {/* Filters */}
@@ -562,7 +655,7 @@ export default function HostsPage() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search name or DNS…"
+          placeholder={cfg.searchPlaceholder}
           className="max-w-sm flex-1"
         />
         <FilterDropdown
@@ -573,7 +666,7 @@ export default function HostsPage() {
         />
         <FilterDropdown
           label="Sort"
-          options={SORT_OPTIONS}
+          options={cfg.sortOptions}
           value={sortOption}
           onSelect={v => handleSortChange(v as SortOption)}
         />
@@ -644,7 +737,7 @@ export default function HostsPage() {
       <div className="rounded-lg border bg-card overflow-hidden">
 
         {/* Column headers */}
-        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        <div className={`grid ${ROW_GRID_BY_TYPE[type]} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <div className="flex items-center justify-center">
             <input
               type="checkbox"
@@ -657,11 +750,14 @@ export default function HostsPage() {
             />
           </div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address</span>
+          {cfg.showAddress && (
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{cfg.addressLabel}</span>
+          )}
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Next Expiry</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Scanned</span>
+          {cfg.showLastScanned && (
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Scanned</span>
+          )}
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Actions</span>
         </div>
 
@@ -672,7 +768,7 @@ export default function HostsPage() {
           <div className="py-16 flex items-center justify-center">
             {debouncedSearch || statusFilter || tagFilter
               ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
-              : <StrixEmpty message={<>No endpoints yet. Click <strong>Add Endpoint</strong> to get started.</>} />}
+              : <StrixEmpty message={cfg.emptyMessage} />}
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
@@ -680,6 +776,8 @@ export default function HostsPage() {
               <EndpointRow
                 key={endpoint.id}
                 endpoint={endpoint}
+                type={type}
+                cfg={cfg}
                 now={now}
                 admin={admin}
                 tagFilter={tagFilter}
@@ -696,8 +794,8 @@ export default function HostsPage() {
         <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
           <p className="text-sm text-muted-foreground">
             {totalCount === 0
-              ? 'No endpoints'
-              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'endpoint')}</>}
+              ? `No ${cfg.noun}s`
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, cfg.noun)}</>}
           </p>
           <div className="flex items-center gap-1">
             <Button
