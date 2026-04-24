@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
-import { AlertCircle, AlertTriangle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, RefreshCw, HelpCircle, FileEdit, Eye } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { AlertCircle, AlertTriangle, ShieldCheck, ShieldAlert, ShieldX, CheckCircle2, XCircle, HelpCircle, FileEdit, Eye } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTLSProfile, getScanHistory, patchEndpoint } from '@/api/endpoints'
 import { getEndpointTags } from '@/api/tags'
@@ -540,18 +539,7 @@ export default function HostEndpointDetailPage({ endpoint }: { endpoint: Endpoin
     <div className="space-y-5">
       <BackBreadcrumb name={endpoint.name} type="host" />
 
-      <EndpointHeader
-        endpoint={endpoint}
-        action={
-          <Button
-            onClick={() => { /* TODO: wire up force scan */ }}
-            className="h-12 px-4 text-base font-semibold"
-          >
-            <RefreshCw className="mr-1.5 h-4 w-4" />
-            Force Scan
-          </Button>
-        }
-      />
+      <EndpointHeader endpoint={endpoint} />
 
       <TagsRow tags={tags} />
 
