@@ -74,6 +74,7 @@ type UpdateEndpointRequest struct {
 // @Param        name       query  string  false  "Filter by name or DNS name (partial match)"
 // @Param        status     query  string  false  "Filter by enabled state: enabled, disabled"
 // @Param        sort       query  string  false  "Sort order: \"\" (newest first, default), name, dns_name, last_scanned"
+// @Param        type       query  string  false  "Filter by endpoint type: host, saml, manual"
 // @Success      200  {object}  models.EndpointList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /endpoints [get]
@@ -85,8 +86,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
 	tagID := r.URL.Query().Get("tag_id")
+	endpointType := r.URL.Query().Get("type")
 
-	result, err := h.store.ListEndpoints(r.Context(), page, pageSize, hasError, name, status, sort, tagID)
+	result, err := h.store.ListEndpoints(r.Context(), page, pageSize, hasError, name, status, sort, tagID, endpointType)
 	if err != nil {
 		http.Error(w, "failed to list endpoints", http.StatusInternalServerError)
 		return

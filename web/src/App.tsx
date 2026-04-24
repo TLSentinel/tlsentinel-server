@@ -82,11 +82,21 @@ export default function App() {
               alert links don't 404. */}
           <Route path="active" element={<Navigate to="/monitor" replace />} />
           <Route path="calendar" element={<Navigate to="/monitor?view=calendar" replace />} />
-          <Route path="endpoints" element={<EndpointPage />} />
-          <Route path="endpoints/new" element={<EndpointFormPage />} />
-          <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
-          <Route path="endpoints/:id" element={<EndpointDetailPage />} />
-          <Route path="endpoints/:id/scan-history" element={<EndpointScanHistoryPage />} />
+          {/* Endpoints — list surface is split by type into three nav
+              items (host / saml / manual), each rendering the same
+              EndpointPage parametrized with a type prop. Slug matches the
+              DB `type` column and the API filter value. Detail / form /
+              history routes are type-agnostic (the ID determines type). */}
+          <Route path="endpoints">
+            <Route index element={<Navigate to="host" replace />} />
+            <Route path="host" element={<EndpointPage type="host" />} />
+            <Route path="saml" element={<EndpointPage type="saml" />} />
+            <Route path="manual" element={<EndpointPage type="manual" />} />
+            <Route path="new" element={<EndpointFormPage />} />
+            <Route path=":id" element={<EndpointDetailPage />} />
+            <Route path=":id/edit" element={<EndpointFormPage />} />
+            <Route path=":id/scan-history" element={<EndpointScanHistoryPage />} />
+          </Route>
           <Route path="reports" element={<ReportsPage />} />
           <Route path="reports/tls-posture" element={<TLSPosturePage />} />
           <Route path="discovery/inbox" element={<DiscoveryInboxPage />} />

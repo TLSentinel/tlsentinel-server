@@ -93,11 +93,20 @@ export default function EndpointFormPage() {
   const isClone           = Boolean(cloneId)
   const isFromInbox       = Boolean(fromInboxId)
 
+  // Pre-select type from ?type= (set by the typed list pages' Add buttons —
+  // /host-endpoints, /saml-endpoints, /manual-endpoints). Ignored in edit
+  // mode (type comes from the existing endpoint) and in from_inbox mode
+  // (always host). Clone mode also overrides with the source type.
+  const initialType: EndpointType = (() => {
+    const raw = searchParams.get('type')
+    return raw === 'host' || raw === 'saml' || raw === 'manual' ? raw : 'host'
+  })()
+
   const [loadError, setLoadError]   = useState<string | null>(null)
   const [formReady, setFormReady]   = useState(!isEdit && !isClone && !isFromInbox)
   const [inboxIP, setInboxIP]       = useState<string | null>(null)
 
-  const [type, setType]             = useState<EndpointType>('host')
+  const [type, setType]             = useState<EndpointType>(initialType)
   const [name, setName]             = useState('')
   const [dnsName, setDnsName]       = useState('')
   const [port, setPort]             = useState('443')
