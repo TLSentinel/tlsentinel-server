@@ -94,13 +94,22 @@ export default function EndpointFormPage() {
   const isFromInbox       = Boolean(fromInboxId)
 
   // Pre-select type from ?type= (set by the typed list pages' Add buttons —
-  // /host-endpoints, /saml-endpoints, /manual-endpoints). Ignored in edit
+  // /endpoints/host, /endpoints/saml, /endpoints/manual). Ignored in edit
   // mode (type comes from the existing endpoint) and in from_inbox mode
   // (always host). Clone mode also overrides with the source type.
-  const initialType: EndpointType = (() => {
+  const typeParam: EndpointType | null = (() => {
     const raw = searchParams.get('type')
-    return raw === 'host' || raw === 'saml' || raw === 'manual' ? raw : 'host'
+    return raw === 'host' || raw === 'saml' || raw === 'manual' ? raw : null
   })()
+  const initialType: EndpointType = typeParam ?? 'host'
+
+  // When the type is locked in (known up-front and immutable on this page),
+  // hide the picker entirely. Otherwise it's three big buttons of visual
+  // noise — one already selected, the others either disabled or a footgun.
+  // Locked when: editing, arriving from discovery inbox, or creating with
+  // an explicit ?type= (typed-nav "Add" button). Clone keeps the picker
+  // visible so the user can still retype the source.
+  const typeLocked = isEdit || isFromInbox || (!isClone && typeParam !== null)
 
   const [loadError, setLoadError]   = useState<string | null>(null)
   const [formReady, setFormReady]   = useState(!isEdit && !isClone && !isFromInbox)
@@ -333,11 +342,36 @@ export default function EndpointFormPage() {
   }
 
   function handleCancel() {
-    if (isFromInbox) { navigate('/discovery/inbox'); return }
-    navigate(isEdit && id ? `/endpoints/${id}` : '/endpoints')
+    if (isFromInbox)        { navigate('/discovery/inbox');   return }
+    if (isEdit && id)       { navigate(`/endpoints/${id}`);    return }
+    // Return to the typed list when the type is known; otherwise the
+    // generic /endpoints redirect lands on Host which is usually right
+    // but not always.
+    navigate(typeLocked || isClone ? `/endpoints/${type}` : '/endpoints')
   }
 
-  const pageTitle       = isEdit ? 'Edit Endpoint' : isClone ? 'Clone Endpoint' : isFromInbox ? 'Add Discovered Host' : 'New Endpoint'
+  // Title/breadcrumb use the type once it's trustworthy — which for edit
+  // and clone means `formReady` (the loaded endpoint has set `type`).
+  // Before that we'd be echoing the initialType default and risk showing
+  // "Edit Host Endpoint" for a saml endpoint during the load flash.
+  const typeKnown = (isEdit || isClone) ? formReady : true
+  const TYPE_LABEL: Record<EndpointType, string> = {
+    host:   'Host',
+    saml:   'SAML',
+    manual: 'Manual',
+  }
+  const typedNoun = typeKnown ? `${TYPE_LABEL[type]} Endpoint` : 'Endpoint'
+
+  const pageTitle = isFromInbox
+    ? 'Add Discovered Host'
+    : isEdit
+    ? `Edit ${typedNoun}`
+    : isClone
+    ? `Clone ${typedNoun}`
+    : typeLocked
+    ? `New ${typedNoun}`
+    : 'New Endpoint'
+
   const pageDescription = isEdit
     ? 'Update endpoint configuration'
     : isClone
@@ -347,10 +381,17 @@ export default function EndpointFormPage() {
     : 'Register a new monitored endpoint'
 
   const breadcrumb = (
-    <Breadcrumb items={[
-      { label: 'Endpoints', to: '/endpoints' },
-      { label: <>{pageTitle}</> },
-    ]} />
+    <Breadcrumb items={
+      typeKnown
+        ? [
+            { label: `${TYPE_LABEL[type]} Endpoints`, to: `/endpoints/${type}` },
+            { label: <>{pageTitle}</> },
+          ]
+        : [
+            { label: 'Endpoints', to: '/endpoints' },
+            { label: <>{pageTitle}</> },
+          ]
+    } />
   )
 
   const header = (
@@ -528,8 +569,12 @@ export default function EndpointFormPage() {
       {/* Type & Connection */}
       <Section title="Type & Connection" titleClassName={SECTION_TITLE} bareTitle>
         <div className="space-y-5">
-          {/* Type selector — clickable on create, read-only on edit or from_inbox */}
-          {!isFromInbox && (
+          {/* Type picker — only shown when the type is genuinely a choice
+              (new endpoint, no ?type= hint, not a clone of an existing one
+              where the source type is already pinned). When hidden, the
+              title carries the type context ("Edit Host Endpoint" etc.)
+              and only the type-specific fields render below. */}
+          {!typeLocked && !isFromInbox && (
             <div>
               <div className="grid grid-cols-3 gap-3">
                 {TYPE_OPTIONS.map((opt) => {
@@ -539,15 +584,11 @@ export default function EndpointFormPage() {
                       key={opt.value}
                       type="button"
                       onClick={() => handleTypeChange(opt.value)}
-                      disabled={isEdit}
                       className={cn(
                         'flex flex-col items-start rounded-lg border p-4 text-left transition-colors',
                         selected
                           ? 'border-transparent bg-primary bg-[linear-gradient(180deg,var(--primary-container),var(--primary))] text-primary-foreground'
-                          : 'border-border bg-card',
-                        isEdit
-                          ? 'cursor-default opacity-60'
-                          : !selected && 'hover:border-muted-foreground/40 hover:bg-muted/30',
+                          : 'border-border bg-card hover:border-muted-foreground/40 hover:bg-muted/30',
                       )}
                     >
                       <p className="text-sm font-semibold">{opt.label}</p>
@@ -558,9 +599,6 @@ export default function EndpointFormPage() {
                   )
                 })}
               </div>
-              {isEdit && (
-                <p className="mt-2 text-xs text-muted-foreground">Type cannot be changed after creation.</p>
-              )}
             </div>
           )}
 

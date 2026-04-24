@@ -265,7 +265,7 @@ export default function SAMLEndpointDetailPage({ endpoint }: { endpoint: Endpoin
 
   return (
     <div className="space-y-5">
-      <BackBreadcrumb name={endpoint.name} />
+      <BackBreadcrumb name={endpoint.name} type="saml" />
 
       <EndpointHeader
         endpoint={endpoint}

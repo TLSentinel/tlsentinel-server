@@ -18,7 +18,7 @@ export default function EndpointDetailPage() {
 
   if (isLoading) {
     return (
-      <DetailShell name={null}>
+      <DetailShell name={null} type={null}>
         <p className="text-sm text-muted-foreground">Loading…</p>
       </DetailShell>
     )
@@ -26,7 +26,7 @@ export default function EndpointDetailPage() {
 
   if (error) {
     return (
-      <DetailShell name={null}>
+      <DetailShell name={null} type={null}>
         <p className="text-sm text-destructive">
           {error instanceof ApiError ? error.message : 'Failed to load endpoint.'}
         </p>

@@ -172,7 +172,7 @@ export default function ManualEndpointDetailPage({ endpoint }: { endpoint: Endpo
 
   return (
     <div className="space-y-5">
-      <BackBreadcrumb name={endpoint.name} />
+      <BackBreadcrumb name={endpoint.name} type="manual" />
 
       <EndpointHeader endpoint={endpoint} showLastScanned={false} />
 

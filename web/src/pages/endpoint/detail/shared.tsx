@@ -20,6 +20,8 @@ import { ErrorAlert } from '@/components/ErrorAlert'
 // Constants
 // ---------------------------------------------------------------------------
 
+export type EndpointType = 'host' | 'saml' | 'manual'
+
 export const TYPE_LABEL: Record<string, string> = {
   host:   'Host',
   saml:   'SAML',
@@ -65,12 +67,20 @@ export function Row({ label, children }: { label: string; children: React.ReactN
 
 // ---------------------------------------------------------------------------
 // Back breadcrumb
+//
+// When `type` is known, the first crumb points to the typed list
+// (`/endpoints/host` etc.) and reads "Host Endpoints". When the type isn't
+// known yet (loading/error shell in the wrapper page), we fall back to the
+// generic "Endpoints" crumb that redirects to the default list.
 // ---------------------------------------------------------------------------
 
-export function BackBreadcrumb({ name }: { name: string | null }) {
+export function BackBreadcrumb({ name, type }: { name: string | null; type: EndpointType | null }) {
+  const firstCrumb = type
+    ? { label: `${TYPE_LABEL[type]} Endpoints`, to: `/endpoints/${type}` }
+    : { label: 'Endpoints', to: '/endpoints' }
   return (
     <Breadcrumb items={[
-      { label: 'Endpoints', to: '/endpoints' },
+      firstCrumb,
       { label: <>{name ?? '…'}</> },
     ]} />
   )
@@ -355,10 +365,10 @@ export function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
 // Loading / error shells — keep the back breadcrumb so users can bail out.
 // ---------------------------------------------------------------------------
 
-export function DetailShell({ name, children }: { name: string | null; children: React.ReactNode }) {
+export function DetailShell({ name, type, children }: { name: string | null; type: EndpointType | null; children: React.ReactNode }) {
   return (
     <div className="space-y-4">
-      <BackBreadcrumb name={name} />
+      <BackBreadcrumb name={name} type={type} />
       {children}
     </div>
   )

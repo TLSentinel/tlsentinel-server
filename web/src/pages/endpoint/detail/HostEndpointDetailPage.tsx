@@ -538,7 +538,7 @@ export default function HostEndpointDetailPage({ endpoint }: { endpoint: Endpoin
 
   return (
     <div className="space-y-5">
-      <BackBreadcrumb name={endpoint.name} />
+      <BackBreadcrumb name={endpoint.name} type="host" />
 
       <EndpointHeader
         endpoint={endpoint}
