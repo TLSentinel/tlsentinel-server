@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { EyeOff, Trash2, Plus, MoreVertical, Lock, ShieldOff, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { EyeOff, Trash2, Plus, MoreVertical, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import FilterDropdown from '@/components/FilterDropdown'
 import { Button } from '@/components/ui/button'
@@ -61,48 +61,6 @@ function StatusBadge({ status }: { status: string }) {
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
       <span className="h-2 w-2 rounded-full bg-muted-foreground/30 shrink-0" />
       Dismissed
-    </span>
-  )
-}
-
-function CertBadge({ fingerprint, notAfter }: { fingerprint: string | null; notAfter: string | null }) {
-  if (!fingerprint) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <ShieldOff className="h-3.5 w-3.5 shrink-0" />
-        No Cert
-      </span>
-    )
-  }
-  if (!notAfter) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Lock className="h-3.5 w-3.5 shrink-0" />
-        Unknown
-      </span>
-    )
-  }
-  const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
-  if (days < 0) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
-        <Lock className="h-3.5 w-3.5 shrink-0" />
-        Expired
-      </span>
-    )
-  }
-  if (days <= 30) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
-        <Lock className="h-3.5 w-3.5 shrink-0" />
-        Expiring ({days}d)
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
-      <Lock className="h-3.5 w-3.5 shrink-0" />
-      Valid ({days}d)
     </span>
   )
 }
@@ -197,7 +155,7 @@ function DeleteDialog({ item, onClose, onDeleted }: DeleteDialogProps) {
 // Inbox row
 // ---------------------------------------------------------------------------
 
-const ROW_GRID = 'grid-cols-[6rem_1.5fr_3.5rem_1.5fr_1fr_8rem_5rem_2.5rem]'
+const ROW_GRID = 'grid-cols-[6rem_1.5fr_3.5rem_1.5fr_1fr_5rem_2.5rem]'
 
 interface InboxRowProps {
   item: DiscoveryInboxItem
@@ -244,11 +202,6 @@ function InboxRow({ item, now, canEdit, dismissing, onPromote, onDismiss, onDele
         ) : (
           <span className="text-sm text-muted-foreground italic">—</span>
         )}
-      </div>
-
-      {/* Certificate */}
-      <div>
-        <CertBadge fingerprint={item.fingerprint} notAfter={item.notAfter} />
       </div>
 
       {/* Last seen */}
@@ -430,7 +383,6 @@ export default function DiscoveryInboxPage() {
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Port</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">RDNS / Hostname</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Network</span>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Certificate</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Seen</span>
           <span />
         </div>
