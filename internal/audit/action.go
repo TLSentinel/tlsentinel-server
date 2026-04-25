@@ -13,6 +13,12 @@ const (
 	TOTPRecoveryUsed       = "auth.totp.recovery_used"
 	TOTPRecoveryRegenerate = "auth.totp.recovery_regenerate"
 
+	// Bootstrap break-glass: env-var-driven lockout recovery. Emitted
+	// once per startup that successfully applies a recovery action.
+	// Details carries booleans for which resets ran (reset_totp /
+	// reset_password). Username column is "system".
+	BootstrapBreakglass = "auth.bootstrap.breakglass"
+
 	// Endpoints
 	EndpointCreate = "endpoint.create"
 	EndpointUpdate = "endpoint.update"
