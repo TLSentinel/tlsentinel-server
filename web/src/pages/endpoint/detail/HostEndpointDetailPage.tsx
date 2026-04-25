@@ -210,8 +210,8 @@ function SecurityPostureSection({ tlsState, endpoint }: { tlsState: TLSState; en
   return (
     <Section title="Security Posture Summary" titleClassName="text-xs font-semibold uppercase tracking-widest text-muted-foreground" bareTitle>
       <div className="space-y-4">
-        <div className="flex items-stretch gap-6">
-          <div className="shrink-0 w-44 flex flex-col items-center justify-center rounded-xl border border-border bg-surface-container-low p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-6">
+          <div className="shrink-0 w-full sm:w-44 flex flex-col items-center justify-center rounded-xl border border-border bg-surface-container-low p-5">
             <span className={`text-7xl font-bold tracking-tight leading-none ${gradeTextColor(score.grade)}`}>
               {score.grade}
             </span>
@@ -228,7 +228,7 @@ function SecurityPostureSection({ tlsState, endpoint }: { tlsState: TLSState; en
 
         <PostureBanner classification={classification} />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <CertStatusCard cert={primaryCert} />
           <OverallScoreCard score={score.score} />
         </div>
@@ -361,7 +361,7 @@ function ActiveTLSProfileSection({ tlsState }: { tlsState: TLSState }) {
 
   return (
     <div className="rounded-xl bg-card border border-border overflow-hidden">
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3 mb-5">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Active TLS Profile
@@ -457,7 +457,7 @@ function CipherSuitesSection({ tlsState }: { tlsState: TLSState }) {
 
   return (
     <div id="cipher-suites" className="rounded-xl bg-card border border-border overflow-hidden">
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Cipher Suites ({classification.cipherSuites.length})
         </h2>

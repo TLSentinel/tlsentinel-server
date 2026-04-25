@@ -99,7 +99,7 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Row
+// Row helpers
 // ---------------------------------------------------------------------------
 
 const ROW_GRID = 'grid-cols-[2fr_5rem_1.5fr_1.5fr_8rem_7rem_3rem]'
@@ -110,8 +110,56 @@ interface ActiveRowProps {
   onTagClick: (id: string) => void
 }
 
-function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
+// TagChips renders the per-row tag list. Extracted so the desktop row (where
+// it sits under the endpoint name) and the mobile card (where it lives at
+// the bottom of the card) both share the same chip style and click semantics.
+function TagChips({ tags, tagFilter, onTagClick }: { tags: ExpiringCertItem['tags']; tagFilter: string; onTagClick: (id: string) => void }) {
+  if (!tags || tags.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.map(tag => (
+        <button
+          key={tag.id}
+          type="button"
+          onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
+          title={`Filter by ${tag.categoryName}: ${tag.name}`}
+          className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+        >
+          <span className="opacity-60">{tag.categoryName}:</span>
+          {tag.name}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ActiveActionsMenu is the row's three-dot menu — extracted so the same
+// dropdown items render in the desktop row and the mobile card without
+// duplicating the entries.
+function ActiveActionsMenu({ item }: { item: ExpiringCertItem }) {
   const navigate = useNavigate()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => navigate(`/endpoints/${item.endpointId}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View Endpoint
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate(`/certificates/${item.fingerprint}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View Certificate
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
   return (
     <div className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
 
@@ -124,19 +172,8 @@ function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
           {item.endpointName}
         </Link>
         {item.tags && item.tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {item.tags.map(tag => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
-                title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
-              >
-                <span className="opacity-60">{tag.categoryName}:</span>
-                {tag.name}
-              </button>
-            ))}
+          <div className="mt-1.5">
+            <TagChips tags={item.tags} tagFilter={tagFilter} onTagClick={onTagClick} />
           </div>
         )}
       </div>
@@ -177,24 +214,63 @@ function ActiveRow({ item, tagFilter, onTagClick }: ActiveRowProps) {
 
       {/* Actions */}
       <div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(`/endpoints/${item.endpointId}`)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Endpoint
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate(`/certificates/${item.fingerprint}`)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Certificate
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ActiveActionsMenu item={item} />
       </div>
+    </div>
+  )
+}
+
+// ActiveCard is the mobile-only stacked layout. Below md the 7-column grid
+// would squeeze the endpoint name to zero characters and force tag pills to
+// overflow horizontally; the card drops the grid entirely and renders each
+// row as a self-contained record with labelled values, tags wrapping at the
+// bottom in a full-width container.
+function ActiveCard({ item, tagFilter, onTagClick }: ActiveRowProps) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card p-3 space-y-2">
+      {/* Top: endpoint name + type, with status badge + actions on the right. */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <Link
+            to={`/endpoints/${item.endpointId}`}
+            className="text-sm font-semibold hover:underline break-all block"
+          >
+            {item.endpointName}
+          </Link>
+          <TypeBadge type={item.endpointType} />
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <DaysLeftBadge notAfter={item.notAfter} />
+          <ActiveActionsMenu item={item} />
+        </div>
+      </div>
+
+      {/* Cert metadata as labelled rows. */}
+      <dl className="space-y-0.5 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Common name:</dt>
+          <dd className="min-w-0 break-all">
+            <Link
+              to={`/certificates/${item.fingerprint}`}
+              className="text-foreground hover:underline"
+            >
+              {item.commonName}
+            </Link>
+          </dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Issuer:</dt>
+          <dd className="text-foreground break-words min-w-0">{item.issuerCn || '—'}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Expires:</dt>
+          <dd className="text-foreground">{fmtDate(item.notAfter)}</dd>
+        </div>
+      </dl>
+
+      {item.tags && item.tags.length > 0 && (
+        <TagChips tags={item.tags} tagFilter={tagFilter} onTagClick={onTagClick} />
+      )}
     </div>
   )
 }
@@ -317,8 +393,9 @@ export default function MonitorListView() {
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-hidden">
 
-        {/* Column headers */}
-        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        {/* Column headers — hidden below md since the card layout is
+            self-labelling. */}
+        <div className={`hidden md:grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
@@ -339,19 +416,34 @@ export default function MonitorListView() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {items.map(item => (
-              <ActiveRow
-                key={`${item.endpointId}-${item.fingerprint}`}
-                item={item}
-                tagFilter={tagFilter}
-                onTagClick={handleTagChange}
-              />
-            ))}
+            {/* Mobile: stacked cards */}
+            <div className="space-y-2 p-3 md:hidden">
+              {items.map(item => (
+                <ActiveCard
+                  key={`${item.endpointId}-${item.fingerprint}`}
+                  item={item}
+                  tagFilter={tagFilter}
+                  onTagClick={handleTagChange}
+                />
+              ))}
+            </div>
+            {/* Desktop: 7-column grid */}
+            <div className="hidden md:block">
+              {items.map(item => (
+                <ActiveRow
+                  key={`${item.endpointId}-${item.fingerprint}`}
+                  item={item}
+                  tagFilter={tagFilter}
+                  onTagClick={handleTagChange}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Footer: count + pagination inside the card */}
-        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+        {/* Footer: count + pagination. Stacks below sm so neither half is
+            forced to wrap on narrow screens. */}
+        <div className="flex flex-col gap-3 border-t border-border/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {totalCount === 0
               ? 'No certificates'

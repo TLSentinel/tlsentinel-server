@@ -147,7 +147,7 @@ function ValidityTimelineCard({ cert }: { cert: CertificateDetail }) {
               `${daysLeft} ${daysLeft === 1 ? 'Day' : 'Days'}`
 
   return (
-    <div className="rounded-xl bg-card border border-border p-6">
+    <div className="rounded-xl bg-card border border-border p-4 sm:p-6">
       <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Validity Timeline
       </h3>
@@ -196,7 +196,7 @@ function RootStoreTrustCard({ cert }: { cert: CertificateDetail }) {
   const trustedSet = new Set(cert.trustedBy)
 
   return (
-    <div className="rounded-xl bg-card border border-border p-6">
+    <div className="rounded-xl bg-card border border-border p-4 sm:p-6">
       <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Root Store Trust
       </h3>
@@ -552,7 +552,7 @@ function EndpointsSection({ fingerprint }: { fingerprint: string }) {
   const endpointList: EndpointListItem[] = endpoints ?? []
 
   return (
-    <div className="rounded-xl bg-card border border-border p-6">
+    <div className="rounded-xl bg-card border border-border p-4 sm:p-6">
       <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Associated Endpoints
       </h3>
@@ -617,7 +617,7 @@ function HistoricalEndpointsSection({ fingerprint }: { fingerprint: string }) {
   if (!isLoading && endpointList.length === 0) return null
 
   return (
-    <div className="rounded-xl bg-card border border-border p-6">
+    <div className="rounded-xl bg-card border border-border p-4 sm:p-6">
       <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Historical Endpoints
       </h3>
@@ -659,8 +659,13 @@ function PEMActions({ pem, commonName }: { pem: string; commonName: string }) {
     URL.revokeObjectURL(url)
   }
 
+  // Hidden below md — copy-PEM / download-PEM are desktop workflows
+  // (paste into a terminal, import into a keychain, drop into a config),
+  // not phone ones. Reclaiming the header real estate on mobile is worth
+  // more than the rare "I need a PEM on my phone" case, which can be
+  // served from a desktop visit anyway.
   return (
-    <div className="flex gap-2">
+    <div className="hidden gap-2 md:flex">
       <Button onClick={handleCopy} className="h-12 px-4 text-base font-semibold">
         {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
         {copied ? 'Copied!' : 'Copy PEM'}
@@ -714,11 +719,17 @@ export default function CertificateDetailPage() {
     <div className="space-y-8">
       {backLink}
 
-      {/* Header: title + status pill, subtitle (key/sig), actions on right */}
+      {/* Header: title + status pill, subtitle (key/sig), actions on right.
+          h1 sizing steps with the viewport — text-5xl was overflowing on
+          phones and forcing break-all to shatter the CN mid-character.
+          break-words (not break-all) keeps real words intact and only
+          falls back to mid-character splits when the token genuinely
+          can't fit. PEMActions hides itself below md, so the right slot
+          is empty on phones and the title block flows full-width. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-5xl font-bold break-all">{cert.commonName || '—'}</h1>
+            <h1 className="text-3xl font-bold break-words sm:text-4xl md:text-5xl">{cert.commonName || '—'}</h1>
             <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${status.pillClass}`}>
               <StatusIcon className="h-3.5 w-3.5" />
               {status.label}
@@ -738,7 +749,7 @@ export default function CertificateDetailPage() {
 
         {/* ── Left column (2/3) ── */}
         <div className="lg:col-span-2">
-          <div className="rounded-xl bg-card border border-border p-6 space-y-8">
+          <div className="rounded-xl bg-card border border-border p-4 sm:p-6 space-y-8">
             <ChainOfTrustSection cert={cert} />
             <CertificateAttributesSection cert={cert} />
             <SANsSection cert={cert} />

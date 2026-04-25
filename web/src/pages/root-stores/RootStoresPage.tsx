@@ -148,8 +148,9 @@ export default function RootStoresPage() {
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-hidden">
 
-        {/* Column headers */}
-        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        {/* Column headers — hidden below md since the mobile card layout is
+            self-labelling. */}
+        <div className={`hidden md:grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Organization</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valid Until</span>
@@ -167,45 +168,87 @@ export default function RootStoresPage() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {items.map(item => (
-              <div
-                key={item.fingerprint}
-                className={`grid ${ROW_GRID} items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}
-              >
-                <div className="min-w-0">
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-2 p-3 md:hidden">
+              {items.map(item => (
+                <div
+                  key={item.fingerprint}
+                  className="rounded-md border border-border/60 bg-card p-3 space-y-2"
+                >
                   <Link
                     to={`/certificates/${item.fingerprint}`}
-                    className="block truncate text-sm font-semibold hover:underline"
+                    className="text-sm font-semibold hover:underline break-all block"
                   >
                     {item.commonName || '—'}
                   </Link>
+                  <dl className="space-y-0.5 text-sm">
+                    <div className="flex gap-2">
+                      <dt className="text-muted-foreground shrink-0">Organization:</dt>
+                      <dd className="break-words min-w-0">{item.subjectOrg || '—'}</dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="text-muted-foreground shrink-0">Valid until:</dt>
+                      <dd>{fmtDate(item.notAfter)}</dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="text-muted-foreground shrink-0">Fingerprint:</dt>
+                      <dd className="min-w-0 break-all">
+                        <Link
+                          to={`/certificates/${item.fingerprint}`}
+                          className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          title={item.fingerprint}
+                        >
+                          {item.fingerprint.slice(0, 16)}…
+                        </Link>
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
-                <div className="min-w-0">
-                  <span className="block truncate text-sm text-muted-foreground" title={item.subjectOrg}>
-                    {item.subjectOrg || '—'}
-                  </span>
+              ))}
+            </div>
+            {/* Desktop: 4-column grid */}
+            <div className="hidden md:block">
+              {items.map(item => (
+                <div
+                  key={item.fingerprint}
+                  className={`grid ${ROW_GRID} items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}
+                >
+                  <div className="min-w-0">
+                    <Link
+                      to={`/certificates/${item.fingerprint}`}
+                      className="block truncate text-sm font-semibold hover:underline"
+                    >
+                      {item.commonName || '—'}
+                    </Link>
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block truncate text-sm text-muted-foreground" title={item.subjectOrg}>
+                      {item.subjectOrg || '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      {fmtDate(item.notAfter)}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <Link
+                      to={`/certificates/${item.fingerprint}`}
+                      className="block truncate font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      title={item.fingerprint}
+                    >
+                      {item.fingerprint.slice(0, 16)}…
+                    </Link>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {fmtDate(item.notAfter)}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <Link
-                    to={`/certificates/${item.fingerprint}`}
-                    className="block truncate font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
-                    title={item.fingerprint}
-                  >
-                    {item.fingerprint.slice(0, 16)}…
-                  </Link>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Footer: count + pagination */}
-        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+        {/* Footer: count + pagination. Stacks below sm so neither half is
+            forced to wrap on narrow screens. */}
+        <div className="flex flex-col gap-3 border-t border-border/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {totalCount === 0
               ? 'No anchors'

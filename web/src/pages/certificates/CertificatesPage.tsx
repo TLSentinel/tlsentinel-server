@@ -146,10 +146,44 @@ function ExpiryPill({ notAfter }: { notAfter: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Row
+// Row helpers
 // ---------------------------------------------------------------------------
 
 const ROW_GRID = 'grid-cols-[2.5rem_2fr_2.5fr_10rem_3rem]'
+
+// CertActionsMenu is the row's three-dot menu — extracted so the desktop row
+// and the mobile card render the same View/Delete entries (with admin gating)
+// without duplicating the JSX.
+function CertActionsMenu({ cert, admin, onDelete }: { cert: CertificateListItem; admin: boolean; onDelete: (cert: CertificateListItem) => void }) {
+  const navigate = useNavigate()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => navigate(`/certificates/${cert.fingerprint}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View Certificate
+        </DropdownMenuItem>
+        {admin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(cert)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 interface CertRowProps {
   cert: CertificateListItem
@@ -160,7 +194,6 @@ interface CertRowProps {
 }
 
 function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
-  const navigate = useNavigate()
   const sansDisplay = cert.sans.length === 0
     ? '—'
     : cert.sans.slice(0, 3).join(', ') + (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')
@@ -210,32 +243,62 @@ function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
 
       {/* Actions */}
       <div className="flex items-center justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Actions">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(`/certificates/${cert.fingerprint}`)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Certificate
-            </DropdownMenuItem>
-            {admin && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => onDelete(cert)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <CertActionsMenu cert={cert} admin={admin} onDelete={onDelete} />
       </div>
+    </div>
+  )
+}
+
+// CertCard is the mobile-only stacked layout. SANs lists render as a wrapped
+// container instead of a single truncated line — phones have the vertical
+// space to spread them out and a 25-char line is unreadable on a 10-char
+// column.
+function CertCard({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card p-3 space-y-2">
+      {/* Top row: checkbox + common name on the left; status pill + actions
+          on the right. */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggle(cert)}
+            aria-label={`Select ${cert.commonName || cert.fingerprint}`}
+            className="h-4 w-4 mt-1 shrink-0 rounded border-border accent-primary cursor-pointer"
+          />
+          <div className="min-w-0">
+            <Link
+              to={`/certificates/${cert.fingerprint}`}
+              className="text-sm font-semibold hover:underline break-all block"
+            >
+              {cert.commonName || '—'}
+            </Link>
+            <div className="mt-0.5 break-all font-mono text-xs text-muted-foreground" title={cert.fingerprint}>
+              {cert.fingerprint.slice(0, 16)}…
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <ExpiryPill notAfter={cert.notAfter} />
+          <CertActionsMenu cert={cert} admin={admin} onDelete={onDelete} />
+        </div>
+      </div>
+
+      {/* Labelled metadata. Expiration is the dominant fact for cert
+          inventory — keep the date prominent, with the SAN list below. */}
+      <dl className="space-y-0.5 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Expires:</dt>
+          <dd>{fmtDate(cert.notAfter)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">SANs:</dt>
+          <dd className="min-w-0 break-words">
+            {cert.sans.length === 0 ? '—' : cert.sans.join(', ')}
+          </dd>
+        </div>
+      </dl>
     </div>
   )
 }
@@ -613,8 +676,9 @@ export default function CertificatesPage() {
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-hidden">
 
-        {/* Column headers */}
-        <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        {/* Column headers — hidden below md since the mobile card layout is
+            self-labelling. */}
+        <div className={`hidden md:grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <div className="flex items-center justify-center">
             <input
               type="checkbox"
@@ -643,21 +707,38 @@ export default function CertificatesPage() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {certs.map(cert => (
-              <CertRow
-                key={cert.fingerprint}
-                cert={cert}
-                admin={admin}
-                selected={selected.has(cert.fingerprint)}
-                onToggle={toggleOne}
-                onDelete={setDeleteTarget}
-              />
-            ))}
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-2 p-3 md:hidden">
+              {certs.map(cert => (
+                <CertCard
+                  key={cert.fingerprint}
+                  cert={cert}
+                  admin={admin}
+                  selected={selected.has(cert.fingerprint)}
+                  onToggle={toggleOne}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+            {/* Desktop: 5-column grid */}
+            <div className="hidden md:block">
+              {certs.map(cert => (
+                <CertRow
+                  key={cert.fingerprint}
+                  cert={cert}
+                  admin={admin}
+                  selected={selected.has(cert.fingerprint)}
+                  onToggle={toggleOne}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Footer: count + pagination inside the card */}
-        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+        {/* Footer: count + pagination. Stacks below sm so neither half is
+            forced to wrap on narrow screens. */}
+        <div className="flex flex-col gap-3 border-t border-border/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {totalCount === 0
               ? 'No certificates'
