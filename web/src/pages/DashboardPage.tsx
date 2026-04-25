@@ -84,8 +84,33 @@ function DaysLeftBadge({ notAfter }: { notAfter: string }) {
   )
 }
 
-function ExpiringRow({ item }: { item: ExpiringCertItem }) {
+// ExpiringActionsMenu is the row's three-dot menu — extracted so the same
+// menu renders inside both the desktop grid row and the mobile card without
+// duplicating the items.
+function ExpiringActionsMenu({ item }: { item: ExpiringCertItem }) {
   const navigate = useNavigate()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => navigate(`/endpoints/${item.endpointId}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View Endpoint
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate(`/certificates/${item.fingerprint}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View Certificate
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function ExpiringRow({ item }: { item: ExpiringCertItem }) {
   return (
     <div className="col-span-5 grid grid-cols-subgrid items-center gap-x-6 py-1.5 border-b border-border/40 last:border-0">
       {/* Common name */}
@@ -113,24 +138,43 @@ function ExpiringRow({ item }: { item: ExpiringCertItem }) {
       </div>
       {/* Actions */}
       <div className="shrink-0">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(`/endpoints/${item.endpointId}`)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Endpoint
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate(`/certificates/${item.fingerprint}`)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Certificate
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ExpiringActionsMenu item={item} />
       </div>
+    </div>
+  )
+}
+
+// ExpiringCard is the mobile-only stacked layout. The desktop grid would
+// truncate the CN/issuer to "C..." / "U..." at narrow widths (see
+// screenshot in the mobile-dashboard-tables PR), so below md we drop the
+// table entirely and render each row as a card with the same data laid
+// out vertically — CN + status badge + actions on top, labelled metadata
+// underneath, full text wrapping rather than ellipsizing.
+function ExpiringCard({ item }: { item: ExpiringCertItem }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card p-3 space-y-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          to={`/certificates/${item.fingerprint}`}
+          className="text-sm font-semibold hover:underline break-all flex-1 min-w-0"
+        >
+          {item.commonName}
+        </Link>
+        <div className="flex items-center gap-1 shrink-0">
+          <DaysLeftBadge notAfter={item.notAfter} />
+          <ExpiringActionsMenu item={item} />
+        </div>
+      </div>
+      <dl className="space-y-0.5 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Issuer:</dt>
+          <dd className="text-foreground break-words min-w-0">{item.issuerCn || '—'}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Expires:</dt>
+          <dd className="text-foreground">{fmtDate(item.notAfter)}</dd>
+        </div>
+      </dl>
     </div>
   )
 }
@@ -178,6 +222,34 @@ function ErrorRow({ endpoint }: { endpoint: EndpointListItem }) {
           {endpoint.errorSince ? relAge(endpoint.errorSince) : '?'}
         </span>
       </div>
+    </div>
+  )
+}
+
+// ErrorCard mirrors ExpiringCard's pattern for the Scan Errors panel: stack
+// the four columns into labelled rows below md so the error message wraps
+// instead of truncating to "Conn..." on a 375-wide screen.
+function ErrorCard({ endpoint }: { endpoint: EndpointListItem }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card p-3 space-y-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          to={`/endpoints/${endpoint.id}`}
+          className="text-sm font-semibold hover:underline break-all flex-1 min-w-0"
+        >
+          {endpoint.name}
+        </Link>
+        <span className="inline-flex items-center gap-1 text-sm font-medium text-error shrink-0">
+          <XCircle className="h-4 w-4 shrink-0" />
+          {endpoint.errorSince ? relAge(endpoint.errorSince) : '?'}
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground break-words">
+        {endpoint.lastScanError || '—'}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Last attempt: {endpoint.lastScannedAt ? `${relAge(endpoint.lastScannedAt)} ago` : '—'}
+      </p>
     </div>
   )
 }
@@ -396,7 +468,9 @@ export default function DashboardPage() {
         <div className="space-y-6 lg:col-span-3">
           {/* Expiring soon */}
           <div className="rounded-lg border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4">
+            {/* Header stacks below sm: so the title and "View All" link
+                don't collide when the panel is full-width on a phone. */}
+            <div className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-semibold">Certificates Expiring Soon</h2>
               <Link to="/certificates" className="text-sm font-medium text-primary hover:underline">
                 View All Certificates
@@ -409,19 +483,30 @@ export default function DashboardPage() {
                 No certificates expiring within 30 days.
               </div>
             ) : (
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_2.5rem] items-center gap-x-6 px-5">
-                {/* Column headers */}
-                <div className="col-span-5 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Expiry Date</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Days Left</span>
-                  <span />
+              <>
+                {/* Mobile: stacked cards. The desktop grid would truncate
+                    CN/issuer to "C..." / "U..." at narrow widths, so below
+                    md we drop the table layout entirely. */}
+                <div className="space-y-2 px-4 pb-4 md:hidden">
+                  {expiring.map((item) => (
+                    <ExpiringCard key={`${item.endpointId}-${item.fingerprint}`} item={item} />
+                  ))}
                 </div>
-                {expiring.map((item) => (
-                  <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
-                ))}
-              </div>
+                {/* Desktop: 5-column grid */}
+                <div className="hidden md:grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_2.5rem] items-center gap-x-6 px-5">
+                  {/* Column headers */}
+                  <div className="col-span-5 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Expiry Date</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Days Left</span>
+                    <span />
+                  </div>
+                  {expiring.map((item) => (
+                    <ExpiringRow key={`${item.endpointId}-${item.fingerprint}`} item={item} />
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -437,17 +522,26 @@ export default function DashboardPage() {
                 No scan errors. All endpoints are healthy.
               </div>
             ) : (
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] items-center gap-x-6 px-5">
-                <div className="col-span-4 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Error</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Last Attempt</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Duration</span>
+              <>
+                {/* Mobile: stacked cards */}
+                <div className="space-y-2 px-4 pb-4 md:hidden">
+                  {errorHosts.map((h) => (
+                    <ErrorCard key={h.id} endpoint={h} />
+                  ))}
                 </div>
-                {errorHosts.map((h) => (
-                  <ErrorRow key={h.id} endpoint={h} />
-                ))}
-              </div>
+                {/* Desktop: 4-column grid */}
+                <div className="hidden md:grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] items-center gap-x-6 px-5">
+                  <div className="col-span-4 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Error</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">Last Attempt</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Duration</span>
+                  </div>
+                  {errorHosts.map((h) => (
+                    <ErrorRow key={h.id} endpoint={h} />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
