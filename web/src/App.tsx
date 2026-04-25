@@ -27,6 +27,7 @@ import AccountProfilePage from '@/pages/account/AccountProfilePage'
 import AccountPasswordPage from '@/pages/account/AccountPasswordPage'
 import AccountNotificationsPage from '@/pages/account/AccountNotificationsPage'
 import AccountAPIKeysPage from '@/pages/account/AccountAPIKeysPage'
+import Account2FAPage from '@/pages/account/Account2FAPage'
 import GroupsPage from '@/pages/settings/GroupsPage'
 import APIKeysPage from '@/pages/settings/APIKeysPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
@@ -123,6 +124,7 @@ export default function App() {
             <Route path="calendar" element={<Navigate to="/account/notifications" replace />} />
             <Route path="notifications" element={<AccountNotificationsPage />} />
             <Route path="api-keys" element={<AccountAPIKeysPage />} />
+            <Route path="2fa" element={<Account2FAPage />} />
           </Route>
 
           {/* Settings hub + sub-pages */}

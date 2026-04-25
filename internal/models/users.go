@@ -26,10 +26,12 @@ type User struct {
 	Role         string
 	FirstName    *string
 	LastName     *string
-	Email         *string
-	CalendarToken *string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	Email          *string
+	CalendarToken  *string
+	TOTPEnabled    bool       // true once the user has confirmed enrollment
+	TOTPEnrolledAt *time.Time // set the first time TOTP was enabled (NULL before)
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // UserResponse is the safe public representation of a user (no password hash).
@@ -44,6 +46,7 @@ type UserResponse struct {
 	LastName  *string   `json:"lastName"`
 	Email         *string   `json:"email"`
 	CalendarToken *string   `json:"calendarToken"`
+	TOTPEnabled   bool      `json:"totpEnabled"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
@@ -69,6 +72,7 @@ func (u *User) ToResponse() UserResponse {
 		LastName:  u.LastName,
 		Email:         u.Email,
 		CalendarToken: u.CalendarToken,
+		TOTPEnabled:   u.TOTPEnabled,
 		CreatedAt:     u.CreatedAt,
 		UpdatedAt:     u.UpdatedAt,
 	}

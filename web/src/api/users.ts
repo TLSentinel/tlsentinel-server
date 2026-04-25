@@ -54,6 +54,16 @@ export function deleteUser(id: string): Promise<void> {
   return api.delete<void>(`/users/${id}`)
 }
 
+/**
+ * Admin: clear another user's TOTP enrollment so they can log in with
+ * password alone. Used as the lockout-recovery path when a user has
+ * lost both their authenticator device and recovery codes — verify
+ * identity out-of-band first. Server gates this on `users:credentials`.
+ */
+export function resetUserTOTP(id: string): Promise<void> {
+  return api.delete<void>(`/users/${id}/totp`)
+}
+
 // /me — current user only, no admin required.
 export function getMe(): Promise<User> {
   return api.get<User>('/me')

@@ -144,6 +144,13 @@ func verifyJWT(cfg *jwt.JWTConfig, raw string) (Identity, error) {
 	if err != nil {
 		return Identity{}, err
 	}
+	// Challenge tokens prove only that a password was correct — they
+	// must never grant API access on their own. The /auth/totp endpoint
+	// reads them by parsing the body directly and never goes through
+	// this middleware.
+	if claims.Purpose != "" {
+		return Identity{}, fmt.Errorf("token not valid for api access")
+	}
 	return Identity{
 		Kind:      KindUser,
 		UserID:    claims.UserID,

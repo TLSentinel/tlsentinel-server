@@ -1,4 +1,4 @@
-import { User, KeyRound, Bell, Key } from 'lucide-react'
+import { User, KeyRound, Bell, Key, ShieldCheck } from 'lucide-react'
 import { HubCard } from '@/components/ui/hub-card'
 
 export default function AccountPage() {
@@ -25,6 +25,13 @@ export default function AccountPage() {
           icon={<KeyRound className="h-6 w-6" />}
           title="Password"
           description="Change your local account login password. This is not applicable to SSO users."
+        />
+        <HubCard
+          to="/account/2fa"
+          tone="green"
+          icon={<ShieldCheck className="h-6 w-6" />}
+          title="Two-Factor Authentication"
+          description="Add a TOTP authenticator app for an extra step at login. Local accounts only."
         />
         <HubCard
           to="/account/notifications"

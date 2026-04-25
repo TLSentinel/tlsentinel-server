@@ -10,6 +10,35 @@ once it reaches 1.0.
 
 ### Added
 
+- **TOTP/2FA for local accounts.** Local users can now arm a second factor
+  via any RFC 6238 authenticator app (Google Authenticator, 1Password,
+  Authy, etc.). New `/account/2fa` page walks through enrollment with a
+  scannable QR plus a base32 fallback for manual entry, surfaces 10
+  one-time recovery codes for download or copy, and offers regenerate
+  (current TOTP required) and disable (password + TOTP/recovery
+  required) flows. SSO accounts are excluded — their MFA story belongs
+  to the identity provider — and the page redirects them to the account
+  hub. Login is now two-step when a user has TOTP armed: password
+  verifies against `POST /auth/login` which returns a 5-minute
+  challenge JWT (purpose-stamped `totp_challenge`) instead of a session
+  token; the client posts that challenge plus the 6-digit code (or a
+  recovery code) to `POST /auth/totp` to mint the real session. The
+  challenge token is rejected by the API auth middleware on every
+  protected route — a leaked challenge can't substitute for a real
+  session even briefly. Secrets are encrypted at rest with AES-256-GCM
+  via the existing `TLSENTINEL_ENCRYPTION_KEY`; recovery codes are
+  bcrypt-hashed and per-row `used_at`-stamped (single-use, walked O(10)
+  on redemption). The lockout-recovery story has two layers — recovery
+  codes for self-serve, and a new admin endpoint
+  `DELETE /users/{id}/totp` (gated by the new `users:credentials`
+  permission, surfaced from Settings → Users as "Reset 2FA") for the
+  case where a user lost both their device and their recovery codes.
+  Audit entries for `totp.enable` / `totp.disable` /
+  `totp.verify_failed` / `totp.recovery_used` /
+  `totp.recovery_regenerate` cover every state transition;
+  admin-initiated resets carry `reason: admin_reset` plus the actor's
+  identity in the entry's details so the trail clearly distinguishes
+  self-disable from admin-reset.
 - **Installable as a Progressive Web App.** TLSentinel now qualifies for the
   browser install prompt on Chromium (desktop install icon in the address
   bar, Android Chrome "Add to Home Screen") and for iOS Safari's Share →
@@ -173,6 +202,17 @@ once it reaches 1.0.
 
 ### Security
 
+- Split account-takeover-class user actions onto a dedicated
+  `users:credentials` permission. Resetting another user's password
+  (`PATCH /users/{id}/password`) and resetting another user's 2FA
+  (`DELETE /users/{id}/totp`, new) are gated separately from the
+  lifecycle bucket (`users:edit`, which still covers create, update,
+  delete, enable/disable). The two are qualitatively different — anyone
+  with credential-reset authority can become any other user — so they
+  no longer share a gate. Admin holds the new permission via wildcard;
+  operator and viewer don't. A regression-guard test pins the role
+  grants so a future role-table change can't silently widen the
+  takeover surface.
 - Set read, write, and idle timeouts on the HTTP server to protect against
   slowloris-style connection exhaustion.
 - Cap request body size at 10 MiB via a global middleware to prevent memory

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical, UserPlus, UserCog, Power, PowerOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, ChevronRight, ChevronLeft, MoreVertical, UserPlus, UserCog, Power, PowerOff, ShieldOff } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
 import StrixEmpty from '@/components/StrixEmpty'
@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser } from '@/api/users'
+import { listUsers, createUser, updateUser, setUserEnabled, changePassword, deleteUser, resetUserTOTP } from '@/api/users'
 import { can, getIdentity } from '@/api/client'
 import type { User } from '@/types/api'
 import { ApiError } from '@/types/api'
@@ -328,6 +328,68 @@ function DeleteDialog({ user, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Reset 2FA dialog — admin-initiated TOTP clear, used when a user has lost
+// their device AND their recovery codes. Identity must be verified
+// out-of-band first; this dialog is the second-half mechanical step.
+// ---------------------------------------------------------------------------
+
+interface Reset2FADialogProps {
+  user: User | null
+  onClose: () => void
+  onReset: () => void
+}
+
+function Reset2FADialog({ user, onClose, onReset }: Reset2FADialogProps) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  async function handleReset() {
+    if (!user) return
+    setLoading(true); setError(null)
+    try { await resetUserTOTP(user.id); onReset(); onClose() }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Failed to reset 2FA.') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={user !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
+            <ShieldOff className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Reset Two-Factor Authentication</DialogTitle>
+            <DialogDescription>
+              Clear 2FA for <span className="font-medium text-foreground">{user?.username}</span>
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            This deletes the user's authenticator secret and all recovery codes.
+            They will be able to sign in with their password alone until they
+            re-enroll a new authenticator.
+          </p>
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            Verify the user's identity out-of-band (phone, in person) before
+            confirming. Anyone with a valid password becomes able to sign in
+            until they re-enroll.
+          </div>
+          {error && <p className="text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button variant="destructive" onClick={handleReset} disabled={loading}>
+            {loading ? 'Resetting…' : 'Reset 2FA'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Filter types
 // ---------------------------------------------------------------------------
 
@@ -362,6 +424,10 @@ const PAGE_SIZE = 20
 
 export default function UsersPage() {
   const admin         = can('users:edit')
+  // Credential reset (password, 2FA) — gated separately because it's
+  // account takeover. An operator with users:edit alone shouldn't be
+  // able to reset another user's password or 2FA.
+  const canResetCreds = can('users:credentials')
   const currentUserID = getIdentity()?.uid ?? ''
 
   const [page, setPage]                           = useState(1)
@@ -376,6 +442,7 @@ export default function UsersPage() {
   const [editTarget, setEditTarget]               = useState<User | null>(null)
   const [passwordTarget, setPasswordTarget]       = useState<User | null>(null)
   const [deleteTarget, setDeleteTarget]           = useState<User | null>(null)
+  const [resetTOTPTarget, setResetTOTPTarget]     = useState<User | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
@@ -541,10 +608,16 @@ export default function UsersPage() {
                             <><Power className="mr-2 h-4 w-4" />Enable</>
                           )}
                         </DropdownMenuItem>
-                        {user.provider === 'local' && (
+                        {user.provider === 'local' && canResetCreds && (
                           <DropdownMenuItem onClick={() => setPasswordTarget(user)}>
                             <KeyRound className="mr-2 h-4 w-4" />
                             Change Password
+                          </DropdownMenuItem>
+                        )}
+                        {user.provider === 'local' && user.totpEnabled && canResetCreds && (
+                          <DropdownMenuItem onClick={() => setResetTOTPTarget(user)}>
+                            <ShieldOff className="mr-2 h-4 w-4" />
+                            Reset 2FA
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
@@ -596,6 +669,7 @@ export default function UsersPage() {
       />
       <ChangePasswordDialog key={passwordTarget?.id} user={passwordTarget} onClose={() => setPasswordTarget(null)} />
       <DeleteDialog user={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={refetch} />
+      <Reset2FADialog user={resetTOTPTarget} onClose={() => setResetTOTPTarget(null)} onReset={refetch} />
     </div>
   )
 }

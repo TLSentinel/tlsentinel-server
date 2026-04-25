@@ -21,6 +21,11 @@ const (
 	// Users
 	UsersView = "users:view"
 	UsersEdit = "users:edit"
+	// UsersCredentials gates account-takeover-class actions: resetting another
+	// user's password, resetting another user's 2FA. Held separately from
+	// UsersEdit because the impact is qualitatively different — anyone with
+	// this permission can become any other user. Admin-only by default.
+	UsersCredentials = "users:credentials"
 
 	// API keys (cross-user management; self-service is always allowed)
 	APIKeysAdmin = "apikeys:admin"
