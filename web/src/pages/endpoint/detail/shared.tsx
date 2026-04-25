@@ -41,7 +41,7 @@ export function Section({ title, titleClassName, className, bareTitle = false, a
           {action}
         </div>
       )}
-      <div className={bareTitle ? 'p-6' : 'p-5'}>
+      <div className={bareTitle ? 'p-4 sm:p-6' : 'p-4 sm:p-5'}>
         {title && bareTitle && (
           <div className="mb-5 flex items-start justify-between gap-3">
             <h2 className={titleClassName ?? 'text-sm font-medium'}>{title}</h2>
@@ -100,14 +100,17 @@ export function EndpointHeader({
   action?: React.ReactNode
 }) {
   const navigate = useNavigate()
+  // Header stacks below md so the long endpoint name doesn't fight the Edit
+  // Endpoint button. Above md the action sits to the right; below md it goes
+  // full-width underneath the title.
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
       <div className="min-w-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <Badge className="h-7 rounded-md px-3 text-sm font-semibold uppercase shrink-0">
+        <div className="flex items-start gap-3 min-w-0">
+          <Badge className="h-7 rounded-md px-3 text-sm font-semibold uppercase shrink-0 mt-1">
             {TYPE_LABEL[endpoint.type] ?? endpoint.type}
           </Badge>
-          <h1 className="text-5xl font-bold truncate">{endpoint.name}</h1>
+          <h1 className="text-3xl font-bold break-words sm:text-4xl md:text-5xl">{endpoint.name}</h1>
         </div>
         {showLastScanned && (
           <p className="mt-2 text-sm text-muted-foreground">
@@ -115,11 +118,11 @@ export function EndpointHeader({
           </p>
         )}
       </div>
-      <div className="flex shrink-0 gap-2 mt-1">
+      <div className="flex shrink-0 gap-2 md:mt-1">
         <Button
           variant="outline"
           onClick={() => navigate(`/endpoints/${endpoint.id}/edit`)}
-          className="h-12 px-4 text-base font-semibold"
+          className="h-11 flex-1 px-4 text-base font-semibold md:h-12 md:flex-none"
         >
           <Pencil className="mr-1.5 h-4 w-4" />
           Edit Endpoint
@@ -198,7 +201,7 @@ export function NotesSection({ endpoint }: { endpoint: Endpoint }) {
 
   return (
     <div className="rounded-xl bg-surface-container-low border border-border overflow-hidden">
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-start justify-between gap-3 mb-4">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Internal Notes
@@ -347,15 +350,27 @@ export function ScanHistoryRow({ item }: { item: EndpointScanHistoryItem }) {
         {item.tlsVersion && (
           <span className="shrink-0 text-xs text-muted-foreground">{item.tlsVersion}</span>
         )}
+        {/* Desktop: fingerprint inline (truncates to fit). */}
         {item.fingerprint && (
           <Link
             to={`/certificates/${item.fingerprint}`}
-            className="min-w-0 truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
+            className="hidden sm:block min-w-0 truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
           >
             {item.fingerprint}
           </Link>
         )}
       </div>
+      {/* Mobile: fingerprint on its own line, indented to align with text. */}
+      {item.fingerprint && (
+        <div className="mt-1 pl-7 sm:hidden">
+          <Link
+            to={`/certificates/${item.fingerprint}`}
+            className="block truncate font-mono text-xs text-muted-foreground/70 hover:text-primary hover:underline"
+          >
+            {item.fingerprint}
+          </Link>
+        </div>
+      )}
       {item.scanError && <p className="mt-1 pl-7 text-xs text-destructive">{item.scanError}</p>}
     </div>
   )

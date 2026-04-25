@@ -20,7 +20,7 @@ import {
 function LinkedCertCard({ cert }: { cert: EndpointCert | null }) {
   if (!cert) {
     return (
-      <div className="rounded-xl bg-card border border-border p-6">
+      <div className="rounded-xl bg-card border border-border p-4 sm:p-6">
         <div className="w-14 h-14 rounded-xl bg-muted/60 flex items-center justify-center">
           <ShieldCheck className="h-7 w-7 text-muted-foreground" />
         </div>
@@ -63,7 +63,7 @@ function LinkedCertCard({ cert }: { cert: EndpointCert | null }) {
   const daysText = expired ? '' : `Expires in ${days} ${days === 1 ? 'day' : 'days'}`
 
   return (
-    <div className="rounded-xl bg-card border border-border p-6">
+    <div className="rounded-xl bg-card border border-border p-4 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${iconBg}`}>
           <ShieldCheck className={`h-7 w-7 ${iconColor}`} />
