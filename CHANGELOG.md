@@ -10,6 +10,21 @@ once it reaches 1.0.
 
 ### Added
 
+- **Installable as a Progressive Web App.** TLSentinel now qualifies for the
+  browser install prompt on Chromium (desktop install icon in the address
+  bar, Android Chrome "Add to Home Screen") and for iOS Safari's Share →
+  Add to Home Screen flow. Backed by a Web App Manifest at
+  `/favicon/site.webmanifest` (`id`, `start_url`, `scope`, brand colors,
+  `display: standalone`, maskable icons) and a 28-line service worker at
+  `/sw.js` with `install`, `activate`, and a deliberately empty `fetch`
+  handler. The fetch handler exists only to satisfy Chromium's
+  install-qualification heuristic; nothing is cached, because a stale UI
+  showing yesterday's cert state is worse than a clear "no internet"
+  error. Registration is gated on `import.meta.env.PROD` to keep dev
+  Vite HMR clean. The `sw.js` file is also the future hook point for
+  Web Push when notification routing becomes a real ask — the existing
+  on-call channels (email, Slack, PagerDuty, webhook) remain the
+  primary path. A native iOS/Android app is not on the roadmap.
 - **Typed endpoint list surfaces.** The single Endpoints page is split into
   three typed lists — Host, SAML, Manual — nested under a new Inventory
   group in the sidebar alongside Certificates and Root Stores. Each list
