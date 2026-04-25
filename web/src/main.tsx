@@ -21,3 +21,15 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+// Register the PWA service worker so the browser will offer "Install" /
+// "Add to Home Screen." Production-only — registering in dev fights Vite's
+// HMR by intercepting module fetches. The dev `sw.js` won't be requested
+// because we never call register() there.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .catch((err) => console.error('[sw] register failed', err))
+  })
+}
