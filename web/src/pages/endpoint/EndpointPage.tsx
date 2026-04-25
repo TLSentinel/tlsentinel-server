@@ -231,7 +231,78 @@ function fmtRelative(iso: string, now: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Row
+// Row helpers
+// ---------------------------------------------------------------------------
+
+// TagChips renders the per-row tag list. Extracted so the desktop row (under
+// the endpoint name) and the mobile card (at the bottom) share the same chip
+// style and click semantics.
+function TagChips({ tags, tagFilter, onTagClick }: { tags: EndpointListItem['tags']; tagFilter: string; onTagClick: (id: string) => void }) {
+  if (!tags || tags.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.map(tag => (
+        <button
+          key={tag.id}
+          type="button"
+          onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
+          title={`Filter by ${tag.categoryName}: ${tag.name}`}
+          className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
+        >
+          <span className="opacity-60">{tag.categoryName}:</span>
+          {tag.name}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// EndpointActionsMenu is the row's three-dot menu — extracted so the desktop
+// row and the mobile card render identical View/Edit/Clone/Delete entries
+// (with admin gating preserved) without duplicating the JSX.
+function EndpointActionsMenu({ endpoint, admin, onDelete }: { endpoint: EndpointListItem; admin: boolean; onDelete: (ep: EndpointListItem) => void }) {
+  const navigate = useNavigate()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => navigate(`/endpoints/${endpoint.id}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View
+        </DropdownMenuItem>
+        {admin && (
+          <DropdownMenuItem onClick={() => navigate(`/endpoints/${endpoint.id}/edit`)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => navigate(`/endpoints/new?clone=${endpoint.id}`)}>
+          <Copy className="mr-2 h-4 w-4" />
+          Clone
+        </DropdownMenuItem>
+        {admin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => onDelete(endpoint)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Row (desktop) + Card (mobile)
 // ---------------------------------------------------------------------------
 
 interface EndpointRowProps {
@@ -248,8 +319,6 @@ interface EndpointRowProps {
 }
 
 function EndpointRow({ endpoint, type, cfg, now, admin, tagFilter, selected, onToggle, onTagClick, onDelete }: EndpointRowProps) {
-  const navigate = useNavigate()
-
   return (
     <div className={`grid ${ROW_GRID_BY_TYPE[type]} items-start gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
 
@@ -273,19 +342,8 @@ function EndpointRow({ endpoint, type, cfg, now, admin, tagFilter, selected, onT
           {endpoint.name}
         </Link>
         {endpoint.tags && endpoint.tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {endpoint.tags.map(tag => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => onTagClick(tagFilter === tag.id ? '' : tag.id)}
-                title={`Filter by ${tag.categoryName}: ${tag.name}`}
-                className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-75 ${categoryColor(tag.categoryId)} ${tagFilter === tag.id ? 'ring-1 ring-offset-1 ring-current' : ''}`}
-              >
-                <span className="opacity-60">{tag.categoryName}:</span>
-                {tag.name}
-              </button>
-            ))}
+          <div className="mt-1.5">
+            <TagChips tags={endpoint.tags} tagFilter={tagFilter} onTagClick={onTagClick} />
           </div>
         )}
       </div>
@@ -340,42 +398,83 @@ function EndpointRow({ endpoint, type, cfg, now, admin, tagFilter, selected, onT
 
       {/* Actions */}
       <div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate(`/endpoints/${endpoint.id}`)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View
-            </DropdownMenuItem>
-            {admin && (
-              <DropdownMenuItem onClick={() => navigate(`/endpoints/${endpoint.id}/edit`)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => navigate(`/endpoints/new?clone=${endpoint.id}`)}>
-              <Copy className="mr-2 h-4 w-4" />
-              Clone
-            </DropdownMenuItem>
-            {admin && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={() => onDelete(endpoint)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EndpointActionsMenu endpoint={endpoint} admin={admin} onDelete={onDelete} />
       </div>
+    </div>
+  )
+}
+
+// EndpointCard is the mobile-only stacked layout. Below md, the per-type
+// grids would crush the name column — drop the grid, render each row as a
+// self-contained record with labelled metadata. Address + Last scanned rows
+// are gated by the same `cfg.show*` flags as the desktop columns, so the
+// manual type stays sparse instead of showing "—" for missing fields.
+function EndpointCard({ endpoint, cfg, type, now, admin, tagFilter, selected, onToggle, onTagClick, onDelete }: EndpointRowProps) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card p-3 space-y-2">
+      {/* Top row: checkbox + name on the left; expiry badge + actions on
+          the right. Tap the checkbox to bulk-select; tap the name to
+          navigate. Same target sizes as Mail/Linear. */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggle(endpoint)}
+            aria-label={`Select ${endpoint.name}`}
+            className="h-4 w-4 mt-1 shrink-0 rounded border-border accent-primary cursor-pointer"
+          />
+          <Link
+            to={`/endpoints/${endpoint.id}`}
+            className="text-sm font-semibold hover:underline break-all min-w-0"
+          >
+            {endpoint.name}
+          </Link>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {endpoint.earliestExpiry && <DaysLeftBadge notAfter={endpoint.earliestExpiry} />}
+          <EndpointActionsMenu endpoint={endpoint} admin={admin} onDelete={onDelete} />
+        </div>
+      </div>
+
+      {/* Labelled metadata. Only host/saml render the address + last-scanned
+          rows; manual ends after Status. */}
+      <dl className="space-y-0.5 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Status:</dt>
+          <dd className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${endpoint.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+            {endpoint.enabled ? 'Enabled' : 'Disabled'}
+          </dd>
+        </div>
+        {cfg.showAddress && (
+          <div className="flex gap-2">
+            <dt className="text-muted-foreground shrink-0">{cfg.addressLabel}:</dt>
+            <dd className="min-w-0 break-all">
+              {type === 'host'
+                ? <span className="font-mono">{endpoint.dnsName}:{endpoint.port}</span>
+                : (endpoint.url ?? '—')}
+            </dd>
+          </div>
+        )}
+        {cfg.showLastScanned && (
+          <div className="flex gap-2">
+            <dt className="text-muted-foreground shrink-0">Last scanned:</dt>
+            <dd className="flex items-center gap-1.5 min-w-0">
+              {endpoint.lastScannedAt ? fmtRelative(endpoint.lastScannedAt, now) : 'Never'}
+              {endpoint.lastScanError && (
+                <span title={endpoint.lastScanError}>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                </span>
+              )}
+            </dd>
+          </div>
+        )}
+      </dl>
+
+      {endpoint.tags && endpoint.tags.length > 0 && (
+        <TagChips tags={endpoint.tags} tagFilter={tagFilter} onTagClick={onTagClick} />
+      )}
     </div>
   )
 }
@@ -736,8 +835,9 @@ export default function EndpointPage({ type }: EndpointPageProps) {
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-hidden">
 
-        {/* Column headers */}
-        <div className={`grid ${ROW_GRID_BY_TYPE[type]} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        {/* Column headers — hidden below md since the mobile card layout is
+            self-labelling. */}
+        <div className={`hidden md:grid ${ROW_GRID_BY_TYPE[type]} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <div className="flex items-center justify-center">
             <input
               type="checkbox"
@@ -772,26 +872,49 @@ export default function EndpointPage({ type }: EndpointPageProps) {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {endpoints.map(endpoint => (
-              <EndpointRow
-                key={endpoint.id}
-                endpoint={endpoint}
-                type={type}
-                cfg={cfg}
-                now={now}
-                admin={admin}
-                tagFilter={tagFilter}
-                selected={selected.has(endpoint.id)}
-                onToggle={toggleOne}
-                onTagClick={handleTagChange}
-                onDelete={setDeleteTarget}
-              />
-            ))}
+            {/* Mobile: stacked cards. Bulk-select checkbox lives top-left
+                of each card so tapping ≠ navigation. */}
+            <div className="space-y-2 p-3 md:hidden">
+              {endpoints.map(endpoint => (
+                <EndpointCard
+                  key={endpoint.id}
+                  endpoint={endpoint}
+                  type={type}
+                  cfg={cfg}
+                  now={now}
+                  admin={admin}
+                  tagFilter={tagFilter}
+                  selected={selected.has(endpoint.id)}
+                  onToggle={toggleOne}
+                  onTagClick={handleTagChange}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+            {/* Desktop: per-type grid */}
+            <div className="hidden md:block">
+              {endpoints.map(endpoint => (
+                <EndpointRow
+                  key={endpoint.id}
+                  endpoint={endpoint}
+                  type={type}
+                  cfg={cfg}
+                  now={now}
+                  admin={admin}
+                  tagFilter={tagFilter}
+                  selected={selected.has(endpoint.id)}
+                  onToggle={toggleOne}
+                  onTagClick={handleTagChange}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Footer: count + pagination inside the card */}
-        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+        {/* Footer: count + pagination. Stacks below sm so neither half is
+            forced to wrap on narrow screens. */}
+        <div className="flex flex-col gap-3 border-t border-border/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {totalCount === 0
               ? `No ${cfg.noun}s`
