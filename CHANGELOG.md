@@ -202,6 +202,22 @@ once it reaches 1.0.
 
 ### Security
 
+- Add a break-glass recovery path to the env-var bootstrap for the
+  sole-admin lockout case — when a TOTP-enrolled admin loses both
+  their authenticator device and their recovery codes (or forgets
+  their password) and there is no second admin to perform the reset
+  via the UI. Setting `TLSENTINEL_BREAKGLASS=true` plus the user and
+  reset flags (`_RESET_TOTP`, `_RESET_PASSWORD` + `_PASSWORD`) on
+  startup looks up the named admin and applies the requested resets;
+  the master toggle is the explicit "I know what I'm doing" gate, and
+  reset flags without it are logged and ignored so an accidentally-
+  baked-in compose value won't error every boot. The path refuses to
+  operate on non-admin or non-OIDC accounts, fails loud if the named
+  user doesn't exist (typo guard rather than silent fallthrough), and
+  emits an `auth.bootstrap.breakglass` audit row stamped with the
+  `system` actor and the per-action booleans. The first-run seed
+  behavior (`TLSENTINEL_ADMIN_USERNAME` / `_PASSWORD` against an
+  empty users table) is unchanged.
 - Split account-takeover-class user actions onto a dedicated
   `users:credentials` permission. Resetting another user's password
   (`PATCH /users/{id}/password`) and resetting another user's 2FA

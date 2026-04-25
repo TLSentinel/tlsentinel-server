@@ -155,6 +155,36 @@ openssl rand -base64 32   # TLSENTINEL_ENCRYPTION_KEY
 | `TLSENTINEL_ADMIN_USERNAME`  | Optional. Creates an admin user on first startup if not already present. |
 | `TLSENTINEL_ADMIN_PASSWORD`  | Optional. Initial password for the bootstrap admin. |
 
+### Break-glass recovery
+
+Last-resort env-var path for recovering an admin who lost both their
+TOTP device and recovery codes (or forgot their password). Distinct
+from the bootstrap admin vars above — this runs against an *existing*
+admin and applies a destructive reset.
+
+`TLSENTINEL_BREAKGLASS` is the master toggle. Reset flags without it
+set are logged and ignored, so an accidentally-baked-in compose value
+won't error every restart. Bootstrap refuses to operate on non-admin
+accounts or non-local (OIDC) users.
+
+| Variable                                    | Description |
+|---------------------------------------------|-------------|
+| `TLSENTINEL_BREAKGLASS`                     | Master toggle. `true` to apply the reset on next boot. |
+| `TLSENTINEL_BREAKGLASS_USER`                | Username of the admin to recover (the *current* username, not the seed value above). |
+| `TLSENTINEL_BREAKGLASS_RESET_TOTP`          | `true` to clear TOTP secret + recovery codes (lost-phone case). |
+| `TLSENTINEL_BREAKGLASS_RESET_PASSWORD`      | `true` to reset the password to `TLSENTINEL_BREAKGLASS_PASSWORD`. |
+| `TLSENTINEL_BREAKGLASS_PASSWORD`            | Required iff `RESET_PASSWORD=true`. The new password. |
+
+**Operator runbook:**
+
+1. Set the env vars above for the recovery you need (TOTP, password,
+   or both).
+2. Restart the container. Watch for `breakglass executed` in the logs
+   and an `auth.bootstrap.breakglass` row in the audit log.
+3. Remove all `TLSENTINEL_BREAKGLASS_*` vars from your environment.
+4. Restart the container again so the recovery vars are no longer present.
+5. Log in, immediately rotate the password, and re-enroll TOTP.
+
 ### OIDC single sign-on (optional)
 
 All five `OIDC_*` variables must be set together for SSO to be enabled.

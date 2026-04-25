@@ -12,24 +12,37 @@ import (
 )
 
 type Config struct {
-	Host              string             `env:"TLSENTINEL_HOST" envDefault:"0.0.0.0"`
-	Port              string             `env:"TLSENTINEL_PORT" envDefault:"8080"`
-	DBHost            string             `env:"TLSENTINEL_DB_HOST" envDefault:"localhost"`
-	DBPort            string             `env:"TLSENTINEL_DB_PORT" envDefault:"5432"`
-	DBName            string             `env:"TLSENTINEL_DB_NAME" envDefault:"tlsentinel"`
-	DBUsername        string             `env:"TLSENTINEL_DB_USERNAME,required"`
-	DBPassword        string             `env:"TLSENTINEL_DB_PASSWORD,required"`
-	DBSSLMode         string             `env:"TLSENTINEL_DB_SSLMODE" envDefault:"require"`
-	JWTSecret         JWTSecret          `env:"TLSENTINEL_JWT_SECRET,required"`
-	EncryptionKey     EncryptionKeyBytes `env:"TLSENTINEL_ENCRYPTION_KEY,required"`
-	AdminUsername     string             `env:"TLSENTINEL_ADMIN_USERNAME"`
-	AdminPassword     string             `env:"TLSENTINEL_ADMIN_PASSWORD"`
-	OIDCClientID      string             `env:"TLSENTINEL_OIDC_CLIENT_ID"`
-	OIDCClientSecret  string             `env:"TLSENTINEL_OIDC_CLIENT_SECRET"`
-	OIDCRedirectURL   string             `env:"TLSENTINEL_OIDC_REDIRECT_URL"`
-	OIDCIssuer        string             `env:"TLSENTINEL_OIDC_ISSUER"`
-	OIDCScopes        []string           `env:"TLSENTINEL_OIDC_SCOPES" envDefault:"openid,profile,email"`
-	OIDCUsernameClaim string             `env:"TLSENTINEL_OIDC_USERNAME_CLAIM"`
+	Host          string             `env:"TLSENTINEL_HOST" envDefault:"0.0.0.0"`
+	Port          string             `env:"TLSENTINEL_PORT" envDefault:"8080"`
+	DBHost        string             `env:"TLSENTINEL_DB_HOST" envDefault:"localhost"`
+	DBPort        string             `env:"TLSENTINEL_DB_PORT" envDefault:"5432"`
+	DBName        string             `env:"TLSENTINEL_DB_NAME" envDefault:"tlsentinel"`
+	DBUsername    string             `env:"TLSENTINEL_DB_USERNAME,required"`
+	DBPassword    string             `env:"TLSENTINEL_DB_PASSWORD,required"`
+	DBSSLMode     string             `env:"TLSENTINEL_DB_SSLMODE" envDefault:"require"`
+	JWTSecret     JWTSecret          `env:"TLSENTINEL_JWT_SECRET,required"`
+	EncryptionKey EncryptionKeyBytes `env:"TLSENTINEL_ENCRYPTION_KEY,required"`
+	AdminUsername string             `env:"TLSENTINEL_ADMIN_USERNAME"`
+	AdminPassword string             `env:"TLSENTINEL_ADMIN_PASSWORD"`
+	// Breakglass: explicit lockout-recovery mechanism. Distinct from the
+	// first-run admin seed above (which only runs against an empty user
+	// table). Setting Breakglass=true on startup tells the bootstrap path
+	// to look up the named user and apply the requested resets — used when
+	// a sole admin loses both their TOTP device and recovery codes. The
+	// master toggle is the "are you sure?" gate: any reset flag without
+	// it is logged and ignored. After a successful run the operator is
+	// expected to remove the env vars and restart on their own schedule.
+	Breakglass              bool     `env:"TLSENTINEL_BREAKGLASS"`
+	BreakglassUser          string   `env:"TLSENTINEL_BREAKGLASS_USER"`
+	BreakglassResetTOTP     bool     `env:"TLSENTINEL_BREAKGLASS_RESET_TOTP"`
+	BreakglassResetPassword bool     `env:"TLSENTINEL_BREAKGLASS_RESET_PASSWORD"`
+	BreakglassPassword      string   `env:"TLSENTINEL_BREAKGLASS_PASSWORD"`
+	OIDCClientID            string   `env:"TLSENTINEL_OIDC_CLIENT_ID"`
+	OIDCClientSecret        string   `env:"TLSENTINEL_OIDC_CLIENT_SECRET"`
+	OIDCRedirectURL         string   `env:"TLSENTINEL_OIDC_REDIRECT_URL"`
+	OIDCIssuer              string   `env:"TLSENTINEL_OIDC_ISSUER"`
+	OIDCScopes              []string `env:"TLSENTINEL_OIDC_SCOPES" envDefault:"openid,profile,email"`
+	OIDCUsernameClaim       string   `env:"TLSENTINEL_OIDC_USERNAME_CLAIM"`
 	// TrustedProxyCIDRs lists CIDRs whose traffic is allowed to set
 	// X-Forwarded-For. Empty means no proxies are trusted and XFF is
 	// ignored (audit IP falls back to the TCP peer).
