@@ -152,10 +152,50 @@ function DeleteDialog({ item, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Inbox row
+// Inbox row + card
 // ---------------------------------------------------------------------------
 
 const ROW_GRID = 'grid-cols-[6rem_1.5fr_3.5rem_1.5fr_1fr_5rem_2.5rem]'
+
+// InboxActionsMenu is the row's three-dot menu — extracted so the desktop row
+// and the mobile card render the same Promote / Dismiss / Delete entries
+// (with the dismissed-state gating preserved) without duplicating the JSX.
+function InboxActionsMenu({ item, dismissing, onPromote, onDismiss, onDelete }: {
+  item: DiscoveryInboxItem
+  dismissing: string | null
+  onPromote: () => void
+  onDismiss: () => void
+  onDelete: () => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {item.status !== 'dismissed' && (
+          <>
+            <DropdownMenuItem onClick={onPromote}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add as Endpoint
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDismiss} disabled={dismissing === item.id}>
+              <EyeOff className="mr-2 h-4 w-4" />
+              Dismiss
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 interface InboxRowProps {
   item: DiscoveryInboxItem
@@ -213,35 +253,67 @@ function InboxRow({ item, now, canEdit, dismissing, onPromote, onDismiss, onDele
 
       {/* Actions */}
       {canEdit ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {item.status !== 'dismissed' && (
-              <>
-                <DropdownMenuItem onClick={onPromote}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add as Endpoint
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDismiss} disabled={dismissing === item.id}>
-                  <EyeOff className="mr-2 h-4 w-4" />
-                  Dismiss
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <InboxActionsMenu
+          item={item}
+          dismissing={dismissing}
+          onPromote={onPromote}
+          onDismiss={onDismiss}
+          onDelete={onDelete}
+        />
       ) : (
         <div />
       )}
+    </div>
+  )
+}
+
+// InboxCard is the mobile-only stacked layout. The IP:port pair is the
+// dominant identifier on this surface — promote it to the heading slot.
+// Dismissed entries are dimmed via the same opacity-50 rule used on the
+// desktop row, so the visual cue carries over to phones.
+function InboxCard({ item, now, canEdit, dismissing, onPromote, onDismiss, onDelete }: InboxRowProps) {
+  return (
+    <div className={`rounded-md border border-border/60 bg-card p-3 space-y-2 ${item.status === 'dismissed' ? 'opacity-50' : ''}`}>
+      {/* Top row: IP:port heading on the left; status badge + actions on
+          the right. */}
+      <div className="flex items-start justify-between gap-2">
+        <span className="font-mono text-sm font-semibold break-all min-w-0">
+          {item.ip}<span className="text-muted-foreground">:{item.port}</span>
+        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <StatusBadge status={item.status} />
+          {canEdit && (
+            <InboxActionsMenu
+              item={item}
+              dismissing={dismissing}
+              onPromote={onPromote}
+              onDismiss={onDismiss}
+              onDelete={onDelete}
+            />
+          )}
+        </div>
+      </div>
+
+      <dl className="space-y-0.5 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Hostname:</dt>
+          <dd className="min-w-0 break-all">
+            {item.rdns ?? <span className="italic text-muted-foreground">—</span>}
+          </dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Network:</dt>
+          <dd className="min-w-0 break-words">
+            {item.networkName
+              ? <span className="inline-block text-xs bg-muted px-2.5 py-1 rounded">{item.networkName}</span>
+              : <span className="italic text-muted-foreground">—</span>}
+          </dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Last seen:</dt>
+          <dd>{fmtRelative(item.lastSeenAt, now)}</dd>
+        </div>
+      </dl>
     </div>
   )
 }
@@ -376,8 +448,9 @@ export default function DiscoveryInboxPage() {
           </Button>
         </div>
 
-        {/* Column headers */}
-        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+        {/* Column headers — hidden below md since the mobile card layout is
+            self-labelling. */}
+        <div className={`hidden md:grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IP Address</span>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Port</span>
@@ -396,23 +469,42 @@ export default function DiscoveryInboxPage() {
           </div>
         ) : (
           <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-            {items.map(item => (
-              <InboxRow
-                key={item.id}
-                item={item}
-                now={now}
-                canEdit={canEdit}
-                dismissing={dismissing}
-                onPromote={() => navigate(`/endpoints/new?from_inbox=${item.id}`)}
-                onDismiss={() => handleDismiss(item)}
-                onDelete={() => setDeleteTarget(item)}
-              />
-            ))}
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-2 p-3 md:hidden">
+              {items.map(item => (
+                <InboxCard
+                  key={item.id}
+                  item={item}
+                  now={now}
+                  canEdit={canEdit}
+                  dismissing={dismissing}
+                  onPromote={() => navigate(`/endpoints/new?from_inbox=${item.id}`)}
+                  onDismiss={() => handleDismiss(item)}
+                  onDelete={() => setDeleteTarget(item)}
+                />
+              ))}
+            </div>
+            {/* Desktop: 7-column grid */}
+            <div className="hidden md:block">
+              {items.map(item => (
+                <InboxRow
+                  key={item.id}
+                  item={item}
+                  now={now}
+                  canEdit={canEdit}
+                  dismissing={dismissing}
+                  onPromote={() => navigate(`/endpoints/new?from_inbox=${item.id}`)}
+                  onDismiss={() => handleDismiss(item)}
+                  onDelete={() => setDeleteTarget(item)}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Footer: count + pagination inside the card */}
-        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+        {/* Footer: count + pagination. Stacks below sm so neither half is
+            forced to wrap on narrow screens. */}
+        <div className="flex flex-col gap-3 border-t border-border/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {totalCount === 0
               ? 'No discoveries'
