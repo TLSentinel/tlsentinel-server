@@ -13,6 +13,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
@@ -113,20 +114,24 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.Username == "" || req.Password == "" {
+	// Trim whitespace once at the boundary; case is preserved (the username
+	// column is CITEXT, so the lookup matches case-insensitively without
+	// needing to lowercase the input here).
+	username := models.NormalizeUsername(req.Username)
+	if username == "" || req.Password == "" {
 		http.Error(w, "username and password required", http.StatusBadRequest)
 		return
 	}
 
 	ip := audit.IPFromRequest(r)
 
-	user, err := h.store.GetUserByUsername(r.Context(), req.Username)
+	user, err := h.store.GetUserByUsername(r.Context(), username)
 	if err != nil {
 		// Always do a full bcrypt comparison against a valid dummy hash so the
 		// unknown-username path takes the same ~100ms as the wrong-password
 		// path. See dummyPasswordHash for rationale.
 		bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(req.Password)) //nolint:errcheck
-		h.logAudit(r, db.AuditLog{Username: req.Username, Action: audit.LoginFailed, IPAddress: &ip})
+		h.logAudit(r, db.AuditLog{Username: username, Action: audit.LoginFailed, IPAddress: &ip})
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}

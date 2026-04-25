@@ -11,6 +11,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
 	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
@@ -361,7 +362,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" {
+	username := models.NormalizeUsername(req.Username)
+	if username == "" {
 		http.Error(w, "username is required", http.StatusBadRequest)
 		return
 	}
@@ -398,7 +400,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		passwordHash = string(hash)
 	}
 
-	user, err := h.store.InsertUser(r.Context(), req.Username, passwordHash, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.InsertUser(r.Context(), username, passwordHash, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
@@ -465,7 +467,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" {
+	username := models.NormalizeUsername(req.Username)
+	if username == "" {
 		http.Error(w, "username is required", http.StatusBadRequest)
 		return
 	}
@@ -485,7 +488,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.store.UpdateUser(r.Context(), userID, req.Username, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.UpdateUser(r.Context(), userID, username, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)

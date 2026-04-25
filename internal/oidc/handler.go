@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
@@ -17,6 +16,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 )
 
@@ -229,7 +229,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 // extractUsername picks the best available claim for the username.
-// Defaults to "upn" (Entra ID), falling back to "preferred_username" then "email".
+// Defaults to "upn" (Entra ID), falling back to "preferred_username" then
+// "email", finally to the IdP-supplied subject. The result is always run
+// through models.NormalizeUsername so the value used for the local lookup
+// matches what was stored on user creation — and so the same identity
+// resolves whether the IdP sends `Bob.Smith` today and `bob.smith`
+// tomorrow (the `users.username` column is CITEXT, so equality is
+// case-insensitive at the DB layer).
 func (h *Handler) extractUsername(claims map[string]any, fallback string) string {
 	claim := h.cfg.UsernameClaim
 	if claim == "" {
@@ -240,13 +246,14 @@ func (h *Handler) extractUsername(claims map[string]any, fallback string) string
 			return v
 		}
 	}
-	return fallback
+	return models.NormalizeUsername(fallback)
 }
 
-// stringClaim returns the named claim as a plain string (used internally).
+// stringClaim returns the named claim as a normalized username string
+// (trimmed of surrounding whitespace; case is preserved).
 func stringClaim(claims map[string]any, key string) string {
 	v, _ := claims[key].(string)
-	return strings.TrimSpace(v)
+	return models.NormalizeUsername(v)
 }
 
 func randomState() (string, error) {

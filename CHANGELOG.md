@@ -97,6 +97,19 @@ once it reaches 1.0.
 
 ### Breaking Changes
 
+- **Usernames are now case-insensitive.** `users.username` is migrated from
+  `TEXT` to the Postgres `citext` extension (migration 047), so `Bob.Smith`,
+  `bob.smith`, and `BOB.SMITH` all resolve to the same account at login,
+  in OIDC claim matching, and through the user CRUD endpoints. The display
+  case is preserved — whatever case the operator typed at create time is
+  what shows up on the user page and in audit logs. The migration includes
+  a pre-flight collision check that aborts with a clear error if any two
+  existing usernames differ only in case; resolve those duplicates manually
+  before applying. Surrounding whitespace is also trimmed at every write
+  boundary (login, OIDC, user create/update). This is a storage-layer
+  change — clients see no API shape change, but any out-of-band tooling
+  that compared usernames byte-exactly should be updated to expect the
+  display case to be authoritative.
 - **`TLSENTINEL_JWT_SECRET` must now be base64-encoded and decode to at least 32 bytes.**
   Plaintext values are rejected at boot. Regenerate with `openssl rand -base64 32`.
   All currently issued JWTs are invalidated by the key change — users must log in

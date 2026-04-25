@@ -38,7 +38,11 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await login({ username, password })
+      // Trim incidental whitespace (e.g. mobile autocomplete trailing space)
+      // before hitting the API. The server also normalizes, so this is purely
+      // a UX guard — the request and any client-side error message both see
+      // the same value the user "really" typed.
+      const res = await login({ username: username.trim(), password })
       setToken(res.token)
       navigate('/', { replace: true })
     } catch (err) {
