@@ -132,6 +132,23 @@ once it reaches 1.0.
 
 ### Changed
 
+- **Mobile-friendly web UI.** The web app was previously desktop-only; below
+  ~1024px the sidebar, dense table rows, and oversized headers made the app
+  unusable on phones. A consistent breakpoint policy now governs the rework:
+  the sidebar collapses into a drawer below `md` (768px); every multi-column
+  list view — dashboard panels, Monitor, the five inventory lists
+  (hosts, SAML, manual, certificates, root stores), and both Discovery
+  surfaces (inbox, networks) — drops to a card-per-row layout below `md`
+  with the same affordances as the desktop row (bulk-select checkbox,
+  kebab actions, status pills, tag chips); detail pages (Certificate Detail,
+  and the three per-type Endpoint Detail pages) size their h1 responsively
+  (`text-3xl sm:text-4xl md:text-5xl break-words`) and either stack the
+  header action button below the title or hide desktop-only buttons
+  entirely (Copy PEM, Download PEM). Card padding drops to `p-4` below `sm`
+  to reclaim 8px of side gutter on phones, and side-by-side blocks
+  (Security Posture grade vs. score-bar column, Scan History date vs.
+  fingerprint) reflow vertically on narrow widths. Phones aren't the
+  primary audience, but the app is now usable on one.
 - Bump `lucide-react` to 1.8. lucide 1.0 removed every brand logo from the
   icon set, so the Help page's "GitHub repository" card now renders a local
   Octocat mark (inlined under `web/src/components/icons/`, permitted by
@@ -191,6 +208,16 @@ once it reaches 1.0.
   `web/package.json`. Clears the advisory against 4.12.12, which reached the
   dependency tree through `shadcn` → `@modelcontextprotocol/sdk`. Tooling-only
   — `hono` never makes it into the runtime bundle.
+- Bump `go.opentelemetry.io/otel`, `otel/trace`, and `otel/metric` to
+  v1.43.0 to clear Dependabot advisories GHSA-hfvc-g4fc-pqhx (high — PATH
+  hijacking in `otel/sdk` BSD/Solaris resource detection, CVE-2026-39883)
+  and GHSA-w8rr-5gcm-pp58 (moderate — unbounded `io.Copy` in OTLP HTTP
+  exporters, CVE-2026-39882). Both vulnerabilities live in submodules
+  TLSentinel doesn't import, but the advisory database flags the root
+  module. otel was pulled in transitively by `uptrace/bun/driver/pgdriver`
+  and `golang-migrate/migrate/v4`; adding it to our `go.mod` makes Go's
+  minimum-version selection pick the patched version even though those
+  upstreams still ask for v1.40.0.
 
 ### Fixed
 
