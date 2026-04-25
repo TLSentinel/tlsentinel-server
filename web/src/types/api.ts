@@ -16,8 +16,37 @@ export interface LoginRequest {
   password: string
 }
 
+/**
+ * Either we got a full session token (no second factor required), OR
+ * the server is asking for TOTP — in which case `totpRequired` is true,
+ * `challengeToken` is set, and `token` is empty until the client
+ * exchanges it via /auth/totp.
+ */
 export interface LoginResponse {
   token: string
+  challengeToken?: string
+  totpRequired?: boolean
+}
+
+export interface TOTPLoginRequest {
+  challengeToken: string
+  code: string
+  /** True when the user is redeeming a recovery code instead of a 6-digit TOTP. */
+  isRecovery?: boolean
+}
+
+export interface TOTPStatus {
+  enabled: boolean
+  remainingRecoveryCodes: number
+}
+
+export interface TOTPSetup {
+  secret: string
+  uri: string
+}
+
+export interface TOTPVerifyResponse {
+  recoveryCodes: string[]
 }
 
 export interface User {
@@ -31,6 +60,7 @@ export interface User {
   lastName: string | null
   email: string | null
   calendarToken: string | null
+  totpEnabled: boolean
   createdAt: string
   updatedAt: string
 }

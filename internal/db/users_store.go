@@ -23,10 +23,12 @@ func userToModel(u User) models.User {
 		Role:         u.Role,
 		FirstName:    u.FirstName,
 		LastName:     u.LastName,
-		Email:         u.Email,
-		CalendarToken: u.CalendarToken,
-		CreatedAt:    u.CreatedAt,
-		UpdatedAt:    u.UpdatedAt,
+		Email:          u.Email,
+		CalendarToken:  u.CalendarToken,
+		TOTPEnabled:    u.TOTPEnabled,
+		TOTPEnrolledAt: u.TOTPEnrolledAt,
+		CreatedAt:      u.CreatedAt,
+		UpdatedAt:      u.UpdatedAt,
 	}
 }
 

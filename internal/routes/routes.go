@@ -49,6 +49,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	scannerHandler := scanners.NewHandler(store)
 	probeHandler := probe.NewHandler(store, trustEv)
 	userHandler := users.NewHandler(store)
+	totpHandler := users.NewTOTPHandler(store, cfg)
 	settingsHandler := settings.NewHandler(store, sched, trustEv)
 	certHandler := certificates.NewHandler(store)
 	endpointHandler := endpoints.NewHandler(store)
@@ -80,6 +81,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 		r.Get("/calendar/u/{token}/*", calendarHandler.ServeUserCalendar)
 
 		r.Post("/auth/login", authHandler.Login)
+		r.Post("/auth/totp", authHandler.LoginTOTP)
 		r.Get("/auth/config", authHandler.Config)
 
 		if oidcHandler != nil {
@@ -185,6 +187,15 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Get("/api-keys", apiKeyHandler.List)
 				r.Post("/api-keys", apiKeyHandler.Create)
 				r.Delete("/api-keys/{id}", apiKeyHandler.Delete)
+
+				// TOTP / second-factor management. /me/totp is the
+				// status probe (cheap GET, used by the account UI to
+				// decide what to render); the rest are state-changing.
+				r.Get("/totp", totpHandler.Status)
+				r.Post("/totp/setup", totpHandler.BeginSetup)
+				r.Post("/totp/verify", totpHandler.ConfirmSetup)
+				r.Delete("/totp", totpHandler.Disable)
+				r.Post("/totp/recovery-codes", totpHandler.RegenerateRecoveryCodes)
 			})
 
 			// /admin/api-keys — cross-user API key management (admin only).
@@ -208,12 +219,20 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Use(auth.RequirePermission(permission.UsersView))
 						r.Get("/", userHandler.Get)
 					})
+					// Lifecycle — create/update/delete/enable. Held by anyone
+					// with users:edit. These actions can't take over an account.
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.UsersEdit))
 						r.Put("/", userHandler.Update)
 						r.Delete("/", userHandler.Delete)
-						r.Patch("/password", userHandler.ChangePassword)
 						r.Patch("/enabled", userHandler.SetEnabled)
+					})
+					// Credential reset — password, 2FA. Gated separately from
+					// users:edit because resetting these is account takeover.
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.UsersCredentials))
+						r.Patch("/password", userHandler.ChangePassword)
+						r.Delete("/totp", totpHandler.AdminReset)
 					})
 				})
 			})

@@ -6,6 +6,13 @@ const (
 	LoginFailed = "auth.login_failed"
 	OIDCLogin   = "auth.oidc_login"
 
+	// TOTP / second factor
+	TOTPEnable             = "auth.totp.enable"
+	TOTPDisable            = "auth.totp.disable"
+	TOTPVerifyFailed       = "auth.totp.verify_failed"
+	TOTPRecoveryUsed       = "auth.totp.recovery_used"
+	TOTPRecoveryRegenerate = "auth.totp.recovery_regenerate"
+
 	// Endpoints
 	EndpointCreate = "endpoint.create"
 	EndpointUpdate = "endpoint.update"

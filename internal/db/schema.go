@@ -160,10 +160,27 @@ type User struct {
 	Role         string    `bun:"role"`
 	FirstName    *string   `bun:"first_name"`
 	LastName     *string   `bun:"last_name"`
-	Email         *string   `bun:"email"`
-	CalendarToken *string   `bun:"calendar_token"`
-	CreatedAt     time.Time `bun:"created_at"`
-	UpdatedAt     time.Time `bun:"updated_at"`
+	Email          *string    `bun:"email"`
+	CalendarToken  *string    `bun:"calendar_token"`
+	TOTPSecret     *string    `bun:"totp_secret"` // AES-GCM ciphertext, NULL when not enrolled
+	TOTPEnabled    bool       `bun:"totp_enabled"`
+	TOTPEnrolledAt *time.Time `bun:"totp_enrolled_at"`
+	CreatedAt      time.Time  `bun:"created_at"`
+	UpdatedAt      time.Time  `bun:"updated_at"`
+}
+
+// UserTOTPRecoveryCode maps to tlsentinel.user_totp_recovery_codes.
+// CodeHash is bcrypt — a code is "used" once UsedAt is non-NULL. Codes
+// are CASCADE-deleted with the user; we never expose plaintext past the
+// initial generation response.
+type UserTOTPRecoveryCode struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_totp_recovery_codes"`
+
+	ID        string     `bun:"id,pk,type:uuid"`
+	UserID    string     `bun:"user_id,type:uuid"`
+	CodeHash  string     `bun:"code_hash"`
+	UsedAt    *time.Time `bun:"used_at"`
+	CreatedAt time.Time  `bun:"created_at"`
 }
 
 // UserAPIKey maps to tlsentinel.user_api_keys.
