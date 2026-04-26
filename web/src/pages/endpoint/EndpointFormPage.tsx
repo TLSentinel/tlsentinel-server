@@ -749,8 +749,8 @@ export default function EndpointFormPage() {
             </div>
             <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
               <div className="space-y-0.5">
-                <Label htmlFor="ep-enabled" className="cursor-pointer text-sm font-medium">Enabled</Label>
-                <p className="text-xs text-muted-foreground">Disabled endpoints stop scanning and drop from active views.</p>
+                <Label htmlFor="ep-enabled" className="cursor-pointer text-sm font-medium">Monitored</Label>
+                <p className="text-xs text-muted-foreground">Tracks this endpoint with scans, reports, and alerts. Turn off to retire — its active certs stay available for reference.</p>
               </div>
               <Switch id="ep-enabled" checked={enabled} onCheckedChange={setEnabled} />
             </div>
