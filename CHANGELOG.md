@@ -10,6 +10,22 @@ once it reaches 1.0.
 
 ### Added
 
+- **Universal search now matches IP addresses.** The header search box (Cmd/Ctrl+K)
+  recognises IPv4 and IPv6 fragments and switches to exact + prefix matching
+  across three IP-bearing endpoint columns: the operator-typed `dns_name`
+  (which may itself be an IP literal), the `ip_address` override, and a new
+  scanner-written `last_resolved_ip`. Typing `10.0.5` finds every host
+  starting with `10.0.5.`; typing `10.0.5.7` matches that exact host. Text
+  queries (hostnames, names, SAML URLs) keep the existing ILIKE substring
+  semantics. The new `last_resolved_ip` column on `endpoint_hosts` is
+  populated by `RecordScanResult` on each successful scan (untouched on
+  errors so the most-recent observation is preserved) and backfilled from
+  scan history on migration. It is returned in `GET /endpoints` and
+  `GET /endpoints/{id}` JSON for CLI / automation consumers; the web UI
+  does not render it. Subtitle on a search result surfaces the matching
+  IP when the row matched on the `ip_address` override; otherwise it
+  falls back to `dns_name`. CIDR matching is intentionally not yet
+  supported — fragments and full literals only.
 - **TOTP/2FA for local accounts.** Local users can now arm a second factor
   via any RFC 6238 authenticator app (Google Authenticator, 1Password,
   Authy, etc.). New `/account/2fa` page walks through enrollment with a

@@ -21,6 +21,7 @@ type endpointWithScanner struct {
 	DNSName        string     `bun:"dns_name"`
 	IPAddress      *string    `bun:"ip_address"`
 	Port           int        `bun:"port"`
+	LastResolvedIP *string    `bun:"last_resolved_ip"`
 	// SAML-type fields joined from endpoint_saml.
 	URL               *string         `bun:"url"`
 	SAMLMetadataJSON  json.RawMessage `bun:"saml_metadata"`
@@ -57,17 +58,19 @@ func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
 		LastScannedAt:  r.LastScannedAt,
 		LastScanError:  r.LastScanError,
 		ErrorSince:     r.ErrorSince,
+		LastResolvedIP: r.LastResolvedIP,
 	}
 }
 
 func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 	ep := models.Endpoint{
-		ID:            r.ID,
-		Name:          r.Name,
-		Type:          r.Type,
-		DNSName:       r.DNSName,
-		IPAddress:     r.IPAddress,
-		Port:          r.Port,
+		ID:             r.ID,
+		Name:           r.Name,
+		Type:           r.Type,
+		DNSName:        r.DNSName,
+		IPAddress:      r.IPAddress,
+		Port:           r.Port,
+		LastResolvedIP: r.LastResolvedIP,
 		URL:           r.URL,
 		SAMLFetchedAt: r.SAMLFetchedAt,
 		Enabled:       r.Enabled,
@@ -100,7 +103,7 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 		TableExpr("tlsentinel.endpoints AS h").
 		ColumnExpr("h.*").
 		ColumnExpr("at.name AS scanner_name").
-		ColumnExpr("eh.dns_name, eh.ip_address, eh.port").
+		ColumnExpr("eh.dns_name, eh.ip_address, eh.port, eh.last_resolved_ip").
 		ColumnExpr("es.url").
 		ColumnExpr("es.metadata AS saml_metadata").
 		ColumnExpr("es.metadata_fetched_at AS saml_fetched_at").
@@ -609,6 +612,21 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to update endpoint scan state: %w", err)
+		}
+
+		// Update the host's last_resolved_ip on every scan that produced one.
+		// Errored scans skip this so the previous "last successful resolution"
+		// is preserved — operators expect the column to mean "the most recent
+		// IP we observed," not "today's resolution attempt result."
+		if req.ResolvedIP != nil {
+			_, err = tx.NewUpdate().
+				TableExpr("tlsentinel.endpoint_hosts").
+				Set("last_resolved_ip = ?", *req.ResolvedIP).
+				Where("endpoint_id = ?", hostID).
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to update endpoint_hosts.last_resolved_ip: %w", err)
+			}
 		}
 
 		// Fetch the most recent history row to compare against.

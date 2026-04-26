@@ -45,9 +45,10 @@ type Endpoint struct {
 	Name        string     `json:"name"`
 	Type        string     `json:"type"`
 	// Host-type fields.
-	DNSName     string     `json:"dnsName"`
-	IPAddress   *string    `json:"ipAddress"`
-	Port        int        `json:"port"`
+	DNSName        string  `json:"dnsName"`
+	IPAddress      *string `json:"ipAddress"`
+	LastResolvedIP *string `json:"lastResolvedIp"`
+	Port           int     `json:"port"`
 	// SAML-type fields.
 	URL               *string              `json:"url,omitempty"`
 	SAMLMetadata      *SAMLMetadataPayload `json:"samlMetadata,omitempty"`
@@ -87,6 +88,7 @@ type EndpointListItem struct {
 	LastScannedAt   *time.Time        `json:"lastScannedAt"`
 	LastScanError   *string           `json:"lastScanError"`
 	ErrorSince      *time.Time        `json:"errorSince"`
+	LastResolvedIP  *string           `json:"lastResolvedIp"`
 	Tags            []TagWithCategory `json:"tags"`
 }
 
