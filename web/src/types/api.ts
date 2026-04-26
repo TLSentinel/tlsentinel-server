@@ -104,6 +104,7 @@ export interface EndpointListItem {
   lastScannedAt: string | null
   lastScanError: string | null
   errorSince: string | null
+  lastResolvedIp: string | null
   tags: TagWithCategory[]
 }
 
@@ -165,6 +166,7 @@ export interface Endpoint {
   // host-type fields
   dnsName: string
   ipAddress: string | null
+  lastResolvedIp: string | null
   port: number
   // saml-type fields
   url?: string | null

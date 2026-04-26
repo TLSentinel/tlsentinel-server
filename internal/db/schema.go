@@ -99,10 +99,11 @@ type EndpointCert struct {
 type EndpointHost struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoint_hosts,alias:eh"`
 
-	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
-	DNSName    string  `bun:"dns_name"`
-	IPAddress  *string `bun:"ip_address"`
-	Port       int     `bun:"port"`
+	EndpointID     string  `bun:"endpoint_id,pk,type:uuid"`
+	DNSName        string  `bun:"dns_name"`
+	IPAddress      *string `bun:"ip_address"`
+	Port           int     `bun:"port"`
+	LastResolvedIP *string `bun:"last_resolved_ip"`
 }
 
 // EndpointSAML maps to tlsentinel.endpoint_saml.
