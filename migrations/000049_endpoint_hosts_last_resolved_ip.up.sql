@@ -13,7 +13,7 @@
 -- rows from endpoint_scan_history; new endpoints start NULL until their
 -- first successful scan.
 ALTER TABLE tlsentinel.endpoint_hosts
-    ADD COLUMN last_resolved_ip TEXT;
+    ADD COLUMN IF NOT EXISTS last_resolved_ip TEXT;
 
 -- Backfill from the most recent non-error scan per endpoint. DISTINCT ON
 -- with the matching ORDER BY is the canonical PG idiom for "latest row
