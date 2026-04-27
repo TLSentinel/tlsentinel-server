@@ -59,15 +59,69 @@ function getAlgoParams(algo: KeyAlgo): { keyGen: RsaHashedKeyGenParams | EcKeyGe
 }
 
 // ---------------------------------------------------------------------------
-// SAN detection
+// Validation
+//
+// CN and SANs in a server CSR are constrained: hostnames (RFC 1035 labels,
+// optional left-most wildcard per RFC 6125), IP literals, or — for SAN only —
+// rfc822 email addresses. URIs are valid SAN types in the spec but no public
+// CA will issue against one, and accepting them in this tool just lets users
+// paste in URLs by accident and end up with a non-issuable CSR. So we reject
+// anything that isn't a hostname / IP / email.
 // ---------------------------------------------------------------------------
 
-function detectSANType(value: string): 'dns' | 'ip' | 'email' | 'url' {
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(value)) return 'ip'
-  if (/^[0-9a-f:]+$/i.test(value) && value.includes(':')) return 'ip'
-  if (value.includes('@')) return 'email'
-  if (/^https?:\/\//i.test(value)) return 'url'
-  return 'dns'
+const HOSTNAME_LABEL = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/
+
+function isValidHostname(s: string, allowWildcard = false): boolean {
+  if (!s || s.length > 253) return false
+  const labels = s.split('.')
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i]
+    if (!label || label.length > 63) return false
+    if (allowWildcard && i === 0 && label === '*') continue
+    if (!HOSTNAME_LABEL.test(label)) return false
+  }
+  return true
+}
+
+function isValidIPv4(s: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s)
+  if (!m) return false
+  return m.slice(1, 5).every((n) => parseInt(n, 10) <= 255)
+}
+
+function isValidIPv6(s: string): boolean {
+  if (!s.includes(':') || !/^[0-9a-fA-F:]+$/.test(s)) return false
+  if ((s.match(/::/g) || []).length > 1) return false
+  const groups = s.split(':')
+  if (groups.length > 8) return false
+  return groups.every((g) => g === '' || (g.length <= 4 && /^[0-9a-fA-F]+$/.test(g)))
+}
+
+function isValidIP(s: string): boolean {
+  return isValidIPv4(s) || isValidIPv6(s)
+}
+
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+}
+
+type SANType = 'dns' | 'ip' | 'email'
+
+function classifySAN(value: string): SANType | null {
+  const v = value.trim()
+  if (!v) return null
+  if (isValidIP(v)) return 'ip'
+  if (v.includes('@')) return isValidEmail(v) ? 'email' : null
+  if (isValidHostname(v, /* allowWildcard */ true)) return 'dns'
+  return null
+}
+
+function validateCN(value: string): string | null {
+  const v = value.trim()
+  if (!v) return null  // empty handled by canGenerate; don't show error until user types
+  if (isValidIP(v)) return null
+  if (isValidHostname(v, /* allowWildcard */ true)) return null
+  return 'Must be a hostname (example.com), wildcard (*.example.com), or IP address.'
 }
 
 // ---------------------------------------------------------------------------
@@ -100,15 +154,16 @@ async function generateCSR(
   if (fields.email) parts.push(`E=${fields.email}`)
   const nameStr = parts.join(', ')
 
-  // Build extensions
+  // Build extensions. Inputs are gated by canGenerate, but we re-classify
+  // here defensively and skip anything that doesn't resolve to a known type.
   const extensions: SubjectAlternativeNameExtension[] = []
-  const sanEntries = sans.filter(Boolean)
+  const sanEntries = sans
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => ({ value: v, type: classifySAN(v) }))
+    .filter((e): e is { value: string; type: SANType } => e.type !== null)
   if (sanEntries.length > 0) {
-    extensions.push(
-      new SubjectAlternativeNameExtension(
-        sanEntries.map((v) => ({ type: detectSANType(v), value: v })),
-      ),
-    )
+    extensions.push(new SubjectAlternativeNameExtension(sanEntries))
   }
 
   // Create CSR
@@ -202,7 +257,7 @@ export default function CsrGeneratorPage() {
   const [l, setL] = useState('')
   const [email, setEmail] = useState('')
   const [sans, setSans] = useState<string[]>([''])
-  const [algo, setAlgo] = useState<KeyAlgo>('ec-p256')
+  const [algo, setAlgo] = useState<KeyAlgo>('rsa-2048')
   const [result, setResult] = useState<GenerateResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -231,7 +286,20 @@ export default function CsrGeneratorPage() {
     setError(null)
   }, [])
 
-  const canGenerate = cn.trim().length > 0
+  // Per-field validation. Errors only render once the user has typed
+  // something invalid; a still-empty CN is "not ready" rather than "wrong."
+  const cnError = validateCN(cn)
+  const sanErrors = sans.map((s) => {
+    const v = s.trim()
+    if (!v) return null
+    return classifySAN(v) === null
+      ? 'Must be a hostname, IP address, or email — no URLs or special characters.'
+      : null
+  })
+  const canGenerate =
+    cn.trim().length > 0 &&
+    !cnError &&
+    sanErrors.every((e) => !e)
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -261,7 +329,14 @@ export default function CsrGeneratorPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="cn" className={FIELD_LABEL}>Common Name <span className="text-destructive">*</span></Label>
-              <Input id="cn" placeholder="example.com" value={cn} onChange={(e) => setCn(e.target.value)} />
+              <Input
+                id="cn"
+                placeholder="example.com"
+                value={cn}
+                onChange={(e) => setCn(e.target.value)}
+                aria-invalid={cnError ? true : undefined}
+              />
+              {cnError && <p className="text-xs text-destructive">{cnError}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="o" className={FIELD_LABEL}>Organization</Label>
@@ -298,21 +373,24 @@ export default function CsrGeneratorPage() {
           </p>
           <div className="space-y-2">
             {sans.map((san, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  placeholder="e.g. www.example.com or 192.168.1.1"
-                  value={san}
-                  onChange={(e) => updateSan(i, e.target.value)}
-                  className="font-mono text-sm"
-                />
-                <button
-                  onClick={() => removeSan(i)}
-                  disabled={sans.length === 1}
-                  className="shrink-0 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
-                  title="Remove"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+              <div key={i} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="e.g. www.example.com or 192.168.1.1"
+                    value={san}
+                    onChange={(e) => updateSan(i, e.target.value)}
+                    aria-invalid={sanErrors[i] ? true : undefined}
+                  />
+                  <button
+                    onClick={() => removeSan(i)}
+                    disabled={sans.length === 1}
+                    className="shrink-0 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
+                    title="Remove"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {sanErrors[i] && <p className="text-xs text-destructive">{sanErrors[i]}</p>}
               </div>
             ))}
           </div>

@@ -55,7 +55,7 @@
     /* Content colors tuned for tonal surfaces */
     --on-surface:                  #191c1e;   /* primary body text */
     --on-surface-variant:          #43474a;   /* secondary / label text */
-    --on-surface-muted:            #73777a;   /* tertiary / hint text */
+    --on-surface-muted:            #a3a7aa;   /* tertiary / hint text — placeholders, ghost copy */
 
     /* Outline — only for "ghost" separators where tonal shifts fail */
     --outline:                     color-mix(in srgb, #191c1e 15%, transparent);
@@ -137,7 +137,7 @@
 
     --on-surface:                  #e2e2e5;
     --on-surface-variant:          #c3c7c9;
-    --on-surface-muted:            #8d9194;
+    --on-surface-muted:            #6b6f72;   /* darker hint on dark bg = more muted */
 
     --outline:                     color-mix(in srgb, #e2e2e5 15%, transparent);
     --outline-variant:             color-mix(in srgb, #e2e2e5 8%, transparent);
