@@ -32,8 +32,10 @@ const DefaultAuditLogRetentionDays = 365
 
 // Known job names.
 const (
-	JobExpiryAlerts      = "expiry_alerts"
-	JobPurgeScanHistory  = "purge_scan_history"
-	JobPurgeAuditLogs    = "purge_audit_logs"
-	JobPurgeExpiryAlerts = "purge_expiry_alerts"
+	JobExpiryAlerts           = "expiry_alerts"
+	JobPurgeScanHistory       = "purge_scan_history"
+	JobPurgeAuditLogs         = "purge_audit_logs"
+	JobPurgeExpiryAlerts      = "purge_expiry_alerts"
+	JobPurgeUnreferencedCerts = "purge_unreferenced_certs"
+	JobRefreshRootStores      = "refresh_root_stores"
 )

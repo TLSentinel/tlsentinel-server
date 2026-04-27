@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Copy, Check, Download, Upload, AlertCircle } from 'lucide-react'
+import { Copy, Check, Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
@@ -12,6 +11,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PemConverter } from '@peculiar/x509'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -127,12 +129,7 @@ function CopyButton({ value }: { value: string }) {
 }
 
 function ErrorMsg({ msg }: { msg: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-      <span>{msg}</span>
-    </div>
-  )
+  return <ErrorAlert>{msg}</ErrorAlert>
 }
 
 // ---------------------------------------------------------------------------
@@ -179,14 +176,14 @@ function PemToDerPanel() {
           <Separator />
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">DER output</p>
-              <p className="text-sm font-medium">{result.tag} · {result.der.byteLength.toLocaleString()} bytes</p>
+              <p className={FIELD_LABEL}>DER output</p>
+              <p className="mt-1 text-sm font-medium">{result.tag} · {result.der.byteLength.toLocaleString()} bytes</p>
             </div>
             <div className="flex items-center gap-2">
               <CopyButton value={result.hexFull} />
-              <Button variant="outline" size="sm" className="gap-1.5"
+              <Button className="gap-1.5"
                 onClick={() => download(`${result.tag.toLowerCase().replace(/\s+/g, '_')}.der`, result.der, 'application/octet-stream')}>
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
                 Download .der
               </Button>
             </div>
@@ -311,7 +308,7 @@ function DerToPemPanel() {
       {/* PEM type + actions */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">PEM type</span>
+          <span className={FIELD_LABEL}>PEM type</span>
           <Select value={tag} onValueChange={handleTagChange}>
             <SelectTrigger className="w-52">
               <SelectValue />
@@ -333,12 +330,12 @@ function DerToPemPanel() {
         <div className="space-y-2">
           <Separator />
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">PEM output</p>
+            <p className={FIELD_LABEL}>PEM output</p>
             <div className="flex items-center gap-2">
               <CopyButton value={pem} />
-              <Button variant="outline" size="sm" className="gap-1.5"
+              <Button className="gap-1.5"
                 onClick={() => download(`${tag.toLowerCase().replace(/\s+/g, '_')}.pem`, pem, 'text/plain')}>
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
                 Download .pem
               </Button>
             </div>
@@ -364,11 +361,10 @@ export default function PemDerPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">PEM / DER Converter</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'PEM / DER Converter' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">PEM / DER Converter</h1>

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -14,31 +15,37 @@ import (
 
 
 // Authenticate is Chi middleware that validates bearer tokens.
-// It handles JWTs (users), scanner tokens (stx_s_ or legacy scanner_ prefix), and API keys (stx_p_ prefix).
+// It handles JWTs (users), scanner tokens (stx_s_ prefix), and API keys (stx_p_ prefix).
 // Returns 401 immediately on failure.
 func Authenticate(store *db.Store, cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := extractBearerToken(r)
 			if raw == "" {
+				logAuthFailure(r, "missing_bearer", "")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			var identity Identity
 			var err error
+			var tokenKind string
 
 			switch {
 			case IsScannerToken(raw):
+				tokenKind = "scanner"
 				identity, err = verifyScannerToken(r.Context(), store, raw)
 			case IsAPIKey(raw):
+				tokenKind = "api_key"
 				identity, err = verifyAPIKey(r.Context(), store, raw)
 			default:
+				tokenKind = "jwt"
 				jwtCfg := cfg.JWTSecret.Config()
 				identity, err = verifyJWT(&jwtCfg, raw)
 			}
 
 			if err != nil {
+				logAuthFailure(r, "invalid_"+tokenKind, err.Error())
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -59,10 +66,12 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, ok := GetIdentity(r.Context())
 			if !ok || id.Kind != KindUser {
+				logPermissionFailure(r, id, "non_user_identity", "")
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			if _, permitted := allowed[id.Role]; !permitted {
+				logPermissionFailure(r, id, "role_not_allowed", "")
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
@@ -78,16 +87,48 @@ func RequirePermission(perm string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, ok := GetIdentity(r.Context())
 			if !ok || id.Kind != KindUser {
+				logPermissionFailure(r, id, "non_user_identity", perm)
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			if !permission.Has(id.Role, perm) {
+				logPermissionFailure(r, id, "permission_denied", perm)
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// logAuthFailure emits a structured warning for 401 responses from
+// Authenticate. Reason is a short machine-readable token; detail is the
+// underlying error string when available (never the raw bearer token).
+func logAuthFailure(r *http.Request, reason, detail string) {
+	slog.Warn("auth failed",
+		"reason", reason,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"remote_addr", r.RemoteAddr,
+		"detail", detail,
+	)
+}
+
+// logPermissionFailure emits a structured warning for 403 responses from
+// RequireRole / RequirePermission. Includes the authenticated identity so
+// oncall can tell "unknown caller" from "legitimate user hitting the wrong
+// endpoint".
+func logPermissionFailure(r *http.Request, id Identity, reason, permName string) {
+	slog.Warn("permission denied",
+		"reason", reason,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"remote_addr", r.RemoteAddr,
+		"user_id", id.UserID,
+		"username", id.Username,
+		"role", id.Role,
+		"permission", permName,
+	)
 }
 
 func extractBearerToken(r *http.Request) string {
@@ -102,6 +143,13 @@ func verifyJWT(cfg *jwt.JWTConfig, raw string) (Identity, error) {
 	claims, err := cfg.ValidateToken(raw)
 	if err != nil {
 		return Identity{}, err
+	}
+	// Challenge tokens prove only that a password was correct — they
+	// must never grant API access on their own. The /auth/totp endpoint
+	// reads them by parsing the body directly and never goes through
+	// this middleware.
+	if claims.Purpose != "" {
+		return Identity{}, fmt.Errorf("token not valid for api access")
 	}
 	return Identity{
 		Kind:      KindUser,
@@ -137,26 +185,10 @@ func verifyAPIKey(ctx context.Context, store *db.Store, raw string) (Identity, e
 }
 
 func verifyScannerToken(ctx context.Context, store *db.Store, raw string) (Identity, error) {
-	// stx_s_ tokens: SHA-256 hash → single indexed lookup, no bcrypt overhead.
-	if strings.HasPrefix(raw, ScannerTokenPrefix) {
-		t, err := store.GetScannerTokenByHash(ctx, db.HashAPIKey(raw))
-		if err != nil {
-			return Identity{}, fmt.Errorf("invalid scanner token")
-		}
-		_ = store.TouchScannerToken(ctx, t.ID)
-		return Identity{Kind: KindScanner, ScannerID: t.ID}, nil
-	}
-
-	// Legacy scanner_ tokens: bcrypt comparison against all stored hashes.
-	tokens, err := store.GetAllScannerTokenHashes(ctx)
+	t, err := store.GetScannerTokenByHash(ctx, db.HashAPIKey(raw))
 	if err != nil {
-		return Identity{}, fmt.Errorf("failed to load scanner tokens: %w", err)
+		return Identity{}, fmt.Errorf("invalid scanner token")
 	}
-	for _, t := range tokens {
-		if CheckScannerToken(raw, t.TokenHash) {
-			_ = store.TouchScannerToken(ctx, t.ID)
-			return Identity{Kind: KindScanner, ScannerID: t.ID}, nil
-		}
-	}
-	return Identity{}, fmt.Errorf("no matching scanner token")
+	_ = store.TouchScannerToken(ctx, t.ID)
+	return Identity{Kind: KindScanner, ScannerID: t.ID}, nil
 }

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, ShieldCheck, ShieldAlert, ShieldX, KeyRound, Building2 } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, ShieldX, KeyRound, Building2 } from 'lucide-react'
 import { Pie, PieChart } from 'recharts'
 import {
   ChartContainer,
@@ -21,6 +21,7 @@ import {
 import { getTLSPostureReport } from '@/api/reports'
 import type { TLSPostureReport, TLSIssuerCount } from '@/types/api'
 import { plural } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 // ---------------------------------------------------------------------------
 // Chart configs
@@ -48,6 +49,7 @@ const CHART_COLORS = [
 
 function protocolChartData(report: TLSPostureReport) {
   return [
+    { protocol: 'SSL 3.0', count: report.protocols.ssl30, fill: 'var(--color-ssl30)' },
     { protocol: 'TLS 1.0', count: report.protocols.tls10, fill: 'var(--color-tls10)' },
     { protocol: 'TLS 1.1', count: report.protocols.tls11, fill: 'var(--color-tls11)' },
     { protocol: 'TLS 1.2', count: report.protocols.tls12, fill: 'var(--color-tls12)' },
@@ -60,6 +62,7 @@ const PROTOCOL_BAR_CLASS: Record<string, string> = {
   'TLS 1.2': 'bg-[var(--chart-2)]',
   'TLS 1.1': 'bg-amber-500',
   'TLS 1.0': 'bg-destructive',
+  'SSL 3.0': 'bg-destructive',
 }
 
 function issuerChartData(issuers: TLSIssuerCount[]) {
@@ -126,7 +129,7 @@ export default function TLSPosturePage() {
   })
 
   const tls13Count     = data?.protocols.tls13 ?? 0
-  const weakProtoCount = (data?.protocols.tls11 ?? 0) + (data?.protocols.tls10 ?? 0)
+  const weakProtoCount = (data?.protocols.tls11 ?? 0) + (data?.protocols.tls10 ?? 0) + (data?.protocols.ssl30 ?? 0)
   const selfSignedCount = data?.issuers.find(i => i.issuer === 'Self-signed')?.count ?? 0
   const weakCipherCount = data?.weakCipherEndpoints ?? 0
   const total          = data?.totalEndpoints ?? 0
@@ -136,11 +139,10 @@ export default function TLSPosturePage() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/reports" className="hover:text-foreground">Reports</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">TLS Posture</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Reports', to: '/reports' },
+        { label: 'TLS Posture' },
+      ]} />
 
       {/* Header */}
       <div>
@@ -166,7 +168,7 @@ export default function TLSPosturePage() {
         <StatCard
           label="Weak protocol"
           value={weakProtoCount}
-          sub="Support TLS 1.0 or 1.1"
+          sub="Support SSL 3.0, TLS 1.0, or 1.1"
           icon={ShieldAlert}
           iconClass={weakProtoCount > 0 ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' : 'bg-muted'}
         />

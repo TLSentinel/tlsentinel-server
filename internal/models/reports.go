@@ -12,6 +12,10 @@ type TLSPostureReport struct {
 	// highest negotiated version.
 	Protocols TLSProtocolCounts `json:"protocols"`
 
+	// LegacyEndpoints is the count of distinct endpoints that support TLS 1.0
+	// OR TLS 1.1 (i.e. the union, not the sum).
+	LegacyEndpoints int `json:"legacyEndpoints"`
+
 	// Ciphers shows how often each cipher suite was selected during scanning,
 	// sorted by count descending. Includes severity from the classifier.
 	Ciphers []TLSCipherCount `json:"ciphers"`
@@ -35,6 +39,7 @@ type TLSProtocolCounts struct {
 	TLS12 int `json:"tls12"`
 	TLS11 int `json:"tls11"`
 	TLS10 int `json:"tls10"`
+	SSL30 int `json:"ssl30"`
 }
 
 // TLSCipherCount is a single row in the cipher distribution.

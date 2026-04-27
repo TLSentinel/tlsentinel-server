@@ -3,7 +3,6 @@ package scanners
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
@@ -20,30 +19,6 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
-}
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 // defaultCron is the cron expression used when none is supplied.
@@ -70,6 +45,15 @@ type createScannerTokenResponse struct {
 	CreatedAt  string `json:"createdAt"`
 	LastUsedAt any    `json:"lastUsedAt"`
 	// Token is the raw bearer token. Shown exactly once — not stored.
+	Token string `json:"token"`
+}
+
+// regenerateScannerTokenResponse is returned once on regeneration with the new raw token.
+// Kept minimal — the caller already has every other field cached; all we add here is the
+// rotated secret.
+type regenerateScannerTokenResponse struct {
+	ID string `json:"id"`
+	// Token is the new raw bearer token. Shown exactly once — not stored.
 	Token string `json:"token"`
 }
 
@@ -151,7 +135,16 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerCreate, "scanner", token.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerCreate,
+		ResourceType: "scanner",
+		ResourceID:   token.ID,
+		Label:        token.Name,
+		Details: map[string]any{
+			"scanCronExpression": token.ScanCronExpression,
+			"scanConcurrency":    token.ScanConcurrency,
+		},
+	})
 	response.JSON(w, http.StatusCreated, createScannerTokenResponse{
 		ID:         token.ID,
 		Name:       token.Name,
@@ -202,7 +195,17 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerUpdate, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerUpdate,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+		Label:        token.Name,
+		Details: map[string]any{
+			"name":               token.Name,
+			"scanCronExpression": token.ScanCronExpression,
+			"scanConcurrency":    token.ScanConcurrency,
+		},
+	})
 	response.JSON(w, http.StatusOK, token)
 }
 
@@ -281,8 +284,79 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerUpdate, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerUpdate,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+		Label:        token.Name,
+		Details: map[string]any{
+			"before": map[string]any{
+				"name":               current.Name,
+				"scanCronExpression": current.ScanCronExpression,
+				"scanConcurrency":    current.ScanConcurrency,
+			},
+			"after": map[string]any{
+				"name":               token.Name,
+				"scanCronExpression": token.ScanCronExpression,
+				"scanConcurrency":    token.ScanConcurrency,
+			},
+		},
+	})
 	response.JSON(w, http.StatusOK, token)
+}
+
+// @Summary      Regenerate a scanner token
+// @Description  Rotates the scanner's bearer token in place. The previous token is immediately
+// @Description  invalidated. The new raw token is returned once and cannot be retrieved again.
+// @Description  All other scanner configuration (name, schedule, concurrency, default flag,
+// @Description  endpoint assignments) is preserved.
+// @Tags         scanners
+// @Produce      json
+// @Param        scannerID  path      string  true  "Scanner token ID"
+// @Success      200        {object}  regenerateScannerTokenResponse
+// @Failure      404        {string}  string  "scanner token not found"
+// @Failure      500        {string}  string  "internal server error"
+// @Router       /scanners/{scannerID}/regenerate-token [post]
+func (h *Handler) RegenerateToken(w http.ResponseWriter, r *http.Request) {
+	scannerID := chi.URLParam(r, "scannerID")
+
+	// Verify the scanner exists before minting a new token, so a 404 doesn't
+	// waste entropy and the audit log only records actual rotations.
+	existing, err := h.store.GetScannerToken(r.Context(), scannerID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	raw, hash, err := auth.GenerateScannerToken()
+	if err != nil {
+		http.Error(w, "failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.store.RotateScannerTokenHash(r.Context(), scannerID, hash); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "scanner token not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to rotate scanner token", http.StatusInternalServerError)
+		return
+	}
+
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerRegenerateToken,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+		Label:        existing.Name,
+	})
+	response.JSON(w, http.StatusOK, regenerateScannerTokenResponse{
+		ID:    scannerID,
+		Token: raw,
+	})
 }
 
 // @Summary      Set default scanner token
@@ -305,7 +379,15 @@ func (h *Handler) SetDefault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerSetDefault, "scanner", scannerID)
+	entry := audit.Entry{
+		Action:       audit.ScannerSetDefault,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+	}
+	if target, lookupErr := h.store.GetScannerToken(r.Context(), scannerID); lookupErr == nil {
+		entry.Label = target.Name
+	}
+	auth.Log(r.Context(), h.store, r, entry)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -320,6 +402,13 @@ func (h *Handler) SetDefault(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	scannerID := chi.URLParam(r, "scannerID")
 
+	// Snapshot the name pre-delete so the audit row is readable after the
+	// scanner is gone. A failed lookup isn't fatal — delete still proceeds.
+	var label string
+	if before, lookupErr := h.store.GetScannerToken(r.Context(), scannerID); lookupErr == nil {
+		label = before.Name
+	}
+
 	if err := h.store.DeleteScannerToken(r.Context(), scannerID); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "scanner token not found", http.StatusNotFound)
@@ -329,6 +418,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.ScannerDelete, "scanner", scannerID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.ScannerDelete,
+		ResourceType: "scanner",
+		ResourceID:   scannerID,
+		Label:        label,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

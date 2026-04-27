@@ -3,21 +3,36 @@ package users
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
-	"strconv"
+	"net/mail"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/permission"
 	"github.com/tlsentinel/tlsentinel-server/internal/provider"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
 )
+
+// validateEmailPtr returns nil for a nil or empty-string pointer; otherwise
+// it parses the value with net/mail and rejects anything that isn't a valid
+// RFC 5322 address. This also rejects embedded CR/LF that would enable SMTP
+// header injection downstream in the alert pipeline.
+func validateEmailPtr(e *string) error {
+	if e == nil || *e == "" {
+		return nil
+	}
+	if _, err := mail.ParseAddress(*e); err != nil {
+		return err
+	}
+	return nil
+}
 
 var validRoles = map[string]bool{permission.RoleAdmin: true, permission.RoleOperator: true, permission.RoleViewer: true}
 var validProviders = map[string]bool{provider.Local: true, provider.OIDC: true}
@@ -28,30 +43,6 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
-}
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 type CreateUserRequest struct {
@@ -156,6 +147,10 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	if err := validateEmailPtr(req.Email); err != nil {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
+		return
+	}
 
 	// Role, username, and provider are not self-serviceable.
 	user, err := h.store.UpdateUser(r.Context(), identity.UserID, current.Username, current.Role, current.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
@@ -228,7 +223,12 @@ func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.MyPasswordChange, "user", identity.UserID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.MyPasswordChange,
+		ResourceType: "user",
+		ResourceID:   identity.UserID,
+		Label:        identity.Username,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -312,8 +312,7 @@ func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"calendarToken": token})
+	response.JSON(w, http.StatusOK, map[string]string{"calendarToken": token})
 }
 
 // @Summary      List users
@@ -330,17 +329,7 @@ func (h *Handler) RotateCalendarToken(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /users [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	search := r.URL.Query().Get("search")
 	role := r.URL.Query().Get("role")
@@ -373,7 +362,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" {
+	username := models.NormalizeUsername(req.Username)
+	if username == "" {
 		http.Error(w, "username is required", http.StatusBadRequest)
 		return
 	}
@@ -395,6 +385,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "password is required for local users", http.StatusBadRequest)
 		return
 	}
+	if err := validateEmailPtr(req.Email); err != nil {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
+		return
+	}
 
 	var passwordHash string
 	if req.Provider == provider.Local {
@@ -406,13 +400,24 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		passwordHash = string(hash)
 	}
 
-	user, err := h.store.InsertUser(r.Context(), req.Username, passwordHash, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.InsertUser(r.Context(), username, passwordHash, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
 
-	h.logAudit(r, audit.UserCreate, "user", user.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserCreate,
+		ResourceType: "user",
+		ResourceID:   user.ID,
+		Label:        user.Username,
+		Details: map[string]any{
+			"role":     user.Role,
+			"provider": user.Provider,
+			"notify":   user.Notify,
+			"email":    user.Email,
+		},
+	})
 	response.JSON(w, http.StatusCreated, user.ToResponse())
 }
 
@@ -462,7 +467,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" {
+	username := models.NormalizeUsername(req.Username)
+	if username == "" {
 		http.Error(w, "username is required", http.StatusBadRequest)
 		return
 	}
@@ -477,8 +483,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "provider must be 'local' or 'oidc'", http.StatusBadRequest)
 		return
 	}
+	if err := validateEmailPtr(req.Email); err != nil {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
+		return
+	}
 
-	user, err := h.store.UpdateUser(r.Context(), userID, req.Username, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
+	user, err := h.store.UpdateUser(r.Context(), userID, username, req.Role, req.Provider, req.Notify, req.FirstName, req.LastName, req.Email)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)
@@ -488,7 +498,18 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.UserUpdate, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserUpdate,
+		ResourceType: "user",
+		ResourceID:   userID,
+		Label:        user.Username,
+		Details: map[string]any{
+			"role":     user.Role,
+			"provider": user.Provider,
+			"notify":   user.Notify,
+			"email":    user.Email,
+		},
+	})
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
@@ -534,7 +555,13 @@ func (h *Handler) SetEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.UserEnabledChange, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserEnabledChange,
+		ResourceType: "user",
+		ResourceID:   userID,
+		Label:        user.Username,
+		Details:      map[string]any{"enabled": req.Enabled},
+	})
 	response.JSON(w, http.StatusOK, user.ToResponse())
 }
 
@@ -577,7 +604,18 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.UserPasswordChange, "user", userID)
+	entry := audit.Entry{
+		Action:       audit.UserPasswordChange,
+		ResourceType: "user",
+		ResourceID:   userID,
+	}
+	// Look up the username after the password succeeds so the audit row is
+	// readable without having to cross-reference by user ID. Swallow errors —
+	// audit must not fail the request.
+	if target, lookupErr := h.store.GetUserByID(r.Context(), userID); lookupErr == nil {
+		entry.Label = target.Username
+	}
+	auth.Log(r.Context(), h.store, r, entry)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -632,6 +670,15 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.UserDelete, "user", userID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.UserDelete,
+		ResourceType: "user",
+		ResourceID:   userID,
+		Label:        target.Username,
+		Details: map[string]any{
+			"role":     target.Role,
+			"provider": target.Provider,
+		},
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

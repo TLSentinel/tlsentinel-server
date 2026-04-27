@@ -30,6 +30,7 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 		TLS12 int `bun:"tls12"`
 		TLS11 int `bun:"tls11"`
 		TLS10 int `bun:"tls10"`
+		SSL30 int `bun:"ssl30"`
 	}
 	var proto protocolRow
 	if err := s.db.NewSelect().
@@ -38,6 +39,7 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 		ColumnExpr("COUNT(*) FILTER (WHERE tls12) AS tls12").
 		ColumnExpr("COUNT(*) FILTER (WHERE tls11) AS tls11").
 		ColumnExpr("COUNT(*) FILTER (WHERE tls10) AS tls10").
+		ColumnExpr("COUNT(*) FILTER (WHERE ssl30) AS ssl30").
 		Where("scan_error IS NULL").
 		Scan(ctx, &proto); err != nil {
 		return report, fmt.Errorf("reports: protocol counts: %w", err)
@@ -47,7 +49,19 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 		TLS12: proto.TLS12,
 		TLS11: proto.TLS11,
 		TLS10: proto.TLS10,
+		SSL30: proto.SSL30,
 	}
+
+	// ── Legacy endpoint count (ssl30 OR tls10 OR tls11, deduplicated) ─────
+	var legacyCount int
+	if err := s.db.NewSelect().
+		TableExpr("tlsentinel.endpoint_tls_profiles").
+		ColumnExpr("COUNT(*) FILTER (WHERE ssl30 OR tls10 OR tls11)").
+		Where("scan_error IS NULL").
+		Scan(ctx, &legacyCount); err != nil {
+		return report, fmt.Errorf("reports: legacy count: %w", err)
+	}
+	report.LegacyEndpoints = legacyCount
 
 	// ── Cipher distribution (all supported ciphers per endpoint) ────────────
 	// Unnest cipher_suites so every cipher an endpoint *accepts* is counted,
@@ -112,6 +126,7 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 	type endpointScanRow struct {
 		EndpointID   string   `bun:"endpoint_id"`
 		EndpointName string   `bun:"endpoint_name"`
+		SSL30        bool     `bun:"ssl30"`
 		TLS10        bool     `bun:"tls10"`
 		TLS11        bool     `bun:"tls11"`
 		CipherSuites []string `bun:"cipher_suites,array"`
@@ -120,10 +135,10 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 	if err := s.db.NewSelect().
 		TableExpr("tlsentinel.endpoints e").
 		ColumnExpr("e.id AS endpoint_id, e.name AS endpoint_name").
-		ColumnExpr("p.tls10, p.tls11, p.cipher_suites").
+		ColumnExpr("p.ssl30, p.tls10, p.tls11, p.cipher_suites").
 		Join("JOIN tlsentinel.endpoint_tls_profiles p ON p.endpoint_id = e.id").
 		Where("e.enabled = TRUE AND p.scan_error IS NULL").
-		OrderExpr("CASE WHEN p.tls10 THEN 0 WHEN p.tls11 THEN 1 ELSE 2 END, e.name").
+		OrderExpr("CASE WHEN p.ssl30 THEN 0 WHEN p.tls10 THEN 1 WHEN p.tls11 THEN 2 ELSE 3 END, e.name").
 		Scan(ctx, &scanRows); err != nil {
 		return report, fmt.Errorf("reports: endpoint scan data: %w", err)
 	}
@@ -141,7 +156,7 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 			weakCipherCount++
 		}
 
-		issues, severity := allAttentionIssues(r.TLS10, r.TLS11, r.CipherSuites)
+		issues, severity := allAttentionIssues(r.SSL30, r.TLS10, r.TLS11, r.CipherSuites)
 		if len(issues) == 0 {
 			continue
 		}
@@ -164,9 +179,13 @@ func (s *Store) GetTLSPostureReport(ctx context.Context) (models.TLSPostureRepor
 // worst severity across all of them. Returns nil issues if nothing is flagged.
 // cipherSuites is the full list of cipher suites the endpoint accepts, not just
 // the one negotiated on the last scan.
-func allAttentionIssues(tls10, tls11 bool, cipherSuites []string) (issues []string, severity string) {
+func allAttentionIssues(ssl30, tls10, tls11 bool, cipherSuites []string) (issues []string, severity string) {
 	worst := tlsprofile.SeverityOK
 
+	if ssl30 {
+		issues = append(issues, "Supports SSL 3.0")
+		worst = tlsprofile.SeverityCritical
+	}
 	if tls10 {
 		issues = append(issues, "Supports TLS 1.0")
 		worst = tlsprofile.SeverityCritical

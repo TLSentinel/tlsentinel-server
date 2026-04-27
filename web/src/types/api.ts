@@ -16,8 +16,37 @@ export interface LoginRequest {
   password: string
 }
 
+/**
+ * Either we got a full session token (no second factor required), OR
+ * the server is asking for TOTP — in which case `totpRequired` is true,
+ * `challengeToken` is set, and `token` is empty until the client
+ * exchanges it via /auth/totp.
+ */
 export interface LoginResponse {
   token: string
+  challengeToken?: string
+  totpRequired?: boolean
+}
+
+export interface TOTPLoginRequest {
+  challengeToken: string
+  code: string
+  /** True when the user is redeeming a recovery code instead of a 6-digit TOTP. */
+  isRecovery?: boolean
+}
+
+export interface TOTPStatus {
+  enabled: boolean
+  remainingRecoveryCodes: number
+}
+
+export interface TOTPSetup {
+  secret: string
+  uri: string
+}
+
+export interface TOTPVerifyResponse {
+  recoveryCodes: string[]
 }
 
 export interface User {
@@ -31,6 +60,7 @@ export interface User {
   lastName: string | null
   email: string | null
   calendarToken: string | null
+  totpEnabled: boolean
   createdAt: string
   updatedAt: string
 }
@@ -74,7 +104,58 @@ export interface EndpointListItem {
   lastScannedAt: string | null
   lastScanError: string | null
   errorSince: string | null
+  lastResolvedIp: string | null
   tags: TagWithCategory[]
+}
+
+/**
+ * An endpoint that previously had a given cert attached, plus the date the
+ * cert was last observed on that endpoint. Drives the "Historical Endpoints"
+ * section on the certificate detail page.
+ */
+export interface HistoricalEndpointItem extends EndpointListItem {
+  lastSeenAt: string
+}
+
+/** One SSO/SLO/ACS endpoint element from SAML metadata. */
+export interface SAMLMetadataEndpoint {
+  binding: string
+  location: string
+  index?: number
+  isDefault?: boolean
+}
+
+/** One ContactPerson from SAML metadata. */
+export interface SAMLMetadataContact {
+  type: string
+  givenName?: string
+  surname?: string
+  emailAddress?: string
+  company?: string
+}
+
+/** The Organization element from SAML metadata. */
+export interface SAMLMetadataOrganization {
+  name?: string
+  displayName?: string
+  url?: string
+}
+
+/** Parsed SAML metadata bag — all fields are optional. */
+export interface SAMLMetadata {
+  entityId?: string
+  validUntil?: string
+  cacheDuration?: string
+  /** "idp", "sp", or "both". */
+  role?: string
+  singleSignOn?: SAMLMetadataEndpoint[]
+  singleLogout?: SAMLMetadataEndpoint[]
+  assertionConsumer?: SAMLMetadataEndpoint[]
+  nameIdFormats?: string[]
+  organization?: SAMLMetadataOrganization
+  contacts?: SAMLMetadataContact[]
+  wantAssertionsSigned?: boolean
+  authnRequestsSigned?: boolean
 }
 
 /** Returned by GET/POST/PUT /endpoints/{id} (full detail). */
@@ -85,9 +166,12 @@ export interface Endpoint {
   // host-type fields
   dnsName: string
   ipAddress: string | null
+  lastResolvedIp: string | null
   port: number
   // saml-type fields
   url?: string | null
+  samlMetadata?: SAMLMetadata
+  samlFetchedAt?: string
   // common fields
   enabled: boolean
   scanExempt: boolean
@@ -160,9 +244,7 @@ export interface EndpointScanHistoryItem {
   scanError: string | null
 }
 
-export interface EndpointScanHistoryList {
-  items: EndpointScanHistoryItem[]
-}
+export type EndpointScanHistoryList = PaginatedList<EndpointScanHistoryItem>
 
 // ---------------------------------------------------------------------------
 // Certificates
@@ -204,6 +286,66 @@ export interface CertificateDetail {
   extKeyUsages: string[]
   ocspUrls: string[]
   crlDistributionPoints: string[]
+  /** Root store IDs whose anchors appear anywhere in this cert's chain. */
+  trustedBy: string[]
+  /** True when this cert is Subject+SKI-equivalent to a CCADB root anchor. */
+  isTrustAnchor: boolean
+}
+
+/** One enabled root store, used by the trust matrix card on cert detail
+ *  (id + name) and the /root-stores overview page (all fields). */
+export interface RootStoreSummary {
+  id: string
+  name: string
+  kind: string
+  sourceUrl: string
+  anchorCount: number
+  updatedAt: string | null
+}
+
+/** One trust anchor in a root store's membership list. */
+export interface RootStoreAnchorItem {
+  fingerprint: string
+  commonName: string
+  subjectOrg: string
+  notAfter: string
+  issuerFingerprint: string | null
+}
+
+/** Paginated response for GET /root-stores/{id}/anchors. */
+export interface RootStoreAnchorList {
+  items: RootStoreAnchorItem[]
+  page: number
+  pageSize: number
+  totalCount: number
+}
+
+// ---------------------------------------------------------------------------
+// Universal search — GET /search?q=...
+// ---------------------------------------------------------------------------
+
+export interface SearchEndpoint {
+  id: string
+  name: string
+  type: string
+  subtitle: string
+}
+
+export interface SearchCertificate {
+  fingerprint: string
+  commonName: string
+  notAfter: string
+}
+
+export interface SearchScanner {
+  id: string
+  name: string
+}
+
+export interface SearchResults {
+  endpoints: SearchEndpoint[]
+  certificates: SearchCertificate[]
+  scanners: SearchScanner[]
 }
 
 /** Body for POST /certificates. Exactly one field must be set. */
@@ -241,6 +383,12 @@ export interface ScannerTokenCreated extends ScannerToken {
   token: string
 }
 
+/** Returned on POST /scanners/{id}/regenerate-token — new token shown once. */
+export interface ScannerTokenRegenerated {
+  id: string
+  token: string
+}
+
 // ---------------------------------------------------------------------------
 // TLS profiles — returned by GET /endpoints/{id}/tls-profile
 // ---------------------------------------------------------------------------
@@ -259,9 +407,26 @@ export interface TLSClassification {
   overallSeverity: TLSSeverity
 }
 
+// SSL Labs-style letter grade.
+export type TLSGrade =
+  | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D' | 'E' | 'F'
+  | 'T' // Certificate not trusted.
+  | 'M' // Certificate name mismatch.
+
+export interface TLSScore {
+  protocolScore: number
+  // null when the scanner did not probe key-exchange strength.
+  keyExchangeScore: number | null
+  cipherScore: number
+  score: number
+  grade: TLSGrade
+  warnings?: string[]
+}
+
 export interface EndpointTLSProfile {
   endpointId: string
   scannedAt: string
+  ssl30: boolean
   tls10: boolean
   tls11: boolean
   tls12: boolean
@@ -270,6 +435,7 @@ export interface EndpointTLSProfile {
   selectedCipher: string | null
   scanError: string | null
   classification: TLSClassification
+  score: TLSScore
 }
 
 // ---------------------------------------------------------------------------
@@ -325,7 +491,10 @@ export interface AuditLog {
   action: string
   resourceType?: string
   resourceId?: string
+  resourceLabel?: string
   ipAddress?: string
+  /** Free-form JSON payload describing what changed (the shape varies by action). */
+  details?: Record<string, unknown>
   createdAt: string
 }
 
@@ -437,6 +606,8 @@ export interface DiscoveryInboxItem {
   port: number
   fingerprint: string | null
   commonName: string | null
+  sans: string[]
+  notAfter: string | null
   status: string
   endpointId: string | null
   endpointName: string | null
@@ -458,6 +629,7 @@ export interface TLSProtocolCounts {
   tls12: number
   tls11: number
   tls10: number
+  ssl30: number
 }
 
 export interface TLSCipherCount {
@@ -484,6 +656,7 @@ export interface TLSPostureReport {
   scannedEndpoints: number
   weakCipherEndpoints: number
   protocols: TLSProtocolCounts
+  legacyEndpoints: number
   ciphers: TLSCipherCount[]
   issuers: TLSIssuerCount[]
   attention: TLSAttentionItem[]

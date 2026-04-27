@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react'
 import { plural } from '@/lib/utils'
-import { Link } from 'react-router-dom'
 import {
   ChevronDown, ChevronRight, CheckCircle2,
   AlertTriangle, XCircle, ShieldCheck, ShieldAlert, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   X509Certificate,
   X509ChainBuilder,
@@ -258,11 +259,10 @@ export default function CertChainPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Chain Builder / Validator</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'Chain Builder / Validator' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Chain Builder / Validator</h1>
@@ -295,12 +295,7 @@ export default function CertChainPage() {
       </div>
 
       {/* Parse error */}
-      {parseError && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{parseError}</span>
-        </div>
-      )}
+      {parseError && <ErrorAlert icon={XCircle}>{parseError}</ErrorAlert>}
 
       {/* Result */}
       {result && (
@@ -325,12 +320,11 @@ export default function CertChainPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-              <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <ErrorAlert icon={XCircle}>
               <div className="space-y-1">
                 {result.errors.map((e, i) => <p key={i}>{e}</p>)}
               </div>
-            </div>
+            </ErrorAlert>
           )}
 
           {/* Chain viz */}
@@ -379,12 +373,10 @@ export default function CertChainPage() {
               <div />
             )}
             <Button
-              variant="outline"
-              size="sm"
               className="shrink-0"
               onClick={() => downloadChain(result.chain)}
             >
-              <Download className="h-3.5 w-3.5 mr-1.5" />
+              <Download className="h-4 w-4 mr-1.5" />
               Download PEM
             </Button>
           </div>

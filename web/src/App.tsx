@@ -8,13 +8,15 @@ import EndpointPage from '@/pages/endpoint/EndpointPage'
 import EndpointFormPage from '@/pages/endpoint/EndpointFormPage'
 import CertificatesPage from '@/pages/certificates/CertificatesPage'
 import CertificateDetailPage from '@/pages/certificates/CertificateDetailPage'
+import RootStoresPage from '@/pages/root-stores/RootStoresPage'
 import EndpointDetailPage from '@/pages/endpoint/EndpointDetailPage'
+import EndpointScanHistoryPage from '@/pages/endpoint/EndpointScanHistoryPage'
 import UsersPage from '@/pages/settings/UsersPage'
 import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import MailConfigPage from '@/pages/settings/MailConfigPage'
 import AboutPage from '@/pages/AboutPage'
-import ActivePage from '@/pages/ActivePage'
+import MonitorPage from '@/pages/monitor/MonitorPage'
 import GeneralSettingsPage from '@/pages/settings/GeneralSettingsPage'
 import MaintenancePage from '@/pages/settings/MaintenancePage'
 import NotificationTemplatesPage from '@/pages/settings/NotificationTemplatesPage'
@@ -25,12 +27,12 @@ import AccountProfilePage from '@/pages/account/AccountProfilePage'
 import AccountPasswordPage from '@/pages/account/AccountPasswordPage'
 import AccountNotificationsPage from '@/pages/account/AccountNotificationsPage'
 import AccountAPIKeysPage from '@/pages/account/AccountAPIKeysPage'
+import Account2FAPage from '@/pages/account/Account2FAPage'
 import GroupsPage from '@/pages/settings/GroupsPage'
 import APIKeysPage from '@/pages/settings/APIKeysPage'
 import GroupFormPage from '@/pages/settings/GroupFormPage'
 import AuditLogPage from '@/pages/settings/AuditLogPage'
 import TagsPage from '@/pages/settings/TagsPage'
-import CalendarPage from '@/pages/CalendarPage'
 import ReportsPage from '@/pages/ReportsPage'
 import TLSPosturePage from '@/pages/reports/TLSPosturePage'
 import DiscoveryInboxPage from '@/pages/discovery/DiscoveryInboxPage'
@@ -42,6 +44,8 @@ import CsrGeneratorPage from '@/pages/toolbox/CsrGeneratorPage'
 import CertDiffPage from '@/pages/toolbox/CertDiffPage'
 import PemDerPage from '@/pages/toolbox/PemDerPage'
 import CertChainPage from '@/pages/toolbox/CertChainPage'
+import HelpPage from '@/pages/help/HelpPage'
+import MarkdownDocPage from '@/pages/help/MarkdownDocPage'
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute — redirects to /login when no auth token is present.
@@ -73,12 +77,27 @@ export default function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="active" element={<ActivePage />} />
-          <Route path="endpoints" element={<EndpointPage />} />
-          <Route path="endpoints/new" element={<EndpointFormPage />} />
-          <Route path="endpoints/:id/edit" element={<EndpointFormPage />} />
-          <Route path="endpoints/:id" element={<EndpointDetailPage />} />
-          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="monitor" element={<MonitorPage />} />
+          {/* /active and /calendar were split views — now consolidated into
+              /monitor with a view toggle. Keep redirects so old bookmarks /
+              alert links don't 404. */}
+          <Route path="active" element={<Navigate to="/monitor" replace />} />
+          <Route path="calendar" element={<Navigate to="/monitor?view=calendar" replace />} />
+          {/* Endpoints — list surface is split by type into three nav
+              items (host / saml / manual), each rendering the same
+              EndpointPage parametrized with a type prop. Slug matches the
+              DB `type` column and the API filter value. Detail / form /
+              history routes are type-agnostic (the ID determines type). */}
+          <Route path="endpoints">
+            <Route index element={<Navigate to="host" replace />} />
+            <Route path="host" element={<EndpointPage type="host" />} />
+            <Route path="saml" element={<EndpointPage type="saml" />} />
+            <Route path="manual" element={<EndpointPage type="manual" />} />
+            <Route path="new" element={<EndpointFormPage />} />
+            <Route path=":id" element={<EndpointDetailPage />} />
+            <Route path=":id/edit" element={<EndpointFormPage />} />
+            <Route path=":id/scan-history" element={<EndpointScanHistoryPage />} />
+          </Route>
           <Route path="reports" element={<ReportsPage />} />
           <Route path="reports/tls-posture" element={<TLSPosturePage />} />
           <Route path="discovery/inbox" element={<DiscoveryInboxPage />} />
@@ -92,6 +111,12 @@ export default function App() {
           <Route path="toolbox/cert-chain" element={<CertChainPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
+          <Route path="root-stores" element={<RootStoresPage />} />
+          <Route path="help" element={<HelpPage />} />
+          {/* Everything under /help/<slug> is served from bundled markdown —
+              see src/pages/help/content/. Add a specific route above this one
+              if a page ever genuinely needs to be TSX. */}
+          <Route path="help/:slug" element={<MarkdownDocPage />} />
           <Route path="account">
             <Route index element={<AccountPage />} />
             <Route path="profile" element={<AccountProfilePage />} />
@@ -99,6 +124,7 @@ export default function App() {
             <Route path="calendar" element={<Navigate to="/account/notifications" replace />} />
             <Route path="notifications" element={<AccountNotificationsPage />} />
             <Route path="api-keys" element={<AccountAPIKeysPage />} />
+            <Route path="2fa" element={<Account2FAPage />} />
           </Route>
 
           {/* Settings hub + sub-pages */}

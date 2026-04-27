@@ -44,21 +44,23 @@ type UpdateDiscoveryNetworkRequest struct {
 
 // DiscoveryInboxItem is the API representation of a discovery_inbox row.
 type DiscoveryInboxItem struct {
-	ID           string    `json:"id"`
-	NetworkID    *string   `json:"networkId"`
-	NetworkName  *string   `json:"networkName"`
-	ScannerID    *string   `json:"scannerId"`
-	ScannerName  *string   `json:"scannerName"`
-	IP           string    `json:"ip"`
-	RDNS         *string   `json:"rdns"`
-	Port         int       `json:"port"`
-	Fingerprint  *string   `json:"fingerprint"`
-	CommonName   *string   `json:"commonName"`
-	Status       string    `json:"status"`
-	EndpointID   *string   `json:"endpointId"`
-	EndpointName *string   `json:"endpointName"`
-	FirstSeenAt  time.Time `json:"firstSeenAt"`
-	LastSeenAt   time.Time `json:"lastSeenAt"`
+	ID           string     `json:"id"`
+	NetworkID    *string    `json:"networkId"`
+	NetworkName  *string    `json:"networkName"`
+	ScannerID    *string    `json:"scannerId"`
+	ScannerName  *string    `json:"scannerName"`
+	IP           string     `json:"ip"`
+	RDNS         *string    `json:"rdns"`
+	Port         int        `json:"port"`
+	Fingerprint  *string    `json:"fingerprint"`
+	CommonName   *string    `json:"commonName"`
+	SANs         []string   `json:"sans"`
+	NotAfter     *time.Time `json:"notAfter"`
+	Status       string     `json:"status"`
+	EndpointID   *string    `json:"endpointId"`
+	EndpointName *string    `json:"endpointName"`
+	FirstSeenAt  time.Time  `json:"firstSeenAt"`
+	LastSeenAt   time.Time  `json:"lastSeenAt"`
 }
 
 // DiscoveryInboxList is the paginated list response.
@@ -78,9 +80,13 @@ type ScannerDiscoveryNetwork struct {
 
 // DiscoveryReportItem is a single TLS-bearing IP:port found during a sweep.
 type DiscoveryReportItem struct {
-	IP   string  `json:"ip"`
-	Port int     `json:"port"`
-	RDNS *string `json:"rdns,omitempty"`
+	IP          string     `json:"ip"`
+	Port        int        `json:"port"`
+	RDNS        *string    `json:"rdns,omitempty"`
+	Fingerprint *string    `json:"fingerprint,omitempty"`
+	CommonName  *string    `json:"commonName,omitempty"`
+	SANs        []string   `json:"sans,omitempty"`
+	NotAfter    *time.Time `json:"notAfter,omitempty"`
 }
 
 // DiscoveryReportRequest is the probe payload for reporting sweep results.

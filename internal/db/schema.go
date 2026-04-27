@@ -14,6 +14,8 @@ type Certificate struct {
 	Fingerprint       string    `bun:"fingerprint,pk"`
 	PEM               string    `bun:"pem"`
 	CommonName        string    `bun:"common_name"`
+	SubjectOrg        string    `bun:"subject_org"`
+	SubjectOrgUnit    string    `bun:"subject_ou"`
 	SANs              []string  `bun:"sans,array"`
 	NotBefore         time.Time `bun:"not_before"`
 	NotAfter          time.Time `bun:"not_after"`
@@ -23,7 +25,43 @@ type Certificate struct {
 	SubjectDNHash     string    `bun:"subject_dn_hash"`
 	IssuerDNHash      string    `bun:"issuer_dn_hash"`
 	IssuerFingerprint *string   `bun:"issuer_fingerprint"`
+	TrustAnchor       bool      `bun:"trust_anchor"`
 	CreatedAt         time.Time `bun:"created_at"`
+}
+
+// RootStore maps to tlsentinel.root_stores.
+type RootStore struct {
+	bun.BaseModel `bun:"table:tlsentinel.root_stores,alias:rs"`
+
+	ID        string     `bun:"id,pk"`
+	Name      string     `bun:"name"`
+	Kind      string     `bun:"kind"`
+	SourceURL *string    `bun:"source_url"`
+	Enabled   bool       `bun:"enabled"`
+	UpdatedAt *time.Time `bun:"updated_at"`
+	CreatedAt time.Time  `bun:"created_at"`
+}
+
+// RootStoreAnchor maps to tlsentinel.root_store_anchors.
+type RootStoreAnchor struct {
+	bun.BaseModel `bun:"table:tlsentinel.root_store_anchors,alias:rsa"`
+
+	RootStoreID string `bun:"root_store_id,pk"`
+	Fingerprint string `bun:"fingerprint,pk"`
+}
+
+// CertificateTrust maps to tlsentinel.certificate_trust — the per-program
+// verdict produced by the in-process x509.Verify evaluator in
+// internal/trust. One row per (fingerprint, root_store_id). Reason is the
+// Verify error string when Trusted is FALSE, empty otherwise.
+type CertificateTrust struct {
+	bun.BaseModel `bun:"table:tlsentinel.certificate_trust,alias:ct"`
+
+	Fingerprint string    `bun:"fingerprint,pk"`
+	RootStoreID string    `bun:"root_store_id,pk"`
+	Trusted     bool      `bun:"trusted"`
+	Reason      string    `bun:"reason"`
+	EvaluatedAt time.Time `bun:"evaluated_at"`
 }
 
 // Endpoint maps to tlsentinel.endpoints.
@@ -61,18 +99,39 @@ type EndpointCert struct {
 type EndpointHost struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoint_hosts,alias:eh"`
 
-	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
-	DNSName    string  `bun:"dns_name"`
-	IPAddress  *string `bun:"ip_address"`
-	Port       int     `bun:"port"`
+	EndpointID     string  `bun:"endpoint_id,pk,type:uuid"`
+	DNSName        string  `bun:"dns_name"`
+	IPAddress      *string `bun:"ip_address"`
+	Port           int     `bun:"port"`
+	LastResolvedIP *string `bun:"last_resolved_ip"`
 }
 
 // EndpointSAML maps to tlsentinel.endpoint_saml.
+// URL is user-owned (set via create/update). Metadata, MetadataXML,
+// MetadataXMLSha256, and MetadataFetchedAt are scanner-owned — written on
+// each successful scan and preserved across user edits.
 type EndpointSAML struct {
 	bun.BaseModel `bun:"table:tlsentinel.endpoint_saml,alias:es"`
 
-	EndpointID string  `bun:"endpoint_id,pk,type:uuid"`
-	URL        string  `bun:"url"`
+	EndpointID        string          `bun:"endpoint_id,pk,type:uuid"`
+	URL               string          `bun:"url"`
+	Metadata          json.RawMessage `bun:"metadata,type:jsonb"`
+	MetadataXML       *string         `bun:"metadata_xml"`
+	MetadataXMLSha256 *string         `bun:"metadata_xml_sha256"`
+	MetadataFetchedAt *time.Time      `bun:"metadata_fetched_at"`
+}
+
+// SAMLMetadataHistory maps to tlsentinel.saml_metadata_history — one row
+// per distinct metadata document ever observed for an endpoint.
+type SAMLMetadataHistory struct {
+	bun.BaseModel `bun:"table:tlsentinel.saml_metadata_history"`
+
+	ID         string          `bun:"id,pk,type:uuid"`
+	EndpointID string          `bun:"endpoint_id,type:uuid"`
+	Sha256     string          `bun:"sha256"`
+	XML        string          `bun:"xml"`
+	Metadata   json.RawMessage `bun:"metadata,type:jsonb"`
+	CapturedAt time.Time       `bun:"captured_at"`
 }
 
 // Scanner maps to tlsentinel.scanners.
@@ -102,10 +161,27 @@ type User struct {
 	Role         string    `bun:"role"`
 	FirstName    *string   `bun:"first_name"`
 	LastName     *string   `bun:"last_name"`
-	Email         *string   `bun:"email"`
-	CalendarToken *string   `bun:"calendar_token"`
-	CreatedAt     time.Time `bun:"created_at"`
-	UpdatedAt     time.Time `bun:"updated_at"`
+	Email          *string    `bun:"email"`
+	CalendarToken  *string    `bun:"calendar_token"`
+	TOTPSecret     *string    `bun:"totp_secret"` // AES-GCM ciphertext, NULL when not enrolled
+	TOTPEnabled    bool       `bun:"totp_enabled"`
+	TOTPEnrolledAt *time.Time `bun:"totp_enrolled_at"`
+	CreatedAt      time.Time  `bun:"created_at"`
+	UpdatedAt      time.Time  `bun:"updated_at"`
+}
+
+// UserTOTPRecoveryCode maps to tlsentinel.user_totp_recovery_codes.
+// CodeHash is bcrypt — a code is "used" once UsedAt is non-NULL. Codes
+// are CASCADE-deleted with the user; we never expose plaintext past the
+// initial generation response.
+type UserTOTPRecoveryCode struct {
+	bun.BaseModel `bun:"table:tlsentinel.user_totp_recovery_codes"`
+
+	ID        string     `bun:"id,pk,type:uuid"`
+	UserID    string     `bun:"user_id,type:uuid"`
+	CodeHash  string     `bun:"code_hash"`
+	UsedAt    *time.Time `bun:"used_at"`
+	CreatedAt time.Time  `bun:"created_at"`
 }
 
 // UserAPIKey maps to tlsentinel.user_api_keys.
@@ -171,6 +247,7 @@ type EndpointTLSProfile struct {
 
 	EndpointID     string    `bun:"endpoint_id,pk,type:uuid"`
 	ScannedAt      time.Time `bun:"scanned_at"`
+	SSL30          bool      `bun:"ssl30"`
 	TLS10          bool      `bun:"tls10"`
 	TLS11          bool      `bun:"tls11"`
 	TLS12          bool      `bun:"tls12"`
@@ -217,15 +294,16 @@ type Group struct {
 type AuditLog struct {
 	bun.BaseModel `bun:"table:tlsentinel.audit_logs"`
 
-	ID           string          `bun:"id,pk,type:uuid"`
-	UserID       *string         `bun:"user_id,type:uuid"`
-	Username     string          `bun:"username"`
-	Action       string          `bun:"action"`
-	ResourceType *string         `bun:"resource_type"`
-	ResourceID   *string         `bun:"resource_id"`
-	IPAddress    *string         `bun:"ip_address"`
-	Changes      json.RawMessage `bun:"changes,type:jsonb"`
-	CreatedAt    time.Time       `bun:"created_at"`
+	ID            string          `bun:"id,pk,type:uuid"`
+	UserID        *string         `bun:"user_id,type:uuid"`
+	Username      string          `bun:"username"`
+	Action        string          `bun:"action"`
+	ResourceType  *string         `bun:"resource_type"`
+	ResourceID    *string         `bun:"resource_id"`
+	ResourceLabel *string         `bun:"resource_label"`
+	IPAddress     *string         `bun:"ip_address"`
+	Details       json.RawMessage `bun:"details,type:jsonb"`
+	CreatedAt     time.Time       `bun:"created_at"`
 }
 
 // HostGroup maps to tlsentinel.host_groups.
@@ -293,6 +371,8 @@ type VActiveCertificate struct {
 	CertUse       string    `bun:"cert_use"`
 	Fingerprint   string    `bun:"fingerprint"`
 	CommonName    string    `bun:"common_name"`
+	SANs          []string  `bun:"sans,array"`
+	IssuerCN      string    `bun:"issuer_cn"`
 	NotBefore     time.Time `bun:"not_before"`
 	NotAfter      time.Time `bun:"not_after"`
 	DaysRemaining int       `bun:"days_remaining"`
@@ -317,17 +397,20 @@ type DiscoveryNetwork struct {
 type DiscoveryInboxItem struct {
 	bun.BaseModel `bun:"table:tlsentinel.discovery_inbox"`
 
-	ID          string    `bun:"id,pk,type:uuid"`
-	NetworkID   *string   `bun:"network_id,type:uuid"`
-	ScannerID   *string   `bun:"scanner_id,type:uuid"`
-	IP          string    `bun:"ip"`
-	RDNS        *string   `bun:"rdns"`
-	Port        int       `bun:"port"`
-	Fingerprint *string   `bun:"fingerprint"`
-	Status      string    `bun:"status"`
-	EndpointID  *string   `bun:"endpoint_id,type:uuid"`
-	FirstSeenAt time.Time `bun:"first_seen_at"`
-	LastSeenAt  time.Time `bun:"last_seen_at"`
+	ID          string     `bun:"id,pk,type:uuid"`
+	NetworkID   *string    `bun:"network_id,type:uuid"`
+	ScannerID   *string    `bun:"scanner_id,type:uuid"`
+	IP          string     `bun:"ip"`
+	RDNS        *string    `bun:"rdns"`
+	Port        int        `bun:"port"`
+	Fingerprint *string    `bun:"fingerprint"`
+	CommonName  *string    `bun:"common_name"`
+	SANs        []string   `bun:"sans,array"`
+	NotAfter    *time.Time `bun:"not_after"`
+	Status      string     `bun:"status"`
+	EndpointID  *string    `bun:"endpoint_id,type:uuid"`
+	FirstSeenAt time.Time  `bun:"first_seen_at"`
+	LastSeenAt  time.Time  `bun:"last_seen_at"`
 }
 
 // ScheduledJob maps to tlsentinel.scheduled_jobs.

@@ -1,6 +1,20 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
+
+// NormalizeUsername strips leading/trailing whitespace from a username before
+// it's used for lookup, comparison, or persistence. Case is preserved — the
+// `users.username` column is `CITEXT` (migration 047) so equality and the
+// UNIQUE constraint are case-insensitive at the storage layer, and audit
+// logs render the username with whatever case the operator originally
+// chose. Apply this at every public entry point: login, user create, user
+// update, OIDC claim extraction.
+func NormalizeUsername(s string) string {
+	return strings.TrimSpace(s)
+}
 
 type User struct {
 	ID           string
@@ -12,10 +26,12 @@ type User struct {
 	Role         string
 	FirstName    *string
 	LastName     *string
-	Email         *string
-	CalendarToken *string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	Email          *string
+	CalendarToken  *string
+	TOTPEnabled    bool       // true once the user has confirmed enrollment
+	TOTPEnrolledAt *time.Time // set the first time TOTP was enabled (NULL before)
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // UserResponse is the safe public representation of a user (no password hash).
@@ -30,6 +46,7 @@ type UserResponse struct {
 	LastName  *string   `json:"lastName"`
 	Email         *string   `json:"email"`
 	CalendarToken *string   `json:"calendarToken"`
+	TOTPEnabled   bool      `json:"totpEnabled"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
@@ -55,6 +72,7 @@ func (u *User) ToResponse() UserResponse {
 		LastName:  u.LastName,
 		Email:         u.Email,
 		CalendarToken: u.CalendarToken,
+		TOTPEnabled:   u.TOTPEnabled,
 		CreatedAt:     u.CreatedAt,
 		UpdatedAt:     u.UpdatedAt,
 	}

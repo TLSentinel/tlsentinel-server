@@ -139,7 +139,7 @@ type adminAPIKeyResponse struct {
 }
 
 // @Summary      List all API keys (admin)
-// @Description  Returns all API keys across all users. Requires users:view permission.
+// @Description  Returns all API keys across all users. Requires apikeys:admin permission.
 // @Tags         admin
 // @Produce      json
 // @Success      200  {array}   adminAPIKeyResponse
@@ -162,7 +162,7 @@ func (h *Handler) ListAll(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Revoke any API key (admin)
-// @Description  Revokes any user's API key by ID. Requires users:edit permission.
+// @Description  Revokes any user's API key by ID. Requires apikeys:admin permission.
 // @Tags         admin
 // @Param        id  path  string  true  "API key ID"
 // @Success      204

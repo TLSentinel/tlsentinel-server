@@ -6,6 +6,19 @@ const (
 	LoginFailed = "auth.login_failed"
 	OIDCLogin   = "auth.oidc_login"
 
+	// TOTP / second factor
+	TOTPEnable             = "auth.totp.enable"
+	TOTPDisable            = "auth.totp.disable"
+	TOTPVerifyFailed       = "auth.totp.verify_failed"
+	TOTPRecoveryUsed       = "auth.totp.recovery_used"
+	TOTPRecoveryRegenerate = "auth.totp.recovery_regenerate"
+
+	// Bootstrap break-glass: env-var-driven lockout recovery. Emitted
+	// once per startup that successfully applies a recovery action.
+	// Details carries booleans for which resets ran (reset_totp /
+	// reset_password). Username column is "system".
+	BootstrapBreakglass = "auth.bootstrap.breakglass"
+
 	// Endpoints
 	EndpointCreate = "endpoint.create"
 	EndpointUpdate = "endpoint.update"
@@ -16,10 +29,11 @@ const (
 	CertDelete = "certificate.delete"
 
 	// Scanners
-	ScannerCreate     = "scanner.create"
-	ScannerUpdate     = "scanner.update"
-	ScannerDelete     = "scanner.delete"
-	ScannerSetDefault = "scanner.set_default"
+	ScannerCreate           = "scanner.create"
+	ScannerUpdate           = "scanner.update"
+	ScannerDelete           = "scanner.delete"
+	ScannerSetDefault       = "scanner.set_default"
+	ScannerRegenerateToken  = "scanner.regenerate_token"
 
 	// Users
 	UserCreate         = "user.create"
@@ -43,4 +57,14 @@ const (
 	// Settings
 	MailConfigUpdate      = "settings.mail_config_update"
 	AlertThresholdsUpdate = "settings.alert_thresholds_update"
+
+	// Maintenance — emitted for both manual "Run Now" and scheduler-triggered
+	// runs. The details payload carries "trigger": "manual" or "scheduled" so
+	// the two can be distinguished without relying on the username column.
+	MaintenancePurgeScanHistory       = "maintenance.purge_scan_history.run"
+	MaintenancePurgeExpiryAlerts      = "maintenance.purge_expiry_alerts.run"
+	MaintenancePurgeUnreferencedCerts = "maintenance.purge_unreferenced_certs.run"
+	MaintenancePurgeAuditLogs         = "maintenance.purge_audit_logs.run"
+	MaintenanceRefreshRootStores      = "maintenance.refresh_root_stores.run"
+	MaintenanceExpiryAlerts           = "maintenance.expiry_alerts.run"
 )

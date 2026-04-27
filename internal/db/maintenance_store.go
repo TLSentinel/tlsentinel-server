@@ -3,7 +3,19 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 )
+
+// PurgedCert is the slim identity of a certificate that was removed by
+// PurgeUnreferencedCerts. It's returned so the caller (audit log, UI) can
+// record exactly which certs went away, answering the "where did that cert
+// go?" question without needing a separate lookup table.
+type PurgedCert struct {
+	Fingerprint string    `bun:"fingerprint"`
+	CommonName  string    `bun:"common_name"`
+	SANs        []string  `bun:"sans,array"`
+	NotAfter    time.Time `bun:"not_after"`
+}
 
 // PurgeScanHistory deletes scan history rows older than the given number of days.
 // The most-recent row per endpoint is always preserved, regardless of age.
@@ -49,6 +61,59 @@ func (s *Store) PurgeExpiryAlerts(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("purge expiry alerts rows affected: %w", err)
 	}
 	return n, nil
+}
+
+// PurgeUnreferencedCerts deletes certificates that are no longer referenced
+// by anything that keeps them alive:
+//
+//   - trust anchors (certificates.trust_anchor = TRUE) — Mozilla/Apple roots
+//   - root_store_anchors entries
+//   - issuer_fingerprint of any other cert (chain integrity)
+//   - endpoint_certs rows (current or historical)
+//   - endpoint_scan_history rows (the audit ledger)
+//   - discovery_inbox rows (dangling preview references)
+//
+// The accompanying certificate_expiry_alerts rows CASCADE away automatically
+// via the FK on expiry_alerts.fingerprint → certificates.fingerprint.
+//
+// This runs as a single pass: certs freed up by today's deletes become
+// eligible on the next run (e.g. an intermediate whose only descendant leaf
+// was pruned today). Convergence is intentional rather than iterative — one
+// pass per night keeps the operation predictable.
+//
+// Returns the slim identity of every certificate that was deleted. The
+// result slice is empty (not nil) when nothing was eligible.
+func (s *Store) PurgeUnreferencedCerts(ctx context.Context) ([]PurgedCert, error) {
+	purged := []PurgedCert{}
+	err := s.db.NewRaw(`
+		DELETE FROM tlsentinel.certificates c
+		WHERE c.trust_anchor = FALSE
+		  AND NOT EXISTS (
+		        SELECT 1 FROM tlsentinel.root_store_anchors rsa
+		        WHERE rsa.fingerprint = c.fingerprint
+		  )
+		  AND NOT EXISTS (
+		        SELECT 1 FROM tlsentinel.certificates c2
+		        WHERE c2.issuer_fingerprint = c.fingerprint
+		  )
+		  AND NOT EXISTS (
+		        SELECT 1 FROM tlsentinel.endpoint_certs ec
+		        WHERE ec.fingerprint = c.fingerprint
+		  )
+		  AND NOT EXISTS (
+		        SELECT 1 FROM tlsentinel.endpoint_scan_history esh
+		        WHERE esh.fingerprint = c.fingerprint
+		  )
+		  AND NOT EXISTS (
+		        SELECT 1 FROM tlsentinel.discovery_inbox di
+		        WHERE di.fingerprint = c.fingerprint
+		  )
+		RETURNING c.fingerprint, c.common_name, c.sans, c.not_after
+	`).Scan(ctx, &purged)
+	if err != nil {
+		return nil, fmt.Errorf("purge unreferenced certs: %w", err)
+	}
+	return purged, nil
 }
 
 // PurgeAuditLogs deletes audit log entries older than the given number of days.

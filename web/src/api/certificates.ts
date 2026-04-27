@@ -3,6 +3,7 @@ import type {
   CertificateDetail,
   CertificateList,
   EndpointListItem,
+  HistoricalEndpointItem,
   IngestCertificateRequest,
   TagWithCategory,
 } from '@/types/api'
@@ -13,6 +14,8 @@ export interface ExpiringCertItem {
   endpointType: string
   fingerprint: string
   commonName: string
+  sans: string[]
+  issuerCn: string
   notAfter: string
   daysRemaining: number
   tags: TagWithCategory[]
@@ -56,6 +59,14 @@ export function deleteCertificate(fingerprint: string): Promise<void> {
 
 export function getCertificateHosts(fingerprint: string): Promise<EndpointListItem[]> {
   return api.get<EndpointListItem[]>(`/certificates/${fingerprint}/endpoints`)
+}
+
+export function getCertificateHostsHistorical(
+  fingerprint: string,
+): Promise<HistoricalEndpointItem[]> {
+  return api.get<HistoricalEndpointItem[]>(
+    `/certificates/${fingerprint}/endpoints/historical`,
+  )
 }
 
 export function listActive(page = 1, pageSize = 20, name = '', status = '', sort = '', tagId = ''): Promise<ExpiringCertList> {

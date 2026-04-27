@@ -8,14 +8,31 @@ import (
 )
 
 // Claims is the JWT payload.
+//
+// Purpose distinguishes a fully-authenticated session token (purpose
+// empty) from a short-lived "password verified, awaiting second
+// factor" challenge token (purpose="totp_challenge"). Challenge tokens
+// must NEVER be accepted by the API authentication middleware — only
+// the /auth/totp completion endpoint reads them.
 type Claims struct {
 	UserID    string  `json:"uid"`
 	Username  string  `json:"sub"`
 	Role      string  `json:"role"`
+	Purpose   string  `json:"purpose,omitempty"`
 	FirstName *string `json:"given_name,omitempty"`
 	LastName  *string `json:"family_name,omitempty"`
 	jwt.RegisteredClaims
 }
+
+// PurposeTOTPChallenge is the Purpose value carried by the
+// password-verified-but-not-yet-MFA-verified token issued mid-login.
+const PurposeTOTPChallenge = "totp_challenge"
+
+// challengeTTL bounds how long a user has to complete the second-factor
+// step. Five minutes leaves room for QR scanning / app switching while
+// keeping the challenge window short enough that a stolen browser
+// memory dump is not useful for long.
+const challengeTTL = 5 * time.Minute
 
 // JWTConfig holds the signing key and token lifetime.
 type JWTConfig struct {
@@ -23,18 +40,31 @@ type JWTConfig struct {
 	TTL       time.Duration
 }
 
-// IssueToken signs and returns a JWT for the given user.
+// IssueToken signs and returns a full-session JWT for the given user.
 func (c *JWTConfig) IssueToken(userID, username, role string, firstName, lastName *string) (string, error) {
+	return c.signToken(userID, username, role, "", firstName, lastName, c.TTL)
+}
+
+// IssueTOTPChallengeToken signs a short-lived challenge JWT used after
+// password verification when the account requires a second factor. The
+// returned token is rejected by the standard auth middleware and is
+// only consumable by /auth/totp.
+func (c *JWTConfig) IssueTOTPChallengeToken(userID, username, role string, firstName, lastName *string) (string, error) {
+	return c.signToken(userID, username, role, PurposeTOTPChallenge, firstName, lastName, challengeTTL)
+}
+
+func (c *JWTConfig) signToken(userID, username, role, purpose string, firstName, lastName *string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:    userID,
 		Username:  username,
 		Role:      role,
+		Purpose:   purpose,
 		FirstName: firstName,
 		LastName:  lastName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(c.TTL)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 			Issuer:    "tlsentinel",
 		},
 	}

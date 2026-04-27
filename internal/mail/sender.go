@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html"
+	"net/mail"
 	"net/smtp"
 	"regexp"
 	"strings"
@@ -45,6 +46,10 @@ func SendTestEmail(cfg Config, to string) error {
 
 // send is the internal dispatch function.
 func send(cfg Config, to, subject, htmlBody string) error {
+	if err := validateHeaders(to, subject, cfg.FromAddress, cfg.FromName); err != nil {
+		return err
+	}
+
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 
 	auth, err := buildAuth(cfg)
@@ -52,7 +57,10 @@ func send(cfg Config, to, subject, htmlBody string) error {
 		return err
 	}
 
-	msg := buildMessage(cfg.FromAddress, cfg.FromName, to, subject, htmlBody)
+	msg, err := buildMessage(cfg.FromAddress, cfg.FromName, to, subject, htmlBody)
+	if err != nil {
+		return err
+	}
 
 	switch cfg.TLSMode {
 	case "tls":
@@ -64,6 +72,26 @@ func send(cfg Config, to, subject, htmlBody string) error {
 	default:
 		return fmt.Errorf("unknown tls_mode %q", cfg.TLSMode)
 	}
+}
+
+// validateHeaders rejects inputs that would let a caller inject extra SMTP
+// headers. Addresses must parse per RFC 5322 (which also rejects embedded
+// CR/LF); subject and display name must not contain CR or LF at all, since
+// they land directly in the Subject: and From: header values.
+func validateHeaders(to, subject, fromAddr, fromName string) error {
+	if _, err := mail.ParseAddress(to); err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	if _, err := mail.ParseAddress(fromAddr); err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	if strings.ContainsAny(subject, "\r\n") {
+		return fmt.Errorf("subject contains CR or LF")
+	}
+	if strings.ContainsAny(fromName, "\r\n") {
+		return fmt.Errorf("from name contains CR or LF")
+	}
+	return nil
 }
 
 // buildAuth constructs the smtp.Auth implementation based on the auth type.
@@ -144,13 +172,16 @@ func writeMessage(c *smtp.Client, from, to string, msg []byte) error {
 
 // buildMessage formats a multipart/alternative RFC 5322 message with both a
 // plain-text fallback (auto-stripped from HTML) and the full HTML part.
-func buildMessage(fromAddr, fromName, to, subject, htmlBody string) []byte {
+func buildMessage(fromAddr, fromName, to, subject, htmlBody string) ([]byte, error) {
 	from := fromAddr
 	if fromName != "" {
 		from = fmt.Sprintf("%s <%s>", fromName, fromAddr)
 	}
 
-	boundary := randomBoundary()
+	boundary, err := randomBoundary()
+	if err != nil {
+		return nil, err
+	}
 	plainText := htmlToText(htmlBody)
 
 	var sb strings.Builder
@@ -175,14 +206,19 @@ func buildMessage(fromAddr, fromName, to, subject, htmlBody string) []byte {
 
 	sb.WriteString("--" + boundary + "--\r\n")
 
-	return []byte(sb.String())
+	return []byte(sb.String()), nil
 }
 
-// randomBoundary generates a random MIME boundary string.
-func randomBoundary() string {
+// randomBoundary generates a random MIME boundary string. A rand.Read
+// failure would leave the buffer all-zeros, giving every message the
+// same boundary — we surface the error instead of silently producing
+// a degenerate one.
+func randomBoundary() (string, error) {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return "===============" + hex.EncodeToString(b) + "=="
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate mime boundary: %w", err)
+	}
+	return "===============" + hex.EncodeToString(b) + "==", nil
 }
 
 // Compiled regexes for htmlToText.

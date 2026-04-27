@@ -30,24 +30,27 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/probe"
 	"github.com/tlsentinel/tlsentinel-server/internal/scanners"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/internal/search"
 	"github.com/tlsentinel/tlsentinel-server/internal/settings"
 	"github.com/tlsentinel/tlsentinel-server/internal/tags"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/tlsentinel/tlsentinel-server/internal/users"
 	"github.com/tlsentinel/tlsentinel-server/internal/utils"
 	tlsetinelWeb "github.com/tlsentinel/tlsentinel-server/web"
 )
 
-func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Scheduler) (http.Handler, error) {
+func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Scheduler, trustEv *trust.Evaluator) (http.Handler, error) {
 
 	authHandler := auth.NewHandler(store, cfg)
 	oidcHandler, err := oidc.NewHandler(context.Background(), store, cfg)
 	if err != nil {
 		return nil, err
 	}
-	tokenHandler := scanners.NewHandler(store)
-	scannerHandler := probe.NewHandler(store)
+	scannerHandler := scanners.NewHandler(store)
+	probeHandler := probe.NewHandler(store, trustEv)
 	userHandler := users.NewHandler(store)
-	settingsHandler := settings.NewHandler(store, sched)
+	totpHandler := users.NewTOTPHandler(store, cfg)
+	settingsHandler := settings.NewHandler(store, sched, trustEv)
 	certHandler := certificates.NewHandler(store)
 	endpointHandler := endpoints.NewHandler(store)
 	utilsHandler := utils.NewHandler()
@@ -60,11 +63,13 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	reportsHandler := reports.NewHandler(store)
 	apiKeyHandler := apikeys.NewHandler(store)
 	notifTemplateHandler := notificationtemplates.NewHandler(store)
+	searchHandler := search.NewHandler(store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(logger.RequestLogger)
 	r.Use(middleware.Recoverer)
+	r.Use(handlers.MaxBodySize)
 
 	r.Get("/api-docs/*", httpSwagger.WrapHandler)
 
@@ -76,6 +81,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 		r.Get("/calendar/u/{token}/*", calendarHandler.ServeUserCalendar)
 
 		r.Post("/auth/login", authHandler.Login)
+		r.Post("/auth/totp", authHandler.LoginTOTP)
 		r.Get("/auth/config", authHandler.Config)
 
 		if oidcHandler != nil {
@@ -90,24 +96,23 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 			r.Route("/scanners", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersView))
-					r.Get("/", tokenHandler.List)
-					r.Get("/{scannerID}", tokenHandler.Get)
+					r.Get("/", scannerHandler.List)
+					r.Get("/{scannerID}", scannerHandler.Get)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.ScannersEdit))
-					r.Post("/", tokenHandler.Create)
+					r.Post("/", scannerHandler.Create)
 					r.Route("/{scannerID}", func(r chi.Router) {
-						r.Put("/", tokenHandler.Update)
-						r.Patch("/", tokenHandler.Patch)
-						r.Delete("/", tokenHandler.Delete)
-						r.Post("/default", tokenHandler.SetDefault)
+						r.Put("/", scannerHandler.Update)
+						r.Patch("/", scannerHandler.Patch)
+						r.Delete("/", scannerHandler.Delete)
+						r.Post("/default", scannerHandler.SetDefault)
+						r.Post("/regenerate-token", scannerHandler.RegenerateToken)
 					})
 				})
 			})
 
-			r.Route("/alerts", func(r chi.Router) {
-				// TODO IGNORE FOR NOW
-			})
+			// TODO: /alerts subtree — wiring pending.
 
 			r.Route("/certificates", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
@@ -126,6 +131,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Use(auth.RequirePermission(permission.CertsView))
 						r.Get("/", certHandler.Get)
 						r.Get("/endpoints", certHandler.GetEndpoints)
+						r.Get("/endpoints/historical", certHandler.GetHistoricalEndpoints)
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.CertsEdit))
@@ -134,7 +140,13 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				})
 			})
 
-			r.Route("/endpoints", func(r chi.Router) {
+			r.Route("/root-stores", func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.CertsView))
+					r.Get("/", certHandler.ListRootStores)
+					r.Get("/{id}/anchors", certHandler.ListAnchors)
+				})
+
+				r.Route("/endpoints", func(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.EndpointsView))
 					r.Get("/", endpointHandler.List)
@@ -165,7 +177,7 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 
 			// /me — any authenticated user, scoped to themselves.
 			r.Route("/me", func(r chi.Router) {
-				r.Use(auth.RequirePermission(permission.SelfRead))
+				r.Use(auth.RequirePermission(permission.SelfAccess))
 				r.Get("/", userHandler.Me)
 				r.Put("/", userHandler.UpdateMe)
 				r.Patch("/password", userHandler.ChangeMyPassword)
@@ -175,18 +187,22 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Get("/api-keys", apiKeyHandler.List)
 				r.Post("/api-keys", apiKeyHandler.Create)
 				r.Delete("/api-keys/{id}", apiKeyHandler.Delete)
+
+				// TOTP / second-factor management. /me/totp is the
+				// status probe (cheap GET, used by the account UI to
+				// decide what to render); the rest are state-changing.
+				r.Get("/totp", totpHandler.Status)
+				r.Post("/totp/setup", totpHandler.BeginSetup)
+				r.Post("/totp/verify", totpHandler.ConfirmSetup)
+				r.Delete("/totp", totpHandler.Disable)
+				r.Post("/totp/recovery-codes", totpHandler.RegenerateRecoveryCodes)
 			})
 
 			// /admin/api-keys — cross-user API key management (admin only).
 			r.Route("/admin/api-keys", func(r chi.Router) {
-				r.Group(func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.UsersView))
-					r.Get("/", apiKeyHandler.ListAll)
-				})
-				r.Group(func(r chi.Router) {
-					r.Use(auth.RequirePermission(permission.UsersEdit))
-					r.Delete("/{id}", apiKeyHandler.DeleteAdmin)
-				})
+				r.Use(auth.RequirePermission(permission.APIKeysAdmin))
+				r.Get("/", apiKeyHandler.ListAll)
+				r.Delete("/{id}", apiKeyHandler.DeleteAdmin)
 			})
 
 			r.Route("/users", func(r chi.Router) {
@@ -203,12 +219,20 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Use(auth.RequirePermission(permission.UsersView))
 						r.Get("/", userHandler.Get)
 					})
+					// Lifecycle — create/update/delete/enable. Held by anyone
+					// with users:edit. These actions can't take over an account.
 					r.Group(func(r chi.Router) {
 						r.Use(auth.RequirePermission(permission.UsersEdit))
 						r.Put("/", userHandler.Update)
 						r.Delete("/", userHandler.Delete)
-						r.Patch("/password", userHandler.ChangePassword)
 						r.Patch("/enabled", userHandler.SetEnabled)
+					})
+					// Credential reset — password, 2FA. Gated separately from
+					// users:edit because resetting these is account takeover.
+					r.Group(func(r chi.Router) {
+						r.Use(auth.RequirePermission(permission.UsersCredentials))
+						r.Patch("/password", userHandler.ChangePassword)
+						r.Delete("/totp", totpHandler.AdminReset)
 					})
 				})
 			})
@@ -282,6 +306,8 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Post("/run/purge-scan-history", settingsHandler.RunPurgeScanHistory)
 				r.Post("/run/purge-audit-logs", settingsHandler.RunPurgeAuditLogs)
 				r.Post("/run/purge-expiry-alerts", settingsHandler.RunPurgeExpiryAlerts)
+				r.Post("/run/purge-unreferenced-certs", settingsHandler.RunPurgeUnreferencedCerts)
+				r.Post("/run/refresh-root-stores", settingsHandler.RunRefreshRootStores)
 			})
 
 			r.Route("/reports", func(r chi.Router) {
@@ -306,6 +332,10 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 						r.Put("/{categoryID}", tagHandler.UpdateCategory)
 						r.Delete("/{categoryID}", tagHandler.DeleteCategory)
 					})
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(auth.RequirePermission(permission.TagsView))
+					r.Get("/", tagHandler.ListTags)
 				})
 				r.Group(func(r chi.Router) {
 					r.Use(auth.RequirePermission(permission.TagsEdit))
@@ -349,15 +379,20 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 				r.Get("/resolve", utilsHandler.Resolve)
 			})
 
+			r.Route("/search", func(r chi.Router) {
+				r.Use(auth.RequirePermission(permission.EndpointsView))
+				r.Get("/", searchHandler.Search)
+			})
+
 			r.Route("/probe", func(r chi.Router) {
 				r.Use(probe.RequireScanner)
-				r.Get("/config", scannerHandler.Config)
-				r.Get("/hosts", scannerHandler.Hosts)
-				r.Post("/hosts/{hostID}/result", scannerHandler.Result)
-				r.Post("/hosts/{hostID}/tls-profile", scannerHandler.TLSProfile)
-				r.Get("/saml", scannerHandler.SAMLEndpoints)
-				r.Post("/saml/{endpointID}/result", scannerHandler.SAMLResult)
-				r.Post("/discovery", scannerHandler.ReportDiscovery)
+				r.Get("/config", probeHandler.Config)
+				r.Get("/hosts", probeHandler.Hosts)
+				r.Post("/hosts/{hostID}/result", probeHandler.Result)
+				r.Post("/hosts/{hostID}/tls-profile", probeHandler.TLSProfile)
+				r.Get("/saml", probeHandler.SAMLEndpoints)
+				r.Post("/saml/{endpointID}/result", probeHandler.SAMLResult)
+				r.Post("/discovery", probeHandler.ReportDiscovery)
 			})
 		})
 
@@ -368,12 +403,11 @@ func RegisterRoutes(store *db.Store, cfg *config.Config, sched *scheduler.Schedu
 	distFS, _ := fs.Sub(tlsetinelWeb.FS, "dist")
 	fileServer := http.FileServer(http.FS(distFS))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := distFS.Open(r.URL.Path[1:]) // strip leading /
-		if err != nil {
+		// Existence check only — http.FileServer opens the file itself. Using
+		// fs.Stat avoids the extra Open/Close pair the old implementation did.
+		if _, err := fs.Stat(distFS, r.URL.Path[1:]); err != nil {
 			// Not a real file — serve index.html and let React Router handle it.
 			r.URL.Path = "/"
-		} else {
-			f.Close()
 		}
 		fileServer.ServeHTTP(w, r)
 	}))

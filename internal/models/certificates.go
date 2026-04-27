@@ -8,6 +8,8 @@ type CertificateRecord struct {
 	Fingerprint    string
 	PEM            string
 	CommonName     string
+	SubjectOrg     string
+	SubjectOrgUnit string
 	SANs           []string
 	NotBefore      time.Time
 	NotAfter       time.Time
@@ -66,6 +68,46 @@ type CertificateDetail struct {
 	// Revocation
 	OCSPURLs              []string `json:"ocspUrls"`
 	CRLDistributionPoints []string `json:"crlDistributionPoints"`
+
+	// TrustedBy lists root store IDs (e.g. "apple", "chrome", "microsoft", "mozilla")
+	// whose trust anchors appear anywhere in this cert's chain. Derived from
+	// root_store_anchors via issuer_fingerprint traversal; empty slice when no
+	// anchor in the chain is a known trust anchor.
+	TrustedBy []string `json:"trustedBy"`
+
+	// IsTrustAnchor is TRUE when this cert is Subject+SKI-equivalent to a CCADB
+	// root anchor. Lets the frontend stop walking the issuer chain at the
+	// effective root (including cross-signed copies of an anchor).
+	IsTrustAnchor bool `json:"isTrustAnchor"`
+}
+
+// RootStoreSummary is the shape returned by GET /root-stores — one row per
+// enabled store. The Kind/SourceURL/AnchorCount/UpdatedAt fields drive the
+// root-stores overview page; the trust-matrix card on cert detail ignores them.
+type RootStoreSummary struct {
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Kind        string     `json:"kind"`
+	SourceURL   string     `json:"sourceUrl"`
+	AnchorCount int        `json:"anchorCount"`
+	UpdatedAt   *time.Time `json:"updatedAt"`
+}
+
+// RootStoreAnchorItem is one trust anchor in a root store's membership list.
+type RootStoreAnchorItem struct {
+	Fingerprint       string    `json:"fingerprint"`
+	CommonName        string    `json:"commonName"`
+	SubjectOrg        string    `json:"subjectOrg"`
+	NotAfter          time.Time `json:"notAfter"`
+	IssuerFingerprint *string   `json:"issuerFingerprint"`
+}
+
+// RootStoreAnchorList is the paginated response envelope for anchors listings.
+type RootStoreAnchorList struct {
+	Items      []RootStoreAnchorItem `json:"items"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"pageSize"`
+	TotalCount int                   `json:"totalCount"`
 }
 
 // CertificateList represents a paginated list of certificates.
@@ -79,13 +121,15 @@ type CertificateList struct {
 // ExpiringCertItem represents a certificate that is active on an endpoint,
 // used by the /certificates/active and /certificates/expiring endpoints.
 type ExpiringCertItem struct {
-	EndpointID    string           `json:"endpointId"`
-	EndpointName  string           `json:"endpointName"`
-	EndpointType  string           `json:"endpointType"`
-	Fingerprint   string           `json:"fingerprint"`
-	CommonName    string           `json:"commonName"`
-	NotAfter      time.Time        `json:"notAfter"`
-	DaysRemaining int              `json:"daysRemaining"`
+	EndpointID    string            `json:"endpointId"`
+	EndpointName  string            `json:"endpointName"`
+	EndpointType  string            `json:"endpointType"`
+	Fingerprint   string            `json:"fingerprint"`
+	CommonName    string            `json:"commonName"`
+	SANs          []string          `json:"sans"`
+	IssuerCN      string            `json:"issuerCn"`
+	NotAfter      time.Time         `json:"notAfter"`
+	DaysRemaining int               `json:"daysRemaining"`
 	Tags          []TagWithCategory `json:"tags"`
 }
 

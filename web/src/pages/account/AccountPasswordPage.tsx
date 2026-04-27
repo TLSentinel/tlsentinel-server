@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { getMe, changeMyPassword } from '@/api/users'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ChevronRight } from 'lucide-react'
+import { } from 'lucide-react'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
 
 export default function AccountPasswordPage() {
   const [isLocal, setIsLocal]             = useState<boolean | null>(null)
@@ -52,11 +54,10 @@ export default function AccountPasswordPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/account" className="hover:text-foreground">My Account</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">Password</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'My Account', to: '/account' },
+        { label: 'Password' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">Password</h1>
@@ -68,17 +69,18 @@ export default function AccountPasswordPage() {
           <CardTitle>Change Password</CardTitle>
           <CardDescription>You'll need your current password to set a new one.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-current">Current Password</Label>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="acc-current" className={FIELD_LABEL}>Current Password</Label>
             <Input id="acc-current" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-new">New Password</Label>
+          <div className="space-y-2">
+            <Label htmlFor="acc-new" className={FIELD_LABEL}>New Password</Label>
             <Input id="acc-new" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" />
+            <p className="text-xs text-muted-foreground">Minimum 8 characters.</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="acc-confirm">Confirm New Password</Label>
+          <div className="space-y-2">
+            <Label htmlFor="acc-confirm" className={FIELD_LABEL}>Confirm New Password</Label>
             <Input id="acc-confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
           </div>
 

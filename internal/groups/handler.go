@@ -3,15 +3,15 @@ package groups
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
+	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
 type Handler struct {
@@ -20,30 +20,6 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
-}
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 type CreateGroupRequest struct {
@@ -60,8 +36,7 @@ type UpdateGroupRequest struct {
 
 // List returns a paginated list of groups.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	list, err := h.store.ListGroups(r.Context(), page, pageSize)
 	if err != nil {
@@ -69,8 +44,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(list)
+	response.JSON(w, http.StatusOK, list)
 }
 
 // Get returns a single group by ID.
@@ -86,8 +60,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(group)
+	response.JSON(w, http.StatusOK, group)
 }
 
 // GetEndpoints returns the endpoint IDs assigned to a group.
@@ -102,8 +75,7 @@ func (h *Handler) GetEndpoints(w http.ResponseWriter, r *http.Request) {
 		ids = []string{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ids)
+	response.JSON(w, http.StatusOK, ids)
 }
 
 // Create creates a new group and assigns hosts.
@@ -126,15 +98,23 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if len(req.HostIDs) > 0 {
 		if err := h.store.ReplaceGroupHosts(r.Context(), group.ID, req.HostIDs); err != nil {
+			if errors.Is(err, db.ErrInvalidInput) {
+				http.Error(w, "one or more host ids are invalid", http.StatusBadRequest)
+				return
+			}
 			http.Error(w, "failed to assign hosts", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	h.logAudit(r, audit.GroupCreate, "group", group.ID)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(group)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.GroupCreate,
+		ResourceType: "group",
+		ResourceID:   group.ID,
+		Label:        group.Name,
+		Details:      map[string]any{"hostCount": len(req.HostIDs)},
+	})
+	response.JSON(w, http.StatusCreated, group)
 }
 
 // Update updates a group's name, description, and host assignments.
@@ -162,18 +142,33 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.ReplaceGroupHosts(r.Context(), id, req.HostIDs); err != nil {
+		if errors.Is(err, db.ErrInvalidInput) {
+			http.Error(w, "one or more host ids are invalid", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "failed to update hosts", http.StatusInternalServerError)
 		return
 	}
 
-	h.logAudit(r, audit.GroupUpdate, "group", id)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(group)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.GroupUpdate,
+		ResourceType: "group",
+		ResourceID:   id,
+		Label:        group.Name,
+		Details:      map[string]any{"hostCount": len(req.HostIDs)},
+	})
+	response.JSON(w, http.StatusOK, group)
 }
 
 // Delete removes a group by ID.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "groupID")
+
+	// Snapshot the name pre-delete for the audit row.
+	var label string
+	if before, lookupErr := h.store.GetGroupByID(r.Context(), id); lookupErr == nil {
+		label = before.Name
+	}
 
 	if err := h.store.DeleteGroup(r.Context(), id); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -184,6 +179,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.GroupDelete, "group", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.GroupDelete,
+		ResourceType: "group",
+		ResourceID:   id,
+		Label:        label,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -14,39 +14,23 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/internal/rootstore"
 	"github.com/tlsentinel/tlsentinel-server/internal/scheduler"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
 // Handler handles HTTP requests for the settings endpoints.
 type Handler struct {
-	store *db.Store
-	sched *scheduler.Scheduler
+	store   *db.Store
+	sched   *scheduler.Scheduler
+	trustEv *trust.Evaluator
 }
 
-// NewHandler creates a new Handler.
-func NewHandler(store *db.Store, sched *scheduler.Scheduler) *Handler {
-	return &Handler{store: store, sched: sched}
-}
-
-func (h *Handler) logAudit(r *http.Request, action string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:   ptrIfNonEmpty(identity.UserID),
-		Username: identity.Username,
-		Action:   action,
-		IPAddress: &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
+// NewHandler creates a new Handler. trustEv may be nil during testing; the
+// manual root-store refresh path tolerates that by skipping pool reload.
+func NewHandler(store *db.Store, sched *scheduler.Scheduler, trustEv *trust.Evaluator) *Handler {
+	return &Handler{store: store, sched: sched, trustEv: trustEv}
 }
 
 // alertThresholdsResponse is the response envelope for alert threshold endpoints.
@@ -115,7 +99,10 @@ func (h *Handler) SetAlertThresholds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.AlertThresholdsUpdate)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.AlertThresholdsUpdate,
+		Details: map[string]any{"thresholds": sorted},
+	})
 	response.JSON(w, http.StatusOK, alertThresholdsResponse{Thresholds: sorted})
 }
 
@@ -198,7 +185,16 @@ func (h *Handler) UpdateScheduledJob(w http.ResponseWriter, r *http.Request) {
 		h.sched.Reload(name, req.CronExpression, req.Enabled, fn)
 	}
 
-	h.logAudit(r, "settings.scheduled_job.update")
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       "settings.scheduled_job.update",
+		ResourceType: "scheduled_job",
+		ResourceID:   name,
+		Label:        job.DisplayName,
+		Details: map[string]any{
+			"cronExpression": req.CronExpression,
+			"enabled":        req.Enabled,
+		},
+	})
 	response.JSON(w, http.StatusOK, job)
 }
 
@@ -223,7 +219,10 @@ func (h *Handler) SetScanHistoryRetention(w http.ResponseWriter, r *http.Request
 		http.Error(w, "failed to save scan history retention", http.StatusInternalServerError)
 		return
 	}
-	h.logAudit(r, "settings.scan_history_retention.update")
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "settings.scan_history_retention.update",
+		Details: map[string]any{"days": req.Days},
+	})
 	response.JSON(w, http.StatusOK, scanHistoryRetentionResponse{Days: req.Days})
 }
 
@@ -254,7 +253,10 @@ func (h *Handler) RunPurgeScanHistory(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual purge", "err", err)
 	}
-	h.logAudit(r, "maintenance.purge_scan_history.run")
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.MaintenancePurgeScanHistory,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted, "retentionDays": days},
+	})
 	response.JSON(w, http.StatusOK, purgeScanHistoryResponse{Deleted: deleted})
 }
 
@@ -280,8 +282,41 @@ func (h *Handler) RunPurgeExpiryAlerts(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual expiry alerts purge", "err", err)
 	}
-	h.logAudit(r, "maintenance.purge_expiry_alerts.run")
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.MaintenancePurgeExpiryAlerts,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted},
+	})
 	response.JSON(w, http.StatusOK, purgeExpiryAlertsResponse{Deleted: deleted})
+}
+
+// purgeUnreferencedCertsResponse is the response envelope for an unreferenced-cert purge run.
+type purgeUnreferencedCertsResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
+// @Summary      Run purge unreferenced certificates
+// @Description  Immediately deletes certificates that are no longer referenced by any endpoint, scan-history row, discovery-inbox entry, root store, or other certificate's issuer chain. Trust anchors are never deleted.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  purgeUnreferencedCertsResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/purge-unreferenced-certs [post]
+func (h *Handler) RunPurgeUnreferencedCerts(w http.ResponseWriter, r *http.Request) {
+	purged, err := h.store.PurgeUnreferencedCerts(r.Context())
+	if err != nil {
+		http.Error(w, "purge failed", http.StatusInternalServerError)
+		return
+	}
+	deleted := int64(len(purged))
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobPurgeUnreferencedCerts,
+		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
+		slog.Warn("failed to update job last run after manual unreferenced certs purge", "err", err)
+	}
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.MaintenancePurgeUnreferencedCerts,
+		Details: audit.PurgedCertsDetails("manual", purged),
+	})
+	response.JSON(w, http.StatusOK, purgeUnreferencedCertsResponse{Deleted: deleted})
 }
 
 // auditLogRetentionResponse is the response envelope for audit log retention endpoints.
@@ -324,7 +359,10 @@ func (h *Handler) SetAuditLogRetention(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save audit log retention", http.StatusInternalServerError)
 		return
 	}
-	h.logAudit(r, "settings.audit_log_retention.update")
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  "settings.audit_log_retention.update",
+		Details: map[string]any{"days": req.Days},
+	})
 	response.JSON(w, http.StatusOK, auditLogRetentionResponse{Days: req.Days})
 }
 
@@ -355,6 +393,48 @@ func (h *Handler) RunPurgeAuditLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("removed %d rows (manual run)", deleted)); err != nil {
 		slog.Warn("failed to update job last run after manual audit log purge", "err", err)
 	}
-	h.logAudit(r, "maintenance.purge_audit_logs.run")
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.MaintenancePurgeAuditLogs,
+		Details: map[string]any{"trigger": "manual", "deleted": deleted, "retentionDays": days},
+	})
 	response.JSON(w, http.StatusOK, purgeAuditLogsResponse{Deleted: deleted})
+}
+
+// refreshRootStoresResponse is the response envelope for a root store refresh run.
+type refreshRootStoresResponse struct {
+	Status string `json:"status"`
+}
+
+// @Summary      Run refresh root stores
+// @Description  Fetches CCADB root bundles and repopulates root_stores / root_store_anchors. Synchronous; may take up to a minute.
+// @Tags         maintenance
+// @Produce      json
+// @Success      200  {object}  refreshRootStoresResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /maintenance/run/refresh-root-stores [post]
+func (h *Handler) RunRefreshRootStores(w http.ResponseWriter, r *http.Request) {
+	if err := rootstore.Refresh(r.Context(), h.store, slog.Default()); err != nil {
+		slog.Error("manual root store refresh failed", "err", err)
+		http.Error(w, "refresh failed", http.StatusInternalServerError)
+		return
+	}
+	// Match the scheduled-job path: reload the in-memory pools and
+	// re-evaluate every leaf against the new anchors so the trust matrix
+	// reflects the refresh before the caller's poll for "was it applied"
+	// comes back.
+	if h.trustEv != nil {
+		if err := h.trustEv.LoadPools(r.Context(), h.store); err != nil {
+			slog.Warn("manual refresh: pool reload failed", "err", err)
+		} else if err := h.trustEv.ReevaluateAll(r.Context(), h.store); err != nil {
+			slog.Warn("manual refresh: reevaluation failed", "err", err)
+		}
+	}
+	if err := h.store.UpdateJobLastRun(r.Context(), models.JobRefreshRootStores, "manual run"); err != nil {
+		slog.Warn("failed to update job last run after manual root store refresh", "err", err)
+	}
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:  audit.MaintenanceRefreshRootStores,
+		Details: map[string]any{"trigger": "manual"},
+	})
+	response.JSON(w, http.StatusOK, refreshRootStoresResponse{Status: "ok"})
 }

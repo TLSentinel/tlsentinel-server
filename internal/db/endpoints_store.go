@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -20,8 +21,11 @@ type endpointWithScanner struct {
 	DNSName        string     `bun:"dns_name"`
 	IPAddress      *string    `bun:"ip_address"`
 	Port           int        `bun:"port"`
+	LastResolvedIP *string    `bun:"last_resolved_ip"`
 	// SAML-type fields joined from endpoint_saml.
-	URL            *string    `bun:"url"`
+	URL               *string         `bun:"url"`
+	SAMLMetadataJSON  json.RawMessage `bun:"saml_metadata"`
+	SAMLFetchedAt     *time.Time      `bun:"saml_fetched_at"`
 	// EarliestExpiry is the minimum not_after across all current endpoint_certs rows.
 	EarliestExpiry *time.Time `bun:"earliest_expiry"`
 }
@@ -54,18 +58,21 @@ func endpointRowToListItem(r endpointWithScanner) models.EndpointListItem {
 		LastScannedAt:  r.LastScannedAt,
 		LastScanError:  r.LastScanError,
 		ErrorSince:     r.ErrorSince,
+		LastResolvedIP: r.LastResolvedIP,
 	}
 }
 
 func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
-	return models.Endpoint{
-		ID:            r.ID,
-		Name:          r.Name,
-		Type:          r.Type,
-		DNSName:       r.DNSName,
-		IPAddress:     r.IPAddress,
-		Port:          r.Port,
+	ep := models.Endpoint{
+		ID:             r.ID,
+		Name:           r.Name,
+		Type:           r.Type,
+		DNSName:        r.DNSName,
+		IPAddress:      r.IPAddress,
+		Port:           r.Port,
+		LastResolvedIP: r.LastResolvedIP,
 		URL:           r.URL,
+		SAMLFetchedAt: r.SAMLFetchedAt,
 		Enabled:       r.Enabled,
 		ScanExempt:    r.ScanExempt,
 		ScannerID:     r.ScannerID,
@@ -78,6 +85,13 @@ func endpointRowToEndpoint(r endpointWithScanner) models.Endpoint {
 		CreatedAt:     r.CreatedAt,
 		UpdatedAt:     r.UpdatedAt,
 	}
+	if len(r.SAMLMetadataJSON) > 0 {
+		var parsed models.SAMLMetadataPayload
+		if err := json.Unmarshal(r.SAMLMetadataJSON, &parsed); err == nil {
+			ep.SAMLMetadata = &parsed
+		}
+	}
+	return ep
 }
 
 // selectEndpointWithScanner returns a base query joining endpoints, scanners,
@@ -89,8 +103,10 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 		TableExpr("tlsentinel.endpoints AS h").
 		ColumnExpr("h.*").
 		ColumnExpr("at.name AS scanner_name").
-		ColumnExpr("eh.dns_name, eh.ip_address, eh.port").
+		ColumnExpr("eh.dns_name, eh.ip_address, eh.port, eh.last_resolved_ip").
 		ColumnExpr("es.url").
+		ColumnExpr("es.metadata AS saml_metadata").
+		ColumnExpr("es.metadata_fetched_at AS saml_fetched_at").
 		ColumnExpr("exp.earliest_expiry").
 		Join("LEFT JOIN tlsentinel.scanners AS at ON h.scanner_id = at.id").
 		Join("LEFT JOIN tlsentinel.endpoint_hosts AS eh ON eh.endpoint_id = h.id").
@@ -109,7 +125,8 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 // search: case-insensitive contains match on name or dns_name.
 // status: "" = all, "enabled" = enabled only, "disabled" = disabled only.
 // sort: "" or "newest" (default), "name", "dns_name", "last_scanned".
-func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError bool, search, status, sort, tagID string) (models.EndpointList, error) {
+// endpointType: "" = all, "host" | "saml" | "manual" = filter to that type.
+func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError bool, search, status, sort, tagID, endpointType string) (models.EndpointList, error) {
 	var rows []endpointWithScanner
 
 	var orderExpr string
@@ -140,6 +157,10 @@ func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError 
 		q = q.Where("h.enabled = TRUE")
 	case "disabled":
 		q = q.Where("h.enabled = FALSE")
+	}
+	switch endpointType {
+	case "host", "saml", "manual":
+		q = q.Where("h.type = ?", endpointType)
 	}
 	if tagID != "" {
 		q = q.Where("EXISTS (SELECT 1 FROM tlsentinel.endpoint_tags et WHERE et.endpoint_id = h.id AND et.tag_id = ?)", tagID)
@@ -246,6 +267,26 @@ func (s *Store) GetEndpoint(ctx context.Context, id string) (models.Endpoint, er
 	return ep, nil
 }
 
+// GetEndpointTLSCertPEM returns the PEM of the endpoint's current TLS cert.
+// Returns ErrNotFound if the endpoint has no current cert with cert_use='tls'.
+func (s *Store) GetEndpointTLSCertPEM(ctx context.Context, endpointID string) (string, error) {
+	var pem string
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.endpoint_certs ec").
+		ColumnExpr("c.pem").
+		Join("JOIN tlsentinel.certificates c ON c.fingerprint = ec.fingerprint").
+		Where("ec.endpoint_id = ? AND ec.cert_use = 'tls' AND ec.is_current = TRUE", endpointID).
+		Limit(1).
+		Scan(ctx, &pem)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("failed to get endpoint tls cert pem: %w", err)
+	}
+	return pem, nil
+}
+
 // GetEndpointByDNSName returns the endpoint whose dns_name matches exactly (case-insensitive).
 // Returns ErrNotFound if no match exists.
 func (s *Store) GetEndpointByDNSName(ctx context.Context, dnsName string) (models.Endpoint, error) {
@@ -330,14 +371,21 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 			return ErrNotFound
 		}
 
-		// Clear all type-specific rows first so a type change never leaves orphans.
-		if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_hosts").
-			Where("endpoint_id = ?", id).Exec(ctx); err != nil {
-			return fmt.Errorf("failed to clear endpoint_hosts: %w", err)
+		// Clear type-specific rows that don't match the new type so a type
+		// change never leaves orphans. Same-type rows are preserved so user
+		// edits (rename, scanner change) don't wipe scanner-owned fields like
+		// endpoint_saml.metadata / metadata_xml.
+		if rec.Type != "host" && rec.Type != "" {
+			if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_hosts").
+				Where("endpoint_id = ?", id).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to clear endpoint_hosts: %w", err)
+			}
 		}
-		if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_saml").
-			Where("endpoint_id = ?", id).Exec(ctx); err != nil {
-			return fmt.Errorf("failed to clear endpoint_saml: %w", err)
+		if rec.Type != "saml" {
+			if _, err = tx.NewDelete().TableExpr("tlsentinel.endpoint_saml").
+				Where("endpoint_id = ?", id).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to clear endpoint_saml: %w", err)
+			}
 		}
 
 		switch rec.Type {
@@ -348,16 +396,25 @@ func (s *Store) UpdateEndpoint(ctx context.Context, id string, rec models.Endpoi
 				IPAddress:  rec.IPAddress,
 				Port:       rec.Port,
 			}
-			if _, err = tx.NewInsert().Model(eh).Exec(ctx); err != nil {
-				return fmt.Errorf("failed to insert endpoint_hosts: %w", err)
+			if _, err = tx.NewInsert().Model(eh).
+				On("CONFLICT (endpoint_id) DO UPDATE").
+				Set("dns_name = EXCLUDED.dns_name").
+				Set("ip_address = EXCLUDED.ip_address").
+				Set("port = EXCLUDED.port").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to upsert endpoint_hosts: %w", err)
 			}
 		case "saml":
+			// Upsert only the user-editable URL; preserve scanner-owned metadata.
 			es := &EndpointSAML{
 				EndpointID: id,
 				URL:        *rec.URL,
 			}
-			if _, err = tx.NewInsert().Model(es).Exec(ctx); err != nil {
-				return fmt.Errorf("failed to insert endpoint_saml: %w", err)
+			if _, err = tx.NewInsert().Model(es).
+				On("CONFLICT (endpoint_id) DO UPDATE").
+				Set("url = EXCLUDED.url").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to upsert endpoint_saml: %w", err)
 			}
 			// manual: no type-specific row needed
 		}
@@ -459,16 +516,23 @@ func (s *Store) GetScannerSAMLEndpoints(ctx context.Context, scannerID string) (
 	return result, nil
 }
 
-func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, limit int) ([]models.EndpointScanHistory, error) {
+// GetEndpointScanHistory returns a page of scan history rows for an endpoint,
+// newest first. Rows are the raw audit ledger — see scanResultChanged for the
+// rules that decide when a new row is written. We expose a paginated view
+// rather than a hard limit because for CDN/geo-LB targets the resolved IP
+// shifts between scans, which is a legitimate change by the ledger's
+// definition but would drown out the detail-page UI without paging.
+func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, page, pageSize int) (models.EndpointScanHistoryList, error) {
 	var rows []EndpointScanHistory
-	err := s.db.NewSelect().
+	total, err := s.db.NewSelect().
 		Model(&rows).
 		Where("endpoint_id = ?", hostID).
 		OrderExpr("scanned_at DESC").
-		Limit(limit).
-		Scan(ctx)
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		ScanAndCount(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query scan history: %w", err)
+		return models.EndpointScanHistoryList{}, fmt.Errorf("failed to query scan history: %w", err)
 	}
 
 	items := make([]models.EndpointScanHistory, len(rows))
@@ -483,7 +547,12 @@ func (s *Store) GetEndpointScanHistory(ctx context.Context, hostID string, limit
 			ScanError:   r.ScanError,
 		}
 	}
-	return items, nil
+	return models.EndpointScanHistoryList{
+		Items:      items,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalCount: total,
+	}, nil
 }
 
 // scanResultChanged returns true when the incoming result differs meaningfully from
@@ -543,6 +612,21 @@ func (s *Store) RecordScanResult(ctx context.Context, hostID string, req models.
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to update endpoint scan state: %w", err)
+		}
+
+		// Update the host's last_resolved_ip on every scan that produced one.
+		// Errored scans skip this so the previous "last successful resolution"
+		// is preserved — operators expect the column to mean "the most recent
+		// IP we observed," not "today's resolution attempt result."
+		if req.ResolvedIP != nil {
+			_, err = tx.NewUpdate().
+				TableExpr("tlsentinel.endpoint_hosts").
+				Set("last_resolved_ip = ?", *req.ResolvedIP).
+				Where("endpoint_id = ?", hostID).
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to update endpoint_hosts.last_resolved_ip: %w", err)
+			}
 		}
 
 		// Fetch the most recent history row to compare against.
@@ -610,21 +694,19 @@ func upsertEndpointCert(ctx context.Context, tx bun.Tx, endpointID, fingerprint,
 		return fmt.Errorf("failed to roll over previous endpoint cert: %w", err)
 	}
 
-	// Upsert the new/continuing cert as current.
-	// Use the model so bun can build the ON CONFLICT SET clause correctly.
-	// ExcludeColumn("id") lets Postgres apply the DEFAULT gen_random_uuid().
-	now := time.Now()
+	// Upsert the new/continuing cert as current. Exclude id, first_seen_at, and
+	// last_seen_at so Postgres applies the column defaults (gen_random_uuid and
+	// NOW() respectively) — keeping all timestamps on the DB clock avoids
+	// app/DB clock-skew between the insert and subsequent DO UPDATE paths.
 	ec := &EndpointCert{
 		EndpointID:  endpointID,
 		Fingerprint: fingerprint,
 		CertUse:     certUse,
 		IsCurrent:   true,
-		FirstSeenAt: now,
-		LastSeenAt:  now,
 	}
 	_, err = tx.NewInsert().
 		Model(ec).
-		ExcludeColumn("id").
+		ExcludeColumn("id", "first_seen_at", "last_seen_at").
 		On("CONFLICT (endpoint_id, fingerprint, cert_use) DO UPDATE").
 		Set("is_current = TRUE, last_seen_at = NOW()").
 		Exec(ctx)
@@ -632,4 +714,41 @@ func upsertEndpointCert(ctx context.Context, tx bun.Tx, endpointID, fingerprint,
 		return fmt.Errorf("failed to upsert endpoint cert: %w", err)
 	}
 	return nil
+}
+
+// UpsertSAMLMetadata writes the scanner-supplied SAML metadata payload to
+// endpoint_saml (parsed JSON + raw XML + sha256 + fetched_at) and appends a
+// row to saml_metadata_history when the sha256 has not been seen for this
+// endpoint before. xml and sha256 are always updated on the endpoint row so
+// fetched_at tracks the last successful fetch even when the document is
+// unchanged.
+func (s *Store) UpsertSAMLMetadata(ctx context.Context, endpointID string, metadataJSON json.RawMessage, xml, sha256 string) error {
+	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		_, err := tx.NewUpdate().
+			TableExpr("tlsentinel.endpoint_saml").
+			Set("metadata = ?", metadataJSON).
+			Set("metadata_xml = ?", xml).
+			Set("metadata_xml_sha256 = ?", sha256).
+			Set("metadata_fetched_at = NOW()").
+			Where("endpoint_id = ?", endpointID).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to update endpoint_saml metadata: %w", err)
+		}
+
+		h := &SAMLMetadataHistory{
+			EndpointID: endpointID,
+			Sha256:     sha256,
+			XML:        xml,
+			Metadata:   metadataJSON,
+		}
+		if _, err := tx.NewInsert().
+			Model(h).
+			ExcludeColumn("id", "captured_at").
+			On("CONFLICT (endpoint_id, sha256) DO NOTHING").
+			Exec(ctx); err != nil {
+			return fmt.Errorf("failed to append saml_metadata_history: %w", err)
+		}
+		return nil
+	})
 }

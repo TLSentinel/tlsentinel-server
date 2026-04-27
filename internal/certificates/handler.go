@@ -10,12 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -27,30 +26,6 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
-}
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 // IngestCertificateRequest represents the payload for ingesting a certificate,
@@ -98,18 +73,7 @@ func (h *Handler) Expiring(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/active [get]
 func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	name := r.URL.Query().Get("name")
 	status := r.URL.Query().Get("status")
@@ -142,18 +106,7 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	commonName := r.URL.Query().Get("common_name")
 	status := r.URL.Query().Get("status")
@@ -206,9 +159,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	inserted, err := h.store.InsertCertificate(r.Context(), rec)
 	if err != nil {
-		zap.L().Error("failed to store certificate",
-			zap.String("fingerprint", rec.Fingerprint),
-			zap.Error(err),
+		slog.Error("failed to store certificate",
+			"fingerprint", rec.Fingerprint,
+			"error", err,
 		)
 		http.Error(w, "failed to store certificate", http.StatusInternalServerError)
 		return
@@ -216,9 +169,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	stored, err := h.store.GetCertificate(r.Context(), rec.Fingerprint)
 	if err != nil {
-		zap.L().Error("failed to retrieve stored certificate",
-			zap.String("fingerprint", rec.Fingerprint),
-			zap.Error(err),
+		slog.Error("failed to retrieve stored certificate",
+			"fingerprint", rec.Fingerprint,
+			"error", err,
 		)
 		http.Error(w, "failed to retrieve stored certificate", http.StatusInternalServerError)
 		return
@@ -227,7 +180,17 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if inserted {
 		status = http.StatusCreated
-		h.logAudit(r, audit.CertIngest, "certificate", rec.Fingerprint)
+		auth.Log(r.Context(), h.store, r, audit.Entry{
+			Action:       audit.CertIngest,
+			ResourceType: "certificate",
+			ResourceID:   rec.Fingerprint,
+			Label:        stored.CommonName,
+			Details: map[string]any{
+				"sans":      stored.SANs,
+				"notAfter":  stored.NotAfter,
+				"subjectOrg": stored.SubjectOrg,
+			},
+		})
 	}
 	response.JSON(w, status, stored)
 }
@@ -261,7 +224,60 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Populate trust matrix: which root stores' anchors appear in this chain.
+	trustedBy, err := h.store.GetChainTrustedBy(r.Context(), fingerprint)
+	if err != nil {
+		slog.Warn("failed to compute trust matrix", "fingerprint", fingerprint, "error", err)
+		trustedBy = []string{}
+	}
+	detail.TrustedBy = trustedBy
+
 	response.JSON(w, http.StatusOK, detail)
+}
+
+// @Summary      List root stores
+// @Description  Returns all enabled root stores (id + display name). Used by the
+// @Description  certificate detail page to render the Root Store Trust matrix.
+// @Tags         certificates
+// @Produce      json
+// @Success      200  {array}  models.RootStoreSummary
+// @Failure      500  {string} string  "internal server error"
+// @Router       /root-stores [get]
+func (h *Handler) ListRootStores(w http.ResponseWriter, r *http.Request) {
+	stores, err := h.store.ListRootStoreSummaries(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list root stores", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, stores)
+}
+
+// @Summary      List anchors in a root store
+// @Description  Returns a paginated list of trust anchors (certificates) that are members
+// @Description  of the given root store, optionally filtered by common-name substring.
+// @Tags         certificates
+// @Produce      json
+// @Param        id         path   string  true   "Root store ID (e.g. microsoft, apple, mozilla, chrome)"
+// @Param        page       query  int     false  "Page number (default 1)"
+// @Param        page_size  query  int     false  "Page size (default 20, max 100)"
+// @Param        q          query  string  false  "Filter by common name (partial match)"
+// @Success      200  {object}  models.RootStoreAnchorList
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /root-stores/{id}/anchors [get]
+func (h *Handler) ListAnchors(w http.ResponseWriter, r *http.Request) {
+	storeID := chi.URLParam(r, "id")
+	page, pageSize := pagination.Parse(r, 20, 100)
+	q := r.URL.Query().Get("q")
+
+	result, err := h.store.ListRootStoreAnchors(r.Context(), storeID, q, page, pageSize)
+	if err != nil {
+		http.Error(w, "failed to list anchors", http.StatusInternalServerError)
+		return
+	}
+	if result.Items == nil {
+		result.Items = []models.RootStoreAnchorItem{}
+	}
+	response.JSON(w, http.StatusOK, result)
 }
 
 // @Summary      Get endpoints using a certificate
@@ -284,27 +300,76 @@ func (h *Handler) GetEndpoints(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, endpoints)
 }
 
+// @Summary      Get historical endpoints for a certificate
+// @Description  Returns endpoints that previously had this certificate attached (endpoint_certs.is_current = FALSE), with the date the cert was last observed on each endpoint. Used to explain why a cert cannot be deleted — aged-out scan history and historical endpoint attachments both hold references until the nightly prune job runs.
+// @Tags         certificates
+// @Produce      json
+// @Param        fingerprint  path      string  true  "Certificate fingerprint"
+// @Success      200          {array}   models.HistoricalEndpointItem
+// @Failure      500          {string}  string  "internal server error"
+// @Router       /certificates/{fingerprint}/endpoints/historical [get]
+func (h *Handler) GetHistoricalEndpoints(w http.ResponseWriter, r *http.Request) {
+	fingerprint := chi.URLParam(r, "fingerprint")
+
+	endpoints, err := h.store.GetCertificateHostsHistorical(r.Context(), fingerprint)
+	if err != nil {
+		http.Error(w, "failed to get historical certificate endpoints", http.StatusInternalServerError)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, endpoints)
+}
+
 // @Summary      Delete a certificate
 // @Description  Deletes a certificate by its SHA-256 fingerprint
 // @Tags         certificates
 // @Param        fingerprint  path  string  true  "Certificate fingerprint"
 // @Success      204
 // @Failure      404  {string}  string  "certificate not found"
+// @Failure      409  {string}  string  "certificate is still referenced — the message lists per-table reference counts"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/{fingerprint} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	fingerprint := chi.URLParam(r, "fingerprint")
+
+	// Capture subject CN + SANs pre-delete so "cert deleted" is readable
+	// without a fingerprint lookup. Soft-fail on lookup errors — the delete
+	// request itself is what matters.
+	var label string
+	var details map[string]any
+	if before, lookupErr := h.store.GetCertificate(r.Context(), fingerprint); lookupErr == nil {
+		label = before.CommonName
+		details = map[string]any{
+			"sans":     before.SANs,
+			"notAfter": before.NotAfter,
+		}
+	}
 
 	if err := h.store.DeleteCertificate(r.Context(), fingerprint); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "certificate not found", http.StatusNotFound)
 			return
 		}
+		// FK-blocked delete — surface which tables still reference the cert so
+		// the UI (and bulk delete) can explain why instead of showing a bare
+		// 500. See project_cert_retention for the rationale: these FKs are
+		// intentionally NO ACTION, so this 409 is the real failure mode.
+		var refsErr *db.ErrCertHasReferences
+		if errors.As(err, &refsErr) {
+			http.Error(w, refsErr.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(w, "failed to delete certificate", http.StatusInternalServerError)
 		return
 	}
 
-	h.logAudit(r, audit.CertDelete, "certificate", fingerprint)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.CertDelete,
+		ResourceType: "certificate",
+		ResourceID:   fingerprint,
+		Label:        label,
+		Details:      details,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

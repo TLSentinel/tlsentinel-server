@@ -1,24 +1,40 @@
 import { api } from './client'
 import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryList, CreateEndpointRequest, UpdateEndpointRequest, PatchEndpointRequest, BulkImportRequest, BulkImportResponse } from '@/types/api'
 
-export function listEndpoints(page = 1, pageSize = 20, name = '', status = '', sort = '', tagId = ''): Promise<EndpointList> {
+/**
+ * Endpoint type filter. Empty means no type filter (all types returned);
+ * the three explicit values match the `type` discriminator on `endpoints`.
+ */
+export type EndpointTypeFilter = '' | 'host' | 'saml' | 'manual'
+
+export function listEndpoints(
+  page = 1,
+  pageSize = 20,
+  name = '',
+  status = '',
+  sort = '',
+  tagId = '',
+  type: EndpointTypeFilter = '',
+): Promise<EndpointList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
-  if (name) params.set('name', name)
+  if (name)   params.set('name', name)
   if (status) params.set('status', status)
-  if (sort) params.set('sort', sort)
-  if (tagId) params.set('tag_id', tagId)
+  if (sort)   params.set('sort', sort)
+  if (tagId)  params.set('tag_id', tagId)
+  if (type)   params.set('type', type)
   return api.get<EndpointList>(`/endpoints?${params}`)
 }
 
-export function listErrorEndpoints(page = 1, pageSize = 20): Promise<EndpointList> {
+export function listErrorEndpoints(page = 1, pageSize = 20, type: EndpointTypeFilter = ''): Promise<EndpointList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
     has_error: 'true',
   })
+  if (type) params.set('type', type)
   return api.get<EndpointList>(`/endpoints?${params}`)
 }
 
@@ -46,8 +62,16 @@ export function getTLSProfile(id: string): Promise<EndpointTLSProfile> {
   return api.get<EndpointTLSProfile>(`/endpoints/${id}/tls-profile`)
 }
 
-export function getScanHistory(id: string, limit = 20): Promise<EndpointScanHistoryList> {
-  return api.get<EndpointScanHistoryList>(`/endpoints/${id}/history?limit=${limit}`)
+export function getScanHistory(
+  id: string,
+  page = 1,
+  pageSize = 20,
+): Promise<EndpointScanHistoryList> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  return api.get<EndpointScanHistoryList>(`/endpoints/${id}/history?${params}`)
 }
 
 export function linkCertificate(id: string, pem: string): Promise<Endpoint> {

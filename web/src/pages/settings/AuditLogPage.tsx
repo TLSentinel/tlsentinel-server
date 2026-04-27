@@ -1,19 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import { listAuditLogs } from '@/api/audit'
 import type { AuditLog } from '@/types/api'
 import SearchInput from '@/components/SearchInput'
-import TablePagination from '@/components/TablePagination'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { Button } from '@/components/ui/button'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,33 +13,67 @@ import {
 
 const PAGE_SIZE = 50
 
+// Keep this in sync with internal/audit/action.go and the string-literal
+// actions still living inside internal/settings/handler.go.
+const ACTION_LABELS: Record<string, string> = {
+  // Auth
+  'auth.login':             'Login',
+  'auth.login_failed':      'Login Failed',
+  'auth.oidc_login':        'SSO Login',
+
+  // Endpoints
+  'endpoint.create':        'Endpoint Created',
+  'endpoint.update':        'Endpoint Updated',
+  'endpoint.delete':        'Endpoint Deleted',
+
+  // Certificates
+  'certificate.ingest':     'Certificate Ingested',
+  'certificate.delete':     'Certificate Deleted',
+
+  // Scanners
+  'scanner.create':             'Scanner Created',
+  'scanner.update':             'Scanner Updated',
+  'scanner.delete':             'Scanner Deleted',
+  'scanner.set_default':        'Scanner Set Default',
+  'scanner.regenerate_token':   'Scanner Token Regenerated',
+
+  // Users
+  'user.create':            'User Created',
+  'user.update':            'User Updated',
+  'user.delete':            'User Deleted',
+  'user.password_change':   'Password Changed',
+  'user.enabled_change':    'User Enable/Disable',
+  'me.password_change':     'Password Changed (Self)',
+
+  // Groups
+  'group.create':           'Group Created',
+  'group.update':           'Group Updated',
+  'group.delete':           'Group Deleted',
+
+  // Discovery
+  'discovery.network.create':   'Discovery Network Created',
+  'discovery.network.update':   'Discovery Network Updated',
+  'discovery.network.delete':   'Discovery Network Deleted',
+  'discovery.inbox.promote':    'Discovery Item Promoted',
+
+  // Settings
+  'settings.mail_config_update':              'Mail Config Updated',
+  'settings.alert_thresholds_update':         'Alert Thresholds Updated',
+  'settings.scheduled_job.update':            'Scheduled Job Updated',
+  'settings.scan_history_retention.update':   'Scan History Retention Updated',
+  'settings.audit_log_retention.update':      'Audit Log Retention Updated',
+
+  // Maintenance
+  'maintenance.purge_scan_history.run':        'Scan History Purged',
+  'maintenance.purge_expiry_alerts.run':       'Expiry Alerts Purged',
+  'maintenance.purge_unreferenced_certs.run':  'Unreferenced Certs Purged',
+  'maintenance.purge_audit_logs.run':          'Audit Logs Purged',
+  'maintenance.refresh_root_stores.run':       'Root Stores Refreshed',
+  'maintenance.expiry_alerts.run':             'Expiry Alerts Run',
+}
+
 function formatAction(action: string): string {
-  const labels: Record<string, string> = {
-    'auth.login': 'Login',
-    'auth.login_failed': 'Login Failed',
-    'auth.oidc_login': 'SSO Login',
-    'endpoint.create': 'Endpoint Created',
-    'endpoint.update': 'Endpoint Updated',
-    'endpoint.delete': 'Endpoint Deleted',
-    'certificate.ingest': 'Certificate Ingested',
-    'certificate.delete': 'Certificate Deleted',
-    'scanner.create': 'Scanner Created',
-    'scanner.update': 'Scanner Updated',
-    'scanner.delete': 'Scanner Deleted',
-    'scanner.set_default': 'Scanner Set Default',
-    'user.create': 'User Created',
-    'user.update': 'User Updated',
-    'user.delete': 'User Deleted',
-    'user.password_change': 'Password Changed',
-    'user.enabled_change': 'User Enable/Disable',
-    'me.password_change': 'Password Changed (Self)',
-    'group.create': 'Group Created',
-    'group.update': 'Group Updated',
-    'group.delete': 'Group Deleted',
-    'settings.mail_config_update': 'Mail Config Updated',
-    'settings.alert_thresholds_update': 'Alert Thresholds Updated',
-  }
-  return labels[action] ?? action
+  return ACTION_LABELS[action] ?? action
 }
 
 function actionCategory(action: string): string {
@@ -55,14 +81,16 @@ function actionCategory(action: string): string {
 }
 
 const categoryColours: Record<string, string> = {
-  auth: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  endpoint: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+  auth:        'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  endpoint:    'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
   certificate: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
-  scanner: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-  user: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
-  group: 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300',
-  settings: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
-  me: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  scanner:     'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+  user:        'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  me:          'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  group:       'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300',
+  discovery:   'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
+  settings:    'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
+  maintenance: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
 }
 
 function ActionBadge({ action }: { action: string }) {
@@ -76,62 +104,65 @@ function ActionBadge({ action }: { action: string }) {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function hasDetails(details: AuditLog['details']): boolean {
+  return !!details && typeof details === 'object' && Object.keys(details).length > 0
+}
+
+/** Compact human-readable summary of the resource column. */
+function resourceSummary(log: AuditLog): string {
+  if (log.resourceLabel) return log.resourceLabel
+  if (log.resourceType && log.resourceId) return `${log.resourceType} / ${log.resourceId}`
+  if (log.resourceType) return log.resourceType
+  return '—'
 }
 
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-export default function AuditLogPage() {
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+const ROW_GRID = 'grid-cols-[1.5rem_10rem_8rem_1fr_1fr_8rem]'
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+export default function AuditLogPage() {
+  const [page, setPage]                       = useState(1)
+  const [search, setSearch]                   = useState('')
+  const debounceRef                           = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [expandedId, setExpandedId]           = useState<string | null>(null)
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search)
-      setPage(1)
-    }, 400)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
+    debounceRef.current = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [search])
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['audit-logs', page, debouncedSearch],
-    queryFn: () => listAuditLogs(page, PAGE_SIZE, debouncedSearch),
+    queryFn:  () => listAuditLogs(page, PAGE_SIZE, debouncedSearch),
     placeholderData: keepPreviousData,
   })
   const logs: AuditLog[] = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/logs" className="hover:text-foreground transition-colors">Logs</Link>
-        <span>/</span>
-        <span className="text-foreground">Audit</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Logs', to: '/logs' },
+        { label: 'Audit' },
+      ]} />
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Audit Log</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Record of logins, configuration changes, and administrative actions.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold">Audit Log</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Record of logins, configuration changes, and administrative actions.
+        </p>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-3">
         <SearchInput
           value={search}
@@ -141,63 +172,110 @@ export default function AuditLogPage() {
         />
       </div>
 
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-44">Time</TableHead>
-            <TableHead className="w-36">User</TableHead>
-            <TableHead>Action</TableHead>
-            <TableHead>Resource</TableHead>
-            <TableHead className="w-36 hidden md:table-cell">IP Address</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {isLoading ? (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                Loading…
-              </TableCell>
-            </TableRow>
-          ) : logs.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
-                No audit log entries found.
-              </TableCell>
-            </TableRow>
-          ) : logs.map(log => (
-            <TableRow key={log.id}>
-              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                {formatDate(log.createdAt)}
-              </TableCell>
-              <TableCell className="text-sm font-medium">
-                {log.username || <span className="text-muted-foreground italic">system</span>}
-              </TableCell>
-              <TableCell>
-                <ActionBadge action={log.action} />
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {log.resourceType ? (
-                  <span>{log.resourceType}{log.resourceId ? ` / ${log.resourceId}` : ''}</span>
-                ) : '—'}
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
-                {log.ipAddress ?? '—'}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        {/* Column headers */}
+        <div className={`grid ${ROW_GRID} gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <span />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Time</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Action</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Resource</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IP Address</span>
+        </div>
 
-      {/* Pagination */}
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => Math.max(1, p - 1))}
-        onNext={() => setPage(p => Math.min(totalPages, p + 1))}
-        noun="entry"
-      />
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : logs.length === 0 ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">No audit log entries found.</div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {logs.map(log => {
+              const expandable = hasDetails(log.details)
+              const expanded   = expandedId === log.id
+              const toggle     = () => setExpandedId(expanded ? null : log.id)
+              return (
+                <div key={log.id} className="border-b border-border/40 last:border-0">
+                  <div
+                    className={`grid ${ROW_GRID} items-start gap-4 px-5 py-4 ${expandable ? 'cursor-pointer hover:bg-muted/30' : ''}`}
+                    onClick={expandable ? toggle : undefined}
+                    role={expandable ? 'button' : undefined}
+                    aria-expanded={expandable ? expanded : undefined}
+                  >
+                    <div className="pt-0.5">
+                      {expandable ? (
+                        expanded
+                          ? <ChevronUp   className="h-4 w-4 text-muted-foreground" />
+                          : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : null}
+                    </div>
+                    <div className="pt-0.5">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</span>
+                    </div>
+                    <div className="min-w-0 pt-0.5">
+                      <span className="text-sm font-medium truncate block">
+                        {log.username === '' || log.username === 'system'
+                          ? <span className="text-muted-foreground italic">system</span>
+                          : log.username}
+                      </span>
+                    </div>
+                    <div className="pt-0.5">
+                      <ActionBadge action={log.action} />
+                    </div>
+                    <div className="min-w-0 pt-0.5">
+                      <div className="truncate text-sm">{resourceSummary(log)}</div>
+                      {log.resourceLabel && log.resourceType && (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {log.resourceType}
+                          {log.resourceId ? ` · ${log.resourceId}` : ''}
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-0.5">
+                      <span className="text-xs text-muted-foreground">{log.ipAddress ?? '—'}</span>
+                    </div>
+                  </div>
+
+                  {expandable && expanded && (
+                    <div className="bg-muted/20 px-5 pb-4 pt-0">
+                      <div className="ml-6 rounded border border-border/40 bg-background">
+                        <div className="border-b border-border/40 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Details
+                        </div>
+                        <pre className="overflow-x-auto px-3 py-2 text-xs leading-relaxed font-mono">
+{JSON.stringify(log.details, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Footer: count + pagination inside the card */}
+        <div className="flex items-center justify-between border-t border-border/40 px-5 py-3">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No entries'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> entries</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-.PHONY: run build clean docker swagger frontend syso
+.PHONY: run build clean docker swagger frontend syso dev-api dev-ui
 # =============================================================================
 # Variables
 # =============================================================================
@@ -59,6 +59,15 @@ define cross_compile
 			-o $(BIN_DIR)/$(1)_$${os}_$${arch}$${ext} $(2) || exit 1; \
 	done
 endef
+
+# Development: API server only (no frontend build required).
+# Terminal 1: make dev-api
+# Terminal 2: make dev-ui  → Vite at :5173, proxies /api to :8080
+dev-api:
+	go run -tags dev $(LDFLAGS) $(CMD)
+
+dev-ui:
+	cd $(WEB_DIR) && npm run dev
 
 run: swagger frontend
 	go run $(LDFLAGS) $(CMD)

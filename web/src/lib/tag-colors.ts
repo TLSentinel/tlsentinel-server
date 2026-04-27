@@ -3,16 +3,16 @@
 // so the same category always gets the same color regardless of name.
 
 const PALETTE = [
-  'border-blue-300 bg-blue-50 text-blue-700',
-  'border-violet-300 bg-violet-50 text-violet-700',
-  'border-emerald-300 bg-emerald-50 text-emerald-700',
-  'border-orange-300 bg-orange-50 text-orange-700',
-  'border-pink-300 bg-pink-50 text-pink-700',
-  'border-teal-300 bg-teal-50 text-teal-700',
-  'border-amber-300 bg-amber-50 text-amber-700',
-  'border-indigo-300 bg-indigo-50 text-indigo-700',
-  'border-cyan-300 bg-cyan-50 text-cyan-700',
-  'border-rose-300 bg-rose-50 text-rose-700',
+  'bg-blue-600/80 text-white',
+  'bg-violet-600/80 text-white',
+  'bg-emerald-600/80 text-white',
+  'bg-orange-600/80 text-white',
+  'bg-pink-600/80 text-white',
+  'bg-teal-600/80 text-white',
+  'bg-amber-600/80 text-white',
+  'bg-indigo-600/80 text-white',
+  'bg-cyan-600/80 text-white',
+  'bg-rose-600/80 text-white',
 ]
 
 export function categoryColor(categoryId: string): string {

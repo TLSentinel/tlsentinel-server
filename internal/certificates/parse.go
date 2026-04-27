@@ -221,6 +221,8 @@ func ExtractCertificateRecord(cert *x509.Certificate) models.CertificateRecord {
 		Fingerprint:    hex.EncodeToString(fingerprint[:]),
 		PEM:            string(pemBytes),
 		CommonName:     cert.Subject.CommonName,
+		SubjectOrg:     firstOrEmpty(cert.Subject.Organization),
+		SubjectOrgUnit: firstOrEmpty(cert.Subject.OrganizationalUnit),
 		SANs:           sans,
 		NotBefore:      cert.NotBefore,
 		NotAfter:       cert.NotAfter,

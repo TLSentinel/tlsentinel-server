@@ -10,17 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource-variable/geist": "^5.2.8",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/manrope": "^5.2.8",
+    "@fontsource/unica-one": "^5.2.8",
     "@peculiar/asn1-schema": "^2.6.0",
     "@peculiar/x509": "^2.0.0",
     "@radix-ui/react-select": "^2.2.6",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.97.0",
+    "@types/qrcode": "^1.5.6",
     "brace-expansion": "^5.0.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.8.0",
+    "qrcode": "^1.5.4",
     "radix-ui": "^1.4.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -28,6 +32,7 @@
     "react-router-dom": "^7.13.1",
     "recharts": "^3.8.0",
     "reflect-metadata": "^0.2.2",
+    "remark-gfm": "^4.0.1",
     "shadcn": "^4.0.5",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
@@ -35,6 +40,7 @@
   },
   "overrides": {
     "brace-expansion": "^5.0.5",
+    "hono": "^4.12.14",
     "router": {
       "path-to-regexp": "^8.4.0"
     }

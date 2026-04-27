@@ -1,65 +1,56 @@
-// Package logger provides the application-wide zap logger and a chi request
+// Package logger provides the application-wide slog.Logger and a chi request
 // logging middleware.
 //
-// Call [Build] once in main, then [zap.ReplaceGlobals] so every package can
-// reach the logger via [zap.L] (typed) or [zap.S] (sugared) without import
-// cycles.
+// Call [Build] once in main, then [slog.SetDefault] so every package can
+// reach the logger via [slog.Default] or the top-level [slog.Info] /
+// [slog.Warn] / [slog.Error] helpers without import cycles.
 //
 // Configuration (environment variables):
 //
 //	TLSENTINEL_LOG_LEVEL   debug | info | warn | error  (default: info)
 //	TLSENTINEL_LOG_FORMAT  json  | text | auto          (default: auto)
 //
-// In "auto" mode the format is "text" (human-readable, coloured) when stdout
-// is attached to a terminal, and "json" otherwise (Docker / production).
+// In "auto" mode the format is "text" (human-readable) when stdout is
+// attached to a terminal, and "json" otherwise (Docker / production).
 package logger
 
 import (
+	"log/slog"
 	"os"
 	"strings"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-// Build constructs a zap.Logger from the TLSENTINEL_LOG_* environment
-// variables.  The caller is responsible for calling zap.ReplaceGlobals and
-// defer logger.Sync().
-func Build() (*zap.Logger, error) {
+// Build constructs a *slog.Logger from the TLSENTINEL_LOG_* environment
+// variables. The caller is responsible for installing it with
+// slog.SetDefault.
+func Build() (*slog.Logger, error) {
 	level := parseLevel(os.Getenv("TLSENTINEL_LOG_LEVEL"))
 	useJSON := resolveFormat(os.Getenv("TLSENTINEL_LOG_FORMAT"))
 
-	encCfg := zap.NewProductionEncoderConfig()
-	encCfg.TimeKey = "time"
-	encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	var enc zapcore.Encoder
+	opts := &slog.HandlerOptions{Level: level}
+	var h slog.Handler
 	if useJSON {
-		encCfg.EncodeLevel = zapcore.LowercaseLevelEncoder
-		enc = zapcore.NewJSONEncoder(encCfg)
+		h = slog.NewJSONHandler(os.Stdout, opts)
 	} else {
-		encCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		enc = zapcore.NewConsoleEncoder(encCfg)
+		h = slog.NewTextHandler(os.Stdout, opts)
 	}
-
-	core := zapcore.NewCore(enc, zapcore.AddSync(os.Stdout), level)
-	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)), nil
+	return slog.New(h), nil
 }
 
-func parseLevel(s string) zapcore.Level {
+func parseLevel(s string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "debug":
-		return zapcore.DebugLevel
+		return slog.LevelDebug
 	case "warn", "warning":
-		return zapcore.WarnLevel
+		return slog.LevelWarn
 	case "error":
-		return zapcore.ErrorLevel
+		return slog.LevelError
 	default:
-		return zapcore.InfoLevel
+		return slog.LevelInfo
 	}
 }
 
-// resolveFormat returns true for JSON, false for console text.
+// resolveFormat returns true for JSON, false for text.
 func resolveFormat(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "json":

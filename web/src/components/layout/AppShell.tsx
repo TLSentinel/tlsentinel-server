@@ -1,86 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Server, LogOut, LayoutDashboard, Settings, BookOpen, Clock, User, Wrench, CalendarDays, Package, ChevronRight, BarChart2, ScrollText, SquareActivity, Radar, Inbox, Network } from 'lucide-react'
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
+import { LogOut, Settings, User, HelpCircle, Menu } from 'lucide-react'
 import { clearToken, getIdentity, can } from '@/api/client'
+import type { TokenIdentity } from '@/api/client'
 import { getVersion } from '@/api/version'
-import { cn } from '@/lib/utils'
 import type { BuildInfo } from '@/types/api'
-
-// ---------------------------------------------------------------------------
-// NavItem — a single sidebar link with active-state highlight.
-// ---------------------------------------------------------------------------
-interface NavItemProps {
-  to: string
-  icon: React.ReactNode
-  label: string
-}
-
-function NavItem({ to, icon, label }: NavItemProps) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-          isActive
-            ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        )
-      }
-    >
-      {icon}
-      {label}
-    </NavLink>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// NavGroup — collapsible sidebar section with nested NavItems.
-// Auto-expands when any child route is active.
-// ---------------------------------------------------------------------------
-interface NavGroupProps {
-  icon: React.ReactNode
-  label: string
-  childPaths: string[]
-  children: React.ReactNode
-}
-
-function NavGroup({ icon, label, childPaths, children }: NavGroupProps) {
-  const location = useLocation()
-  const isChildActive = childPaths.some(p => location.pathname.startsWith(p))
-  const [open, setOpen] = useState(isChildActive)
-
-  useEffect(() => {
-    if (isChildActive) setOpen(true)
-  }, [isChildActive])
-
-  return (
-    <div>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className={cn(
-          'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-          isChildActive
-            ? 'text-sidebar-foreground'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        )}
-      >
-        {icon}
-        <span className="flex-1 text-left">{label}</span>
-        <ChevronRight className={cn('h-3.5 w-3.5 transition-transform text-sidebar-foreground/40', open && 'rotate-90')} />
-      </button>
-      {open && (
-        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
+import { GlobalSearch } from './GlobalSearch'
+import { SidebarNav } from './SidebarNav'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { VisuallyHidden } from 'radix-ui'
 
 // ---------------------------------------------------------------------------
 // AppShell — persistent sidebar + main content area.
 // Child routes render inside <Outlet />.
+//
+// Sidebar behaviour by viewport:
+//   ≥ md (768px): fixed-width sidebar always visible (`hidden md:flex`)
+//   <  md       : sidebar collapses; hamburger in TopBar opens it as a Sheet
+//                 drawer that slides in from the left.
+// Both surfaces render the same <SidebarNav /> so the nav tree has a single
+// source of truth.
 // ---------------------------------------------------------------------------
 function initials(first?: string, last?: string, username?: string): string {
   if (first && last) return `${first[0]}${last[0]}`.toUpperCase()
@@ -91,8 +30,10 @@ function initials(first?: string, last?: string, username?: string): string {
 
 export default function AppShell() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null)
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
   const identity = getIdentity()
 
@@ -115,118 +56,159 @@ export default function AppShell() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [popoverOpen])
 
+  // Auto-close the mobile drawer whenever the route changes — tapping any
+  // nav item dismisses it without each NavLink having to know about it.
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location.pathname])
+
   function handleLogout() {
     clearToken()
     navigate('/login', { replace: true })
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="flex w-56 flex-col border-r bg-sidebar">
-        {/* Brand */}
-        <div className="flex items-center justify-center border-b px-4 py-1">
-          <img src="/logo_light_horizontal.png" alt="TLSentinel" className="h-32 w-auto object-contain" />
+    <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+      <div className="flex h-screen bg-background">
+        {/* Desktop sidebar — hidden on phones, identical to the previous
+            shipping layout from md: up. */}
+        <aside className="hidden w-56 flex-col bg-sidebar md:flex">
+          <SidebarNav buildInfo={buildInfo} />
+        </aside>
+
+        {/* Mobile drawer — same SidebarNav rendered inside the Sheet. */}
+        <SheetContent side="left" className="md:hidden">
+          <VisuallyHidden.Root>
+            <SheetTitle>Navigation</SheetTitle>
+          </VisuallyHidden.Root>
+          <SidebarNav buildInfo={buildInfo} />
+        </SheetContent>
+
+        {/* Main pane (top bar + content) */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <TopBar
+            identity={identity}
+            popoverOpen={popoverOpen}
+            setPopoverOpen={setPopoverOpen}
+            popoverRef={popoverRef}
+            onLogout={handleLogout}
+          />
+          <main className="flex-1 overflow-auto px-6 pb-6">
+            <Outlet />
+          </main>
         </div>
+      </div>
+    </Sheet>
+  )
+}
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-3">
-          <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
-          <NavGroup icon={<SquareActivity className="h-4 w-4" />} label="Monitor" childPaths={['/active', '/calendar']}>
-            <NavItem to="/active" icon={<Clock className="h-4 w-4" />} label="Active" />
-            <NavItem to="/calendar" icon={<CalendarDays className="h-4 w-4" />} label="Calendar" />
-          </NavGroup>
-          <NavItem to="/reports" icon={<BarChart2 className="h-4 w-4" />} label="Reports" />
-          <NavGroup icon={<Package className="h-4 w-4" />} label="Inventory" childPaths={['/certificates', '/endpoints']}>
-            <NavItem to="/certificates" icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
-            <NavItem to="/endpoints" icon={<Server className="h-4 w-4" />} label="Endpoints" />
-          </NavGroup>
-          <NavGroup icon={<Radar className="h-4 w-4" />} label="Discovery" childPaths={['/discovery']}>
-            <NavItem to="/discovery/inbox" icon={<Inbox className="h-4 w-4" />} label="Inbox" />
-            <NavItem to="/discovery/networks" icon={<Network className="h-4 w-4" />} label="Networks" />
-          </NavGroup>
-          <NavItem to="/toolbox" icon={<Wrench className="h-4 w-4" />} label="Toolbox" />
-        </nav>
+// ---------------------------------------------------------------------------
+// TopBar — global search + help + user menu
+//
+// A bell/notifications icon lived here previously as a placeholder. Removed
+// until the notifications layer (see FEATURES.md → Notification System) lands,
+// so the UI doesn't imply an in-app channel that doesn't exist yet.
+// ---------------------------------------------------------------------------
+interface TopBarProps {
+  identity: TokenIdentity | null
+  popoverOpen: boolean
+  setPopoverOpen: (v: boolean | ((p: boolean) => boolean)) => void
+  popoverRef: React.RefObject<HTMLDivElement | null>
+  onLogout: () => void
+}
 
-        {/* Bottom nav — settings (admin only) + API docs */}
-        <div className="border-t p-3 space-y-1">
-          {can('settings:view') && <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />}
-          <a
-            href="/api-docs/index.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+function TopBar({ identity, popoverOpen, setPopoverOpen, popoverRef, onLogout }: TopBarProps) {
+  const fullName = identity?.given_name
+    ? `${identity.given_name}${identity.family_name ? ' ' + identity.family_name : ''}`
+    : identity?.sub ?? 'Account'
+
+  return (
+    <header className="flex items-center gap-3 px-6 py-4">
+      {/* Mobile hamburger — only visible below md, where the sidebar collapses
+          into the Sheet. SheetTrigger flips the controlled `open` state held
+          by AppShell. */}
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+          aria-label="Open navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </SheetTrigger>
+
+      <GlobalSearch />
+
+      <div className="ml-auto flex items-center gap-1">
+        <Link
+          to="/help"
+          className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title="Help"
+        >
+          <HelpCircle className="h-5 w-5" />
+        </Link>
+
+        {can('settings:view') && (
+          <Link
+            to="/settings"
+            className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Settings"
           >
-            <BookOpen className="h-4 w-4" />
-            API Docs
-          </a>
-        </div>
+            <Settings className="h-5 w-5" />
+          </Link>
+        )}
 
-        {/* Footer — user avatar + version */}
-        <div className="border-t p-3 space-y-1">
-          {buildInfo && (
-            <p
-              className="px-3 py-1 font-mono text-[11px] leading-tight text-sidebar-foreground/40"
-              title={`Built: ${buildInfo.buildTime}`}
-            >
-              {buildInfo.version}
-            </p>
-          )}
+        <div className="mx-2 h-8 w-px bg-border" />
 
-          {/* Avatar button + popover */}
-          <div className="relative" ref={popoverRef}>
-            <button
-              onClick={() => setPopoverOpen(v => !v)}
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
-                {initials(identity?.given_name, identity?.family_name, identity?.sub)}
-              </span>
-              <span className="truncate">
-                {identity?.given_name
-                  ? `${identity.given_name}${identity.family_name ? ' ' + identity.family_name : ''}`
-                  : identity?.sub ?? 'Account'}
-              </span>
-            </button>
+        {/* User menu */}
+        <div className="relative" ref={popoverRef}>
+          <button
+            onClick={() => setPopoverOpen(v => !v)}
+            className="flex items-center gap-3 rounded-lg py-1 pl-3 pr-1 transition-colors hover:bg-muted"
+          >
+            <div className="text-right leading-tight hidden sm:block">
+              <p className="text-sm font-semibold">{fullName}</p>
+              {identity?.role && (
+                <p className="text-xs capitalize text-muted-foreground">{identity.role}</p>
+              )}
+            </div>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-semibold">
+              {initials(identity?.given_name, identity?.family_name, identity?.sub)}
+            </span>
+          </button>
 
-            {popoverOpen && (
-              <div className="absolute bottom-full left-0 mb-1 w-52 rounded-md border bg-popover shadow-md text-popover-foreground text-sm">
-                <div className="px-3 py-2 border-b">
-                  {(identity?.given_name || identity?.family_name) && (
-                    <p className="font-medium truncate">
-                      {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}
-                    </p>
-                  )}
-                  <p className="text-muted-foreground truncate text-xs">{identity?.sub}</p>
-                  <p className="mt-1 text-xs capitalize text-muted-foreground/60">{identity?.role}</p>
-                </div>
-                <div className="p-1">
-                  <Link
-                    to="/account"
-                    onClick={() => setPopoverOpen(false)}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <User className="h-4 w-4" />
-                    My Account
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </div>
+          {popoverOpen && (
+            <div className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-popover shadow-lg text-popover-foreground text-sm overflow-hidden z-50">
+              <div className="px-3 py-2 bg-muted">
+                {(identity?.given_name || identity?.family_name) && (
+                  <p className="font-medium truncate">
+                    {[identity.given_name, identity.family_name].filter(Boolean).join(' ')}
+                  </p>
+                )}
+                <p className="text-muted-foreground truncate text-xs">{identity?.sub}</p>
+                <p className="mt-1 text-xs capitalize text-muted-foreground/60">{identity?.role}</p>
               </div>
-            )}
-          </div>
+              <div className="p-1">
+                <Link
+                  to="/account"
+                  onClick={() => setPopoverOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <User className="h-4 w-4" />
+                  My Account
+                </Link>
+                <button
+                  onClick={onLogout}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 overflow-auto p-6">
-        <Outlet />
-      </main>
-    </div>
+      </div>
+    </header>
   )
 }

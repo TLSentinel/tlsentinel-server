@@ -22,30 +22,6 @@ func scannerToResponse(s Scanner) models.ScannerTokenResponse {
 	}
 }
 
-// GetAllScannerTokenHashes returns the minimal scanner data needed for auth middleware.
-func (s *Store) GetAllScannerTokenHashes(ctx context.Context) ([]models.ScannerToken, error) {
-	var rows []Scanner
-	err := s.db.NewSelect().
-		Model(&rows).
-		ColumnExpr("id, name, token_hash, created_at, last_used_at").
-		Scan(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get scanner token hashes: %w", err)
-	}
-
-	result := make([]models.ScannerToken, len(rows))
-	for i, r := range rows {
-		result[i] = models.ScannerToken{
-			ID:         r.ID,
-			Name:       r.Name,
-			TokenHash:  r.TokenHash,
-			CreatedAt:  r.CreatedAt,
-			LastUsedAt: r.LastUsedAt,
-		}
-	}
-	return result, nil
-}
-
 // GetScannerTokenByHash looks up a scanner by its SHA-256 token hash.
 // Used for fast O(1) auth of stx_s_ prefixed tokens.
 func (s *Store) GetScannerTokenByHash(ctx context.Context, hash string) (models.ScannerToken, error) {
@@ -135,6 +111,26 @@ func (s *Store) InsertScannerToken(ctx context.Context, name, tokenHash, scanCro
 		return models.ScannerTokenResponse{}, fmt.Errorf("failed to insert scanner token: %w", err)
 	}
 	return scannerToResponse(*row), nil
+}
+
+// RotateScannerTokenHash replaces the token_hash for the given scanner.
+// All other fields (name, schedule, concurrency, default flag, endpoint
+// assignments, last_used_at) are preserved. Returns ErrNotFound if the
+// scanner does not exist.
+func (s *Store) RotateScannerTokenHash(ctx context.Context, id, tokenHash string) error {
+	res, err := s.db.NewUpdate().
+		TableExpr("tlsentinel.scanners").
+		Set("token_hash = ?", tokenHash).
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to rotate scanner token hash: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // UpdateScannerToken updates the name and scan settings for a scanner token.

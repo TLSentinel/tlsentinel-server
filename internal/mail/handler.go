@@ -3,8 +3,9 @@ package mail
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
+	netmail "net/mail"
+	"strings"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
@@ -30,26 +31,6 @@ type Handler struct {
 func NewHandler(store *db.Store, cfg *config.Config) *Handler {
 	key := cfg.EncryptionKey
 	return &Handler{store: store, enc: crypto.NewEncryptor(key)}
-}
-
-func (h *Handler) logAudit(r *http.Request, action string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:    ptrIfNonEmpty(identity.UserID),
-		Username:  identity.Username,
-		Action:    action,
-		IPAddress: &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 // @Summary      Get mail config
@@ -123,6 +104,16 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "smtpUsername is required when authType is not none", http.StatusBadRequest)
 		return
 	}
+	if req.FromAddress != "" {
+		if _, err := netmail.ParseAddress(req.FromAddress); err != nil {
+			http.Error(w, "fromAddress is not a valid email address", http.StatusBadRequest)
+			return
+		}
+	}
+	if strings.ContainsAny(req.FromName, "\r\n") {
+		http.Error(w, "fromName must not contain CR or LF", http.StatusBadRequest)
+		return
+	}
 
 	// Resolve the stored password.
 	encryptedPassword := ""
@@ -167,7 +158,20 @@ func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.MailConfigUpdate)
+	// SMTP password is intentionally excluded from details.
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action: audit.MailConfigUpdate,
+		Details: map[string]any{
+			"enabled":      cfg.Enabled,
+			"smtpHost":     cfg.SMTPHost,
+			"smtpPort":     cfg.SMTPPort,
+			"authType":     cfg.AuthType,
+			"smtpUsername": cfg.SMTPUsername,
+			"fromAddress":  cfg.FromAddress,
+			"fromName":     cfg.FromName,
+			"tlsMode":      cfg.TLSMode,
+		},
+	})
 	response.JSON(w, http.StatusOK, cfg.ToResponse())
 }
 

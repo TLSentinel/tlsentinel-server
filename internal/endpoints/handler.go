@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
@@ -14,6 +13,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -25,28 +25,6 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
-}
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resourceType,
-		ResourceID:   &resourceID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 // CreateEndpointRequest is the payload for creating a new endpoint.
@@ -96,30 +74,21 @@ type UpdateEndpointRequest struct {
 // @Param        name       query  string  false  "Filter by name or DNS name (partial match)"
 // @Param        status     query  string  false  "Filter by enabled state: enabled, disabled"
 // @Param        sort       query  string  false  "Sort order: \"\" (newest first, default), name, dns_name, last_scanned"
+// @Param        type       query  string  false  "Filter by endpoint type: host, saml, manual"
 // @Success      200  {object}  models.EndpointList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /endpoints [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	hasError := r.URL.Query().Get("has_error") == "true"
 	name := r.URL.Query().Get("name")
 	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
 	tagID := r.URL.Query().Get("tag_id")
+	endpointType := r.URL.Query().Get("type")
 
-	result, err := h.store.ListEndpoints(r.Context(), page, pageSize, hasError, name, status, sort, tagID)
+	result, err := h.store.ListEndpoints(r.Context(), page, pageSize, hasError, name, status, sort, tagID, endpointType)
 	if err != nil {
 		http.Error(w, "failed to list endpoints", http.StatusInternalServerError)
 		return
@@ -193,8 +162,40 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointCreate, "endpoint", endpoint.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointCreate,
+		ResourceType: "endpoint",
+		ResourceID:   endpoint.ID,
+		Label:        endpoint.Name,
+		Details:      endpointAuditDetails(endpoint),
+	})
 	response.JSON(w, http.StatusCreated, endpoint)
+}
+
+// endpointAuditDetails extracts the structured change context for audit logs.
+// Returns a typed map so the audit row records exactly what was saved without
+// reaching back into the endpoint model at render time.
+func endpointAuditDetails(e models.Endpoint) map[string]any {
+	d := map[string]any{
+		"type":    e.Type,
+		"enabled": e.Enabled,
+	}
+	switch e.Type {
+	case "host":
+		d["dnsName"] = e.DNSName
+		d["port"] = e.Port
+		if e.IPAddress != nil {
+			d["ipAddress"] = *e.IPAddress
+		}
+	case "saml":
+		if e.URL != nil {
+			d["url"] = *e.URL
+		}
+	}
+	if e.ScannerID != nil {
+		d["scannerId"] = *e.ScannerID
+	}
+	return d
 }
 
 // @Summary      Get an endpoint
@@ -295,7 +296,13 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+		Label:        endpoint.Name,
+		Details:      endpointAuditDetails(endpoint),
+	})
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -445,7 +452,13 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+		Label:        endpoint.Name,
+		Details:      endpointAuditDetails(endpoint),
+	})
 	response.JSON(w, http.StatusOK, endpoint)
 }
 
@@ -460,6 +473,16 @@ func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	endpointID := chi.URLParam(r, "endpointID")
 
+	// Capture the endpoint name + type before deletion so the audit row is
+	// readable. A failed lookup isn't fatal — the delete can still proceed and
+	// the audit row will fall back to just the ID.
+	var label string
+	var details map[string]any
+	if before, lookupErr := h.store.GetEndpoint(r.Context(), endpointID); lookupErr == nil {
+		label = before.Name
+		details = endpointAuditDetails(before)
+	}
+
 	if err := h.store.DeleteEndpoint(r.Context(), endpointID); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "endpoint not found", http.StatusNotFound)
@@ -469,24 +492,32 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointDelete, "endpoint", endpointID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointDelete,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+		Label:        label,
+		Details:      details,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // tlsProfileResponse is the enriched API response for an endpoint TLS profile.
 // It combines the raw scan data stored in the database with the classification
-// computed by internal/tlsprofile.Classify at query time.
+// and SSL Labs-style score computed by internal/tlsprofile at query time.
 type tlsProfileResponse struct {
-	EndpointID     string            `json:"endpointId"`
-	ScannedAt      time.Time         `json:"scannedAt"`
-	TLS10          bool              `json:"tls10"`
-	TLS11          bool              `json:"tls11"`
-	TLS12          bool              `json:"tls12"`
-	TLS13          bool              `json:"tls13"`
-	CipherSuites   []string          `json:"cipherSuites"`
-	SelectedCipher *string           `json:"selectedCipher,omitempty"`
-	ScanError      *string           `json:"scanError,omitempty"`
-	Classification tlsprofile.Result `json:"classification"`
+	EndpointID     string                 `json:"endpointId"`
+	ScannedAt      time.Time              `json:"scannedAt"`
+	SSL30          bool                   `json:"ssl30"`
+	TLS10          bool                   `json:"tls10"`
+	TLS11          bool                   `json:"tls11"`
+	TLS12          bool                   `json:"tls12"`
+	TLS13          bool                   `json:"tls13"`
+	CipherSuites   []string               `json:"cipherSuites"`
+	SelectedCipher *string                `json:"selectedCipher,omitempty"`
+	ScanError      *string                `json:"scanError,omitempty"`
+	Classification tlsprofile.Result      `json:"classification"`
+	Score          tlsprofile.ScoreResult `json:"score"`
 }
 
 // @Summary      Get TLS profile
@@ -516,9 +547,21 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 		profile.CipherSuites = []string{}
 	}
 
+	// Cheap-path key-exchange bits: derived from the endpoint's current TLS
+	// cert's public key (RSA modulus / EC curve / Ed25519). This is a proxy
+	// for real key-exchange strength — close enough to populate the sub-score
+	// and activate the weak-key grade caps without adding scanner probes.
+	kexBits := -1
+	if pemData, err := h.store.GetEndpointTLSCertPEM(r.Context(), endpointID); err == nil {
+		if bits, err := tlsprofile.KeyExchangeBitsFromPEM(pemData); err == nil {
+			kexBits = bits
+		}
+	}
+
 	resp := tlsProfileResponse{
 		EndpointID:     profile.EndpointID,
 		ScannedAt:      profile.ScannedAt,
+		SSL30:          profile.SSL30,
 		TLS10:          profile.TLS10,
 		TLS11:          profile.TLS11,
 		TLS12:          profile.TLS12,
@@ -527,44 +570,55 @@ func (h *Handler) GetTLSProfile(w http.ResponseWriter, r *http.Request) {
 		SelectedCipher: profile.SelectedCipher,
 		ScanError:      profile.ScanError,
 		Classification: tlsprofile.Classify(
+			profile.SSL30,
 			profile.TLS10,
 			profile.TLS11,
 			profile.TLS12,
 			profile.TLS13,
 			profile.CipherSuites,
 		),
+		Score: tlsprofile.Score(tlsprofile.ScoreInput{
+			SSL30:             profile.SSL30,
+			TLS10:             profile.TLS10,
+			TLS11:             profile.TLS11,
+			TLS12:             profile.TLS12,
+			TLS13:             profile.TLS13,
+			CipherSuites:      profile.CipherSuites,
+			KeyExchangeBits:   kexBits,
+			HSTS:              nil, // Not probed yet.
+			HasForwardSecrecy: tlsprofile.HasForwardSecrecy(profile.CipherSuites),
+			HasAEAD:           tlsprofile.HasAEAD(profile.CipherSuites),
+			// SSL 3.0 support implies POODLE (CVE-2014-3566). We don't separately
+			// probe CBC-under-SSLv3; any server accepting SSLv3 is considered
+			// vulnerable, which matches SSL Labs' treatment.
+			VulnPoodle: profile.SSL30,
+		}),
 	}
 
 	response.JSON(w, http.StatusOK, resp)
 }
 
 // @Summary      Get scan history
-// @Description  Returns the most recent scan results for an endpoint, newest first
+// @Description  Returns a paginated page of scan results for an endpoint, newest first.
 // @Tags         endpoints
 // @Produce      json
 // @Param        endpointID  path      string  true   "Endpoint ID"
-// @Param        limit       query     int     false  "Max rows to return (default 20, max 100)"
+// @Param        page        query     int     false  "Page number (default 1)"
+// @Param        page_size   query     int     false  "Page size (default 20, max 100)"
 // @Success      200         {object}  models.EndpointScanHistoryList
 // @Failure      500         {string}  string  "internal server error"
 // @Router       /endpoints/{endpointID}/history [get]
 func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	endpointID := chi.URLParam(r, "endpointID")
+	page, pageSize := pagination.Parse(r, 20, 100)
 
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil || limit < 1 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	items, err := h.store.GetEndpointScanHistory(r.Context(), endpointID, limit)
+	result, err := h.store.GetEndpointScanHistory(r.Context(), endpointID, page, pageSize)
 	if err != nil {
 		http.Error(w, "failed to get scan history", http.StatusInternalServerError)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, models.EndpointScanHistoryList{Items: items})
+	response.JSON(w, http.StatusOK, result)
 }
 
 // @Summary      Link a certificate to an endpoint
@@ -618,13 +672,22 @@ func (h *Handler) LinkCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.EndpointUpdate, "endpoint", endpointID)
-
 	endpoint, err := h.store.GetEndpoint(r.Context(), endpointID)
 	if err != nil {
 		http.Error(w, "failed to fetch updated endpoint", http.StatusInternalServerError)
 		return
 	}
+
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.EndpointUpdate,
+		ResourceType: "endpoint",
+		ResourceID:   endpointID,
+		Label:        endpoint.Name,
+		Details: map[string]any{
+			"linkedCertificate": rec.Fingerprint,
+			"certUse":           certUse,
+		},
+	})
 
 	response.JSON(w, http.StatusOK, endpoint)
 }
@@ -756,7 +819,13 @@ func (h *Handler) BulkImport(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		h.logAudit(r, audit.EndpointCreate, "endpoint", endpoint.ID)
+		auth.Log(r.Context(), h.store, r, audit.Entry{
+			Action:       audit.EndpointCreate,
+			ResourceType: "endpoint",
+			ResourceID:   endpoint.ID,
+			Label:        endpoint.Name,
+			Details:      endpointAuditDetails(endpoint),
+		})
 		result.ID = &endpoint.ID
 		resp.Created++
 		resp.Results = append(resp.Results, result)

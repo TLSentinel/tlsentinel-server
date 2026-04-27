@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Clock } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -51,6 +52,14 @@ function scheduleToCron(s: Schedule): string {
   }
 }
 
+const FREQUENCIES: { key: Exclude<Frequency, never>; label: string }[] = [
+  { key: 'hourly',  label: 'Hourly' },
+  { key: 'daily',   label: 'Daily' },
+  { key: 'weekly',  label: 'Weekly' },
+  { key: 'monthly', label: 'Monthly' },
+  { key: 'custom',  label: 'Custom' },
+]
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const HOURS    = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES  = [0, 15, 30, 45]
@@ -68,8 +77,8 @@ export default function SchedulePicker({ value, onChange }: { value: string; onC
   const [sched, setSched] = useState<Schedule>(init.sched)
   const [customExpr, setCustomExpr] = useState(init.customExpr)
 
-  // Sync when the parent value changes (e.g. dialog opens with existing data)
   useEffect(() => {
+    if (sched.frequency === 'custom') return
     const { sched: s, customExpr: c } = initFromValue(value)
     setSched(s)
     setCustomExpr(c)
@@ -83,15 +92,14 @@ export default function SchedulePicker({ value, onChange }: { value: string; onC
     }
   }
 
-  function handleFrequencyChange(freq: string) {
+  function handleFrequencyChange(freq: Frequency) {
     if (freq === 'custom') {
-      // Pre-populate the text box with the current cron so the user can tweak it
       const current = sched.frequency !== 'custom' ? scheduleToCron(sched) : customExpr
       setCustomExpr(current)
       setSched(s => ({ ...s, frequency: 'custom' }))
       onChange(current)
     } else {
-      update({ frequency: freq as Frequency })
+      update({ frequency: freq })
     }
   }
 
@@ -101,69 +109,88 @@ export default function SchedulePicker({ value, onChange }: { value: string; onC
   }
 
   const pad = (n: number) => String(n).padStart(2, '0')
+  const previewCron = sched.frequency === 'custom' ? customExpr : scheduleToCron(sched)
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Select value={sched.frequency} onValueChange={handleFrequencyChange}>
-        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="hourly">Hourly</SelectItem>
-          <SelectItem value="daily">Daily</SelectItem>
-          <SelectItem value="weekly">Weekly</SelectItem>
-          <SelectItem value="monthly">Monthly</SelectItem>
-          <SelectItem value="custom">Custom</SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="space-y-3">
+      {/* Frequency segmented buttons */}
+      <div className="grid grid-cols-5 gap-2">
+        {FREQUENCIES.map(f => {
+          const active = sched.frequency === f.key
+          return (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => handleFrequencyChange(f.key)}
+              className={[
+                'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+                active
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-foreground hover:bg-muted',
+              ].join(' ')}
+            >
+              {f.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Sub-controls */}
+      {(sched.frequency === 'weekly' || sched.frequency === 'monthly' || sched.frequency === 'daily') && (
+        <div className="flex flex-wrap items-center gap-2">
+          {sched.frequency === 'weekly' && (
+            <Select value={String(sched.weekday)} onValueChange={v => update({ weekday: parseInt(v) })}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {WEEKDAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {sched.frequency === 'monthly' && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">on day</span>
+              <Input
+                type="number" min={1} max={28}
+                value={sched.day}
+                onChange={e => update({ day: parseInt(e.target.value) || 1 })}
+                className="w-16"
+              />
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">at</span>
+            <Select value={String(sched.hour)} onValueChange={v => update({ hour: parseInt(v) })}>
+              <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {HOURS.map(h => <SelectItem key={h} value={String(h)}>{pad(h)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">:</span>
+            <Select value={String(sched.minute)} onValueChange={v => update({ minute: parseInt(v) })}>
+              <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MINUTES.map(m => <SelectItem key={m} value={String(m)}>{pad(m)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {sched.frequency === 'custom' && (
         <Input
           value={customExpr}
           onChange={e => handleCustomChange(e.target.value)}
           placeholder="e.g. */30 9-17 * * 1-5"
-          className="w-48 font-mono text-sm"
+          className="font-mono text-sm"
           spellCheck={false}
         />
       )}
 
-      {sched.frequency === 'weekly' && (
-        <Select value={String(sched.weekday)} onValueChange={v => update({ weekday: parseInt(v) })}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {WEEKDAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      )}
-
-      {sched.frequency === 'monthly' && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">on day</span>
-          <Input
-            type="number" min={1} max={28}
-            value={sched.day}
-            onChange={e => update({ day: parseInt(e.target.value) || 1 })}
-            className="w-16"
-          />
-        </div>
-      )}
-
-      {sched.frequency !== 'hourly' && sched.frequency !== 'custom' && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">at</span>
-          <Select value={String(sched.hour)} onValueChange={v => update({ hour: parseInt(v) })}>
-            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {HOURS.map(h => <SelectItem key={h} value={String(h)}>{pad(h)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground">:</span>
-          <Select value={String(sched.minute)} onValueChange={v => update({ minute: parseInt(v) })}>
-            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MINUTES.map(m => <SelectItem key={m} value={String(m)}>{pad(m)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {/* Cron preview */}
+      <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+        <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <code className="font-mono text-sm text-muted-foreground">{previewCron}</code>
+      </div>
     </div>
   )
 }

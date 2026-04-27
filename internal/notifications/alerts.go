@@ -8,9 +8,8 @@ package notifications
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sort"
-
-	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/crypto"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
@@ -33,7 +32,7 @@ func alertThreshold(daysRemaining int, thresholds []int) int {
 
 // RunExpiryAlerts checks for expiring certificates and sends alert emails to
 // all notify-enabled users. It is a no-op if mail is disabled or unconfigured.
-func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor, log *zap.Logger) {
+func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor, log *slog.Logger) {
 	// Load and validate mail config.
 	cfg, err := store.GetMailConfig(ctx)
 	if err != nil {
@@ -41,7 +40,7 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 			log.Debug("expiry alerts skipped: mail not configured")
 			return
 		}
-		log.Error("expiry alerts: failed to load mail config", zap.Error(err))
+		log.Error("expiry alerts: failed to load mail config", "error", err)
 		return
 	}
 	if !cfg.Enabled {
@@ -54,7 +53,7 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 	if cfg.SMTPPassword != "" {
 		plainPassword, err = enc.Decrypt(cfg.SMTPPassword)
 		if err != nil {
-			log.Error("expiry alerts: failed to decrypt SMTP password", zap.Error(err))
+			log.Error("expiry alerts: failed to decrypt SMTP password", "error", err)
 			return
 		}
 	}
@@ -73,7 +72,7 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 	// Load thresholds from the DB (falls back to defaults if not set).
 	thresholds, err := store.GetAlertThresholds(ctx)
 	if err != nil {
-		log.Error("expiry alerts: failed to load thresholds", zap.Error(err))
+		log.Error("expiry alerts: failed to load thresholds", "error", err)
 		return
 	}
 	if len(thresholds) == 0 {
@@ -86,7 +85,7 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 	// Fetch alert recipients.
 	recipients, err := store.ListNotifyUsers(ctx)
 	if err != nil {
-		log.Error("expiry alerts: failed to list notify users", zap.Error(err))
+		log.Error("expiry alerts: failed to list notify users", "error", err)
 		return
 	}
 	if len(recipients) == 0 {
@@ -104,8 +103,8 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 		certs, err := store.ListExpiringActiveCertsTagged(ctx, user.ID, thresholds[0])
 		if err != nil {
 			log.Error("expiry alerts: failed to list certs for user",
-				zap.String("user_id", user.ID),
-				zap.Error(err),
+				"user_id", user.ID,
+				"error", err,
 			)
 			continue
 		}
@@ -120,10 +119,10 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 			inserted, err := store.TryInsertExpiryAlert(ctx, user.ID, cert.Fingerprint, threshold)
 			if err != nil {
 				log.Error("expiry alerts: dedup insert failed",
-					zap.String("user_id", user.ID),
-					zap.String("fingerprint", cert.Fingerprint),
-					zap.Int("threshold", threshold),
-					zap.Error(err),
+					"user_id", user.ID,
+					"fingerprint", cert.Fingerprint,
+					"threshold", threshold,
+					"error", err,
 				)
 				continue
 			}
@@ -137,8 +136,8 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 			subject, htmlBody, renderErr := renderExpiryEmail(ctx, store, cert, threshold)
 			if renderErr != nil {
 				log.Warn("expiry alert: template render failed, using plain-text fallback",
-					zap.String("endpoint", cert.EndpointName),
-					zap.Error(renderErr),
+					"endpoint", cert.EndpointName,
+					"error", renderErr,
 				)
 				subject = expirySubject(cert, threshold)
 				htmlBody = expiryBody(cert, threshold)
@@ -146,26 +145,26 @@ func RunExpiryAlerts(ctx context.Context, store *db.Store, enc *crypto.Encryptor
 
 			if err := mail.Send(sendCfg, *user.Email, subject, htmlBody); err != nil {
 				log.Error("expiry alert: failed to send email",
-					zap.String("to", *user.Email),
-					zap.Error(err),
+					"to", *user.Email,
+					"error", err,
 				)
 				continue
 			}
 			sent++
 			log.Info("expiry alert sent",
-				zap.String("endpoint", cert.EndpointName),
-				zap.String("endpoint_type", cert.EndpointType),
-				zap.Int("days_remaining", cert.DaysRemaining),
-				zap.Int("threshold", threshold),
-				zap.String("to", *user.Email),
+				"endpoint", cert.EndpointName,
+				"endpoint_type", cert.EndpointType,
+				"days_remaining", cert.DaysRemaining,
+				"threshold", threshold,
+				"to", *user.Email,
 			)
 		}
 	}
 
 	log.Info("expiry alert run complete",
-		zap.Int("recipients", len(recipients)),
-		zap.Int("alerts_sent", sent),
-		zap.Int("already_sent", skipped),
+		"recipients", len(recipients),
+		"alerts_sent", sent,
+		"already_sent", skipped,
 	)
 }
 

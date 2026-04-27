@@ -89,9 +89,13 @@ func (s *Store) UpdateTagCategory(ctx context.Context, id string, req models.Upd
 }
 
 func (s *Store) DeleteTagCategory(ctx context.Context, id string) error {
-	_, err := s.db.NewDelete().Model((*TagCategory)(nil)).Where("id = ?", id).Exec(ctx)
+	res, err := s.db.NewDelete().Model((*TagCategory)(nil)).Where("id = ?", id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete tag category: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -139,11 +143,50 @@ func (s *Store) UpdateTag(ctx context.Context, id string, req models.UpdateTagRe
 }
 
 func (s *Store) DeleteTag(ctx context.Context, id string) error {
-	_, err := s.db.NewDelete().Model((*Tag)(nil)).Where("id = ?", id).Exec(ctx)
+	res, err := s.db.NewDelete().Model((*Tag)(nil)).Where("id = ?", id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete tag: %w", err)
 	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
 	return nil
+}
+
+// ListAllTags returns every tag in the system with its category embedded,
+// flat-sorted by category name then tag name. Useful for filter pickers and
+// autocomplete where the category grouping of ListTagCategories is overkill.
+func (s *Store) ListAllTags(ctx context.Context) ([]models.TagWithCategory, error) {
+	type row struct {
+		TagID           string  `bun:"tag_id"`
+		TagName         string  `bun:"tag_name"`
+		TagDescription  *string `bun:"tag_description"`
+		CategoryID      string  `bun:"category_id"`
+		CategoryName    string  `bun:"category_name"`
+	}
+	var rows []row
+	err := s.db.NewSelect().
+		TableExpr("tlsentinel.tags t").
+		ColumnExpr("t.id AS tag_id, t.name AS tag_name, t.description AS tag_description, t.category_id, tc.name AS category_name").
+		Join("JOIN tlsentinel.tag_categories tc ON tc.id = t.category_id").
+		OrderExpr("tc.name ASC, t.name ASC").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tags: %w", err)
+	}
+
+	result := make([]models.TagWithCategory, len(rows))
+	for i, r := range rows {
+		result[i] = models.TagWithCategory{
+			ID:           r.TagID,
+			CategoryID:   r.CategoryID,
+			CategoryName: r.CategoryName,
+			Name:         r.TagName,
+			Description:  r.TagDescription,
+		}
+	}
+	return result, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -182,8 +225,35 @@ func (s *Store) GetEndpointTags(ctx context.Context, endpointID string) ([]model
 	return result, nil
 }
 
+// SetEndpointTags atomically replaces all tags on an endpoint. Duplicate tag
+// IDs in the input are silently deduplicated. Returns ErrInvalidInput if any
+// supplied tag ID does not reference an existing tag.
 func (s *Store) SetEndpointTags(ctx context.Context, endpointID string, tagIDs []string) error {
+	seen := make(map[string]struct{}, len(tagIDs))
+	unique := make([]string, 0, len(tagIDs))
+	for _, id := range tagIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+
 	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if len(unique) > 0 {
+			var count int
+			if err := tx.NewSelect().
+				TableExpr("tlsentinel.tags").
+				ColumnExpr("count(*)").
+				Where("id IN (?)", bun.In(unique)).
+				Scan(ctx, &count); err != nil {
+				return fmt.Errorf("failed to validate tag ids: %w", err)
+			}
+			if count != len(unique) {
+				return ErrInvalidInput
+			}
+		}
+
 		_, err := tx.NewDelete().
 			Model((*EndpointTag)(nil)).
 			Where("endpoint_id = ?", endpointID).
@@ -192,16 +262,15 @@ func (s *Store) SetEndpointTags(ctx context.Context, endpointID string, tagIDs [
 			return fmt.Errorf("failed to clear endpoint tags: %w", err)
 		}
 
-		if len(tagIDs) == 0 {
+		if len(unique) == 0 {
 			return nil
 		}
 
-		rows := make([]EndpointTag, len(tagIDs))
-		for i, tid := range tagIDs {
+		rows := make([]EndpointTag, len(unique))
+		for i, tid := range unique {
 			rows[i] = EndpointTag{EndpointID: endpointID, TagID: tid}
 		}
-		_, err = tx.NewInsert().Model(&rows).On("CONFLICT DO NOTHING").Exec(ctx)
-		if err != nil {
+		if _, err := tx.NewInsert().Model(&rows).Exec(ctx); err != nil {
 			return fmt.Errorf("failed to insert endpoint tags: %w", err)
 		}
 		return nil

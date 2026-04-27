@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronRight, Plus, X, Copy, Check, Download, AlertCircle, ShieldAlert } from 'lucide-react'
+import { Plus, X, Copy, Check, Download, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { FIELD_LABEL } from '@/lib/utils'
+import { Breadcrumb } from '@/components/Breadcrumb'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import {
   Select,
   SelectContent,
@@ -57,15 +59,69 @@ function getAlgoParams(algo: KeyAlgo): { keyGen: RsaHashedKeyGenParams | EcKeyGe
 }
 
 // ---------------------------------------------------------------------------
-// SAN detection
+// Validation
+//
+// CN and SANs in a server CSR are constrained: hostnames (RFC 1035 labels,
+// optional left-most wildcard per RFC 6125), IP literals, or — for SAN only —
+// rfc822 email addresses. URIs are valid SAN types in the spec but no public
+// CA will issue against one, and accepting them in this tool just lets users
+// paste in URLs by accident and end up with a non-issuable CSR. So we reject
+// anything that isn't a hostname / IP / email.
 // ---------------------------------------------------------------------------
 
-function detectSANType(value: string): 'dns' | 'ip' | 'email' | 'url' {
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(value)) return 'ip'
-  if (/^[0-9a-f:]+$/i.test(value) && value.includes(':')) return 'ip'
-  if (value.includes('@')) return 'email'
-  if (/^https?:\/\//i.test(value)) return 'url'
-  return 'dns'
+const HOSTNAME_LABEL = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/
+
+function isValidHostname(s: string, allowWildcard = false): boolean {
+  if (!s || s.length > 253) return false
+  const labels = s.split('.')
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i]
+    if (!label || label.length > 63) return false
+    if (allowWildcard && i === 0 && label === '*') continue
+    if (!HOSTNAME_LABEL.test(label)) return false
+  }
+  return true
+}
+
+function isValidIPv4(s: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s)
+  if (!m) return false
+  return m.slice(1, 5).every((n) => parseInt(n, 10) <= 255)
+}
+
+function isValidIPv6(s: string): boolean {
+  if (!s.includes(':') || !/^[0-9a-fA-F:]+$/.test(s)) return false
+  if ((s.match(/::/g) || []).length > 1) return false
+  const groups = s.split(':')
+  if (groups.length > 8) return false
+  return groups.every((g) => g === '' || (g.length <= 4 && /^[0-9a-fA-F]+$/.test(g)))
+}
+
+function isValidIP(s: string): boolean {
+  return isValidIPv4(s) || isValidIPv6(s)
+}
+
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+}
+
+type SANType = 'dns' | 'ip' | 'email'
+
+function classifySAN(value: string): SANType | null {
+  const v = value.trim()
+  if (!v) return null
+  if (isValidIP(v)) return 'ip'
+  if (v.includes('@')) return isValidEmail(v) ? 'email' : null
+  if (isValidHostname(v, /* allowWildcard */ true)) return 'dns'
+  return null
+}
+
+function validateCN(value: string): string | null {
+  const v = value.trim()
+  if (!v) return null  // empty handled by canGenerate; don't show error until user types
+  if (isValidIP(v)) return null
+  if (isValidHostname(v, /* allowWildcard */ true)) return null
+  return 'Must be a hostname (example.com), wildcard (*.example.com), or IP address.'
 }
 
 // ---------------------------------------------------------------------------
@@ -98,15 +154,16 @@ async function generateCSR(
   if (fields.email) parts.push(`E=${fields.email}`)
   const nameStr = parts.join(', ')
 
-  // Build extensions
+  // Build extensions. Inputs are gated by canGenerate, but we re-classify
+  // here defensively and skip anything that doesn't resolve to a known type.
   const extensions: SubjectAlternativeNameExtension[] = []
-  const sanEntries = sans.filter(Boolean)
+  const sanEntries = sans
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => ({ value: v, type: classifySAN(v) }))
+    .filter((e): e is { value: string; type: SANType } => e.type !== null)
   if (sanEntries.length > 0) {
-    extensions.push(
-      new SubjectAlternativeNameExtension(
-        sanEntries.map((v) => ({ type: detectSANType(v), value: v })),
-      ),
-    )
+    extensions.push(new SubjectAlternativeNameExtension(sanEntries))
   }
 
   // Create CSR
@@ -157,7 +214,7 @@ function download(filename: string, content: string) {
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className={FIELD_LABEL}>{title}</p>
       <Separator />
     </div>
   )
@@ -168,7 +225,7 @@ function PemBlock({ label, value, filename }: { label: string; value: string; fi
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{label}</p>
+        <p className={FIELD_LABEL}>{label}</p>
         <div className="flex items-center gap-1.5">
           <Button variant="ghost" size="sm" onClick={copy} className="h-7 gap-1.5 text-xs">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -200,7 +257,7 @@ export default function CsrGeneratorPage() {
   const [l, setL] = useState('')
   const [email, setEmail] = useState('')
   const [sans, setSans] = useState<string[]>([''])
-  const [algo, setAlgo] = useState<KeyAlgo>('ec-p256')
+  const [algo, setAlgo] = useState<KeyAlgo>('rsa-2048')
   const [result, setResult] = useState<GenerateResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -229,16 +286,28 @@ export default function CsrGeneratorPage() {
     setError(null)
   }, [])
 
-  const canGenerate = cn.trim().length > 0
+  // Per-field validation. Errors only render once the user has typed
+  // something invalid; a still-empty CN is "not ready" rather than "wrong."
+  const cnError = validateCN(cn)
+  const sanErrors = sans.map((s) => {
+    const v = s.trim()
+    if (!v) return null
+    return classifySAN(v) === null
+      ? 'Must be a hostname, IP address, or email — no URLs or special characters.'
+      : null
+  })
+  const canGenerate =
+    cn.trim().length > 0 &&
+    !cnError &&
+    sanErrors.every((e) => !e)
 
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link to="/toolbox" className="hover:text-foreground">Toolbox</Link>
-        <ChevronRight className="h-3.5 w-3.5" />
-        <span className="text-foreground">CSR Generator</span>
-      </nav>
+      <Breadcrumb items={[
+        { label: 'Toolbox', to: '/toolbox' },
+        { label: 'CSR Generator' },
+      ]} />
 
       <div>
         <h1 className="text-2xl font-semibold">CSR Generator</h1>
@@ -258,32 +327,39 @@ export default function CsrGeneratorPage() {
         <div className="space-y-3">
           <SectionHeader title="Subject" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="cn">Common Name <span className="text-destructive">*</span></Label>
-              <Input id="cn" placeholder="example.com" value={cn} onChange={(e) => setCn(e.target.value)} />
+            <div className="space-y-2">
+              <Label htmlFor="cn" className={FIELD_LABEL}>Common Name <span className="text-destructive">*</span></Label>
+              <Input
+                id="cn"
+                placeholder="example.com"
+                value={cn}
+                onChange={(e) => setCn(e.target.value)}
+                aria-invalid={cnError ? true : undefined}
+              />
+              {cnError && <p className="text-xs text-destructive">{cnError}</p>}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="o">Organization</Label>
+            <div className="space-y-2">
+              <Label htmlFor="o" className={FIELD_LABEL}>Organization</Label>
               <Input id="o" placeholder="Acme Corp" value={o} onChange={(e) => setO(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ou">Organizational Unit</Label>
+            <div className="space-y-2">
+              <Label htmlFor="ou" className={FIELD_LABEL}>Organizational Unit</Label>
               <Input id="ou" placeholder="Engineering" value={ou} onChange={(e) => setOu(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="c">Country</Label>
+            <div className="space-y-2">
+              <Label htmlFor="c" className={FIELD_LABEL}>Country</Label>
               <Input id="c" placeholder="US" maxLength={2} value={c} onChange={(e) => setC(e.target.value.toUpperCase())} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="st">State / Province</Label>
+            <div className="space-y-2">
+              <Label htmlFor="st" className={FIELD_LABEL}>State / Province</Label>
               <Input id="st" placeholder="California" value={st} onChange={(e) => setSt(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="l">Locality</Label>
+            <div className="space-y-2">
+              <Label htmlFor="l" className={FIELD_LABEL}>Locality</Label>
               <Input id="l" placeholder="San Francisco" value={l} onChange={(e) => setL(e.target.value)} />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="email" className={FIELD_LABEL}>Email</Label>
               <Input id="email" type="email" placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
           </div>
@@ -297,21 +373,24 @@ export default function CsrGeneratorPage() {
           </p>
           <div className="space-y-2">
             {sans.map((san, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  placeholder="e.g. www.example.com or 192.168.1.1"
-                  value={san}
-                  onChange={(e) => updateSan(i, e.target.value)}
-                  className="font-mono text-sm"
-                />
-                <button
-                  onClick={() => removeSan(i)}
-                  disabled={sans.length === 1}
-                  className="shrink-0 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
-                  title="Remove"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+              <div key={i} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="e.g. www.example.com or 192.168.1.1"
+                    value={san}
+                    onChange={(e) => updateSan(i, e.target.value)}
+                    aria-invalid={sanErrors[i] ? true : undefined}
+                  />
+                  <button
+                    onClick={() => removeSan(i)}
+                    disabled={sans.length === 1}
+                    className="shrink-0 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
+                    title="Remove"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {sanErrors[i] && <p className="text-xs text-destructive">{sanErrors[i]}</p>}
               </div>
             ))}
           </div>
@@ -350,12 +429,7 @@ export default function CsrGeneratorPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorAlert>{error}</ErrorAlert>}
 
       {/* Output */}
       {result && (

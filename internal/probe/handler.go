@@ -1,17 +1,19 @@
 package probe
 
 import (
+	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
-
-	"go.uber.org/zap"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/certificates"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 	"github.com/tlsentinel/tlsentinel-server/internal/tlsprofile"
+	"github.com/tlsentinel/tlsentinel-server/internal/trust"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 
 	"github.com/go-chi/chi/v5"
@@ -19,12 +21,33 @@ import (
 
 // Handler handles scanner-specific API endpoints.
 type Handler struct {
-	store *db.Store
+	store   *db.Store
+	trustEv *trust.Evaluator
 }
 
-// NewHandler creates a new scanner Handler.
-func NewHandler(store *db.Store) *Handler {
-	return &Handler{store: store}
+// NewHandler creates a new scanner Handler. trustEv may be nil in tests
+// or in very early startup; the Result path tolerates a nil evaluator by
+// skipping per-leaf trust evaluation and intermediates-pool updates.
+func NewHandler(store *db.Store, trustEv *trust.Evaluator) *Handler {
+	return &Handler{store: store, trustEv: trustEv}
+}
+
+// evaluateAndPersist runs the trust evaluator on the given leaf and
+// persists the verdict to certificate_trust. Best-effort: failures are
+// logged and swallowed so a slow DB or partial pool never blocks cert
+// ingest.
+func (h *Handler) evaluateAndPersist(ctx context.Context, cert *x509.Certificate, fingerprint string) {
+	if h.trustEv == nil || cert == nil {
+		return
+	}
+	verdicts := h.trustEv.Evaluate(cert)
+	if len(verdicts) == 0 {
+		return
+	}
+	if err := h.store.UpsertCertificateTrust(ctx, fingerprint, verdicts); err != nil {
+		slog.Warn("failed to persist certificate_trust at ingest",
+			"fingerprint", fingerprint, "error", err)
+	}
 }
 
 // RequireScanner is a middleware that allows only scanner identities through.
@@ -66,9 +89,9 @@ func (h *Handler) Config(w http.ResponseWriter, r *http.Request) {
 	// Embed the scanner's discovery networks so the scanner only needs one API call.
 	networks, err := h.store.ListNetworksForScanner(r.Context(), id.ScannerID)
 	if err != nil {
-		zap.L().Error("failed to list networks for scanner config",
-			zap.String("scanner_id", id.ScannerID),
-			zap.Error(err),
+		slog.Error("failed to list networks for scanner config",
+			"scanner_id", id.ScannerID,
+			"error", err,
 		)
 		// Non-fatal — return config without networks rather than failing.
 		networks = nil
@@ -109,10 +132,10 @@ func (h *Handler) ReportDiscovery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.UpsertDiscoveryInboxItems(r.Context(), id.ScannerID, req.NetworkID, req.Items); err != nil {
-		zap.L().Error("failed to upsert discovery inbox items",
-			zap.String("scanner_id", id.ScannerID),
-			zap.String("network_id", req.NetworkID),
-			zap.Error(err),
+		slog.Error("failed to upsert discovery inbox items",
+			"scanner_id", id.ScannerID,
+			"network_id", req.NetworkID,
+			"error", err,
 		)
 		http.Error(w, "failed to record discovery results", http.StatusInternalServerError)
 		return
@@ -175,19 +198,19 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 	for i, pemStr := range req.PEMs {
 		cert, err := certificates.ParsePEMCertificate(pemStr)
 		if err != nil {
-			zap.L().Warn("scanner submitted unparseable PEM, skipping",
-				zap.String("host_id", hostID),
-				zap.Int("index", i),
-				zap.Error(err),
+			slog.Warn("scanner submitted unparseable PEM, skipping",
+				"host_id", hostID,
+				"index", i,
+				"error", err,
 			)
 			continue
 		}
 		rec := certificates.ExtractCertificateRecord(cert)
 		if _, err := h.store.InsertCertificate(r.Context(), rec); err != nil {
-			zap.L().Error("failed to upsert scanner certificate",
-				zap.String("host_id", hostID),
-				zap.String("fingerprint", rec.Fingerprint),
-				zap.Error(err),
+			slog.Error("failed to upsert scanner certificate",
+				"host_id", hostID,
+				"fingerprint", rec.Fingerprint,
+				"error", err,
 			)
 			// Leaf failed — don't link a fingerprint that may not be in the DB.
 			if i == 0 {
@@ -198,13 +221,26 @@ func (h *Handler) Result(w http.ResponseWriter, r *http.Request) {
 		if i == 0 {
 			leafOK = true
 		}
+		if h.trustEv != nil {
+			// Opportunistically add chain intermediates to the shared pool so
+			// later leaves whose issuer happens to be this cert can build a
+			// complete path. No-op for non-CA certs, so it's safe for the
+			// leaf at i=0 too.
+			h.trustEv.AddIntermediate(cert)
+			// Evaluate every cert in the submitted chain — not just the leaf
+			// at i=0. An intermediate chains to whichever roots sign it; an
+			// anchor chains trivially to any program pool it belongs to. The
+			// matrix row lands in certificate_trust immediately, without
+			// waiting for the next weekly ReevaluateAll pass.
+			h.evaluateAndPersist(r.Context(), cert, rec.Fingerprint)
+		}
 	}
 	if !leafOK {
 		req.ActiveFingerprint = nil
 	}
 
 	if err := h.store.RecordScanResult(r.Context(), hostID, req); err != nil {
-		zap.L().Error("failed to record scan result", zap.String("host_id", hostID), zap.Error(err))
+		slog.Error("failed to record scan result", "host_id", hostID, "error", err)
 		http.Error(w, "failed to record scan result", http.StatusInternalServerError)
 		return
 	}
@@ -265,49 +301,66 @@ func (h *Handler) SAMLResult(w http.ResponseWriter, r *http.Request) {
 		Error: req.Error,
 	}
 	if err := h.store.RecordScanResult(r.Context(), endpointID, scanReq); err != nil {
-		zap.L().Error("failed to record SAML scan result", zap.String("endpoint_id", endpointID), zap.Error(err))
+		slog.Error("failed to record SAML scan result", "endpoint_id", endpointID, "error", err)
 		http.Error(w, "failed to record SAML scan result", http.StatusInternalServerError)
 		return
+	}
+
+	// Persist parsed metadata + raw XML + sha256 when the scan succeeded and the
+	// scanner supplied them. History row append is O(1) deduped on (endpoint_id, sha256).
+	if req.Error == nil && req.MetadataXML != nil && req.MetadataXMLSha256 != nil {
+		var metaJSON json.RawMessage
+		if req.Metadata != nil {
+			if buf, err := json.Marshal(req.Metadata); err == nil {
+				metaJSON = buf
+			} else {
+				slog.Warn("failed to marshal SAML metadata payload", "endpoint_id", endpointID, "error", err)
+			}
+		}
+		if err := h.store.UpsertSAMLMetadata(r.Context(), endpointID, metaJSON, *req.MetadataXML, *req.MetadataXMLSha256); err != nil {
+			slog.Error("failed to persist SAML metadata", "endpoint_id", endpointID, "error", err)
+			// Continue — cert persistence below still useful even if metadata write failed.
+		}
 	}
 
 	// Upsert each certificate and link it to the endpoint with its declared use.
 	for i, entry := range req.Certs {
 		use := entry.Use
 		if use != "signing" && use != "encryption" {
-			zap.L().Warn("scanner submitted SAML cert with unrecognised use, skipping",
-				zap.String("endpoint_id", endpointID),
-				zap.Int("index", i),
-				zap.String("use", use),
+			slog.Warn("scanner submitted SAML cert with unrecognised use, skipping",
+				"endpoint_id", endpointID,
+				"index", i,
+				"use", use,
 			)
 			continue
 		}
 
 		cert, err := certificates.ParsePEMCertificate(entry.PEM)
 		if err != nil {
-			zap.L().Warn("scanner submitted unparseable SAML PEM, skipping",
-				zap.String("endpoint_id", endpointID),
-				zap.Int("index", i),
-				zap.String("use", use),
-				zap.Error(err),
+			slog.Warn("scanner submitted unparseable SAML PEM, skipping",
+				"endpoint_id", endpointID,
+				"index", i,
+				"use", use,
+				"error", err,
 			)
 			continue
 		}
 		rec := certificates.ExtractCertificateRecord(cert)
 		if _, err := h.store.InsertCertificate(r.Context(), rec); err != nil {
-			zap.L().Error("failed to upsert SAML certificate",
-				zap.String("endpoint_id", endpointID),
-				zap.String("fingerprint", rec.Fingerprint),
-				zap.String("use", use),
-				zap.Error(err),
+			slog.Error("failed to upsert SAML certificate",
+				"endpoint_id", endpointID,
+				"fingerprint", rec.Fingerprint,
+				"use", use,
+				"error", err,
 			)
 			continue
 		}
 		if err := h.store.UpsertEndpointCert(r.Context(), endpointID, rec.Fingerprint, use); err != nil {
-			zap.L().Error("failed to link SAML cert to endpoint",
-				zap.String("endpoint_id", endpointID),
-				zap.String("fingerprint", rec.Fingerprint),
-				zap.String("use", use),
-				zap.Error(err),
+			slog.Error("failed to link SAML cert to endpoint",
+				"endpoint_id", endpointID,
+				"fingerprint", rec.Fingerprint,
+				"use", use,
+				"error", err,
 			)
 		}
 	}

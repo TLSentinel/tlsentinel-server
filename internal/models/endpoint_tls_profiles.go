@@ -8,6 +8,7 @@ import "time"
 type EndpointTLSProfile struct {
 	EndpointID     string    `json:"endpointId"`
 	ScannedAt      time.Time `json:"scannedAt"`
+	SSL30          bool      `json:"ssl30"`
 	TLS10          bool      `json:"tls10"`
 	TLS11          bool      `json:"tls11"`
 	TLS12          bool      `json:"tls12"`
@@ -21,6 +22,7 @@ type EndpointTLSProfile struct {
 // TLS configuration. Cipher suite names may be in OpenSSL or IANA format —
 // the handler normalises them to IANA before storing.
 type TLSProfileIngestRequest struct {
+	SSL30          bool     `json:"ssl30"`
 	TLS10          bool     `json:"tls10"`
 	TLS11          bool     `json:"tls11"`
 	TLS12          bool     `json:"tls12"`

@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
 	"github.com/tlsentinel/tlsentinel-server/internal/audit"
 	"github.com/tlsentinel/tlsentinel-server/internal/config"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/jwt"
+	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/pkg/ptr"
 )
 
 const (
@@ -43,7 +43,7 @@ type Handler struct {
 	provider *gooidc.Provider
 	oauth2   oauth2.Config
 	cfg      Config
-	log      *zap.Logger
+	log      *slog.Logger
 }
 
 // NewHandler initialises the OIDC provider and returns a ready Handler.
@@ -73,7 +73,7 @@ func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*H
 		store:    store,
 		jwtCfg:   &jwtCfg,
 		cfg:      cfg,
-		log:      zap.L().With(zap.String("component", "oidc")),
+		log:      slog.Default().With("component", "oidc"),
 		provider: provider,
 		oauth2: oauth2.Config{
 			ClientID:     appCfg.OIDCClientID,
@@ -87,7 +87,7 @@ func NewHandler(ctx context.Context, store *db.Store, appCfg *config.Config) (*H
 
 func (h *Handler) logAudit(r *http.Request, userID, username, action string) {
 	ip := audit.IPFromRequest(r)
-	uid := ptrIfNonEmpty(userID)
+	uid := ptr.IfNonEmpty(userID)
 	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
 		UserID:    uid,
 		Username:  username,
@@ -98,12 +98,6 @@ func (h *Handler) logAudit(r *http.Request, userID, username, action string) {
 	}
 }
 
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
 
 // Login redirects the browser to the provider's authorization endpoint.
 //
@@ -171,7 +165,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.oauth2.Exchange(r.Context(), code)
 	if err != nil {
-		h.log.Error("token exchange failed", zap.Error(err))
+		h.log.Error("token exchange failed", "error", err)
 		http.Error(w, "failed to exchange code", http.StatusInternalServerError)
 		return
 	}
@@ -187,7 +181,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	verifier := h.provider.Verifier(&gooidc.Config{ClientID: h.oauth2.ClientID})
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		h.log.Warn("id_token verification failed", zap.Error(err))
+		h.log.Warn("id_token verification failed", "error", err)
 		http.Error(w, "invalid id_token", http.StatusUnauthorized)
 		return
 	}
@@ -195,19 +189,19 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// --- Extract claims ---
 	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
-		h.log.Error("failed to parse id_token claims", zap.Error(err))
+		h.log.Error("failed to parse id_token claims", "error", err)
 		http.Error(w, "failed to parse claims", http.StatusInternalServerError)
 		return
 	}
 
 	username := h.extractUsername(claims, idToken.Subject)
 
-	h.log.Info("oidc callback", zap.String("username", username))
+	h.log.Info("oidc callback", "username", username)
 
 	// --- Look up pre-provisioned user ---
 	user, err := h.store.GetUserForOIDCLogin(r.Context(), username)
 	if err != nil {
-		h.log.Warn("oidc login rejected — user not found or disabled", zap.String("username", username))
+		h.log.Warn("oidc login rejected — user not found or disabled", "username", username)
 		http.Error(w, "account not provisioned or disabled", http.StatusUnauthorized)
 		return
 	}
@@ -215,7 +209,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// --- Issue our JWT ---
 	token, err := h.jwtCfg.IssueToken(user.ID, user.Username, user.Role, user.FirstName, user.LastName)
 	if err != nil {
-		h.log.Error("failed to issue jwt", zap.Error(err))
+		h.log.Error("failed to issue jwt", "error", err)
 		http.Error(w, "failed to issue token", http.StatusInternalServerError)
 		return
 	}
@@ -223,11 +217,25 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect the SPA to the callback page with the token in the URL fragment
 	// so it never appears in server logs or the Referrer header.
+	//
+	// SECURITY: this path is intentionally hardcoded. If you ever make the
+	// destination configurable (env var, per-tenant setting, request param),
+	// you MUST reject anything that could resolve cross-origin — otherwise
+	// you've built a token-leaking open redirect. Fragments are readable by
+	// JS on the destination origin, so a redirect to attacker.example leaks
+	// the JWT. Safe forms: URL-parse, then require Scheme=="" && Host=="".
+	// Reject "//...", absolute URLs, and anything not starting with "/".
 	http.Redirect(w, r, "/auth/callback#token="+token, http.StatusFound)
 }
 
 // extractUsername picks the best available claim for the username.
-// Defaults to "upn" (Entra ID), falling back to "preferred_username" then "email".
+// Defaults to "upn" (Entra ID), falling back to "preferred_username" then
+// "email", finally to the IdP-supplied subject. The result is always run
+// through models.NormalizeUsername so the value used for the local lookup
+// matches what was stored on user creation — and so the same identity
+// resolves whether the IdP sends `Bob.Smith` today and `bob.smith`
+// tomorrow (the `users.username` column is CITEXT, so equality is
+// case-insensitive at the DB layer).
 func (h *Handler) extractUsername(claims map[string]any, fallback string) string {
 	claim := h.cfg.UsernameClaim
 	if claim == "" {
@@ -238,13 +246,14 @@ func (h *Handler) extractUsername(claims map[string]any, fallback string) string
 			return v
 		}
 	}
-	return fallback
+	return models.NormalizeUsername(fallback)
 }
 
-// stringClaim returns the named claim as a plain string (used internally).
+// stringClaim returns the named claim as a normalized username string
+// (trimmed of surrounding whitespace; case is preserved).
 func stringClaim(claims map[string]any, key string) string {
 	v, _ := claims[key].(string)
-	return strings.TrimSpace(v)
+	return models.NormalizeUsername(v)
 }
 
 func randomState() (string, error) {

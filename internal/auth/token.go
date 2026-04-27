@@ -6,16 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 )
 
-// ScannerTokenPrefix is the prefix used for newly issued scanner tokens.
+// ScannerTokenPrefix is the prefix used for scanner tokens.
 const ScannerTokenPrefix = "stx_s_"
-
-// legacyScannerTokenPrefix is the old prefix, still accepted for existing tokens.
-const legacyScannerTokenPrefix = "scanner_"
 
 // APIKeyPrefix is the prefix for all user API keys.
 const APIKeyPrefix = "stx_p_"
@@ -31,30 +26,32 @@ func GenerateScannerToken() (raw string, hash string, err error) {
 	return raw, db.HashAPIKey(raw), nil
 }
 
-// IsScannerToken returns true if the token looks like a scanner token.
-// Accepts both the current stx_s_ prefix and the legacy scanner_ prefix.
+// IsScannerToken returns true if the token has the scanner token prefix.
 func IsScannerToken(token string) bool {
-	return strings.HasPrefix(token, ScannerTokenPrefix) ||
-		strings.HasPrefix(token, legacyScannerTokenPrefix)
-}
-
-// CheckScannerToken compares a raw token against a bcrypt hash.
-// Used only for legacy scanner_ tokens.
-func CheckScannerToken(raw, hash string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(raw)) == nil
+	return strings.HasPrefix(token, ScannerTokenPrefix)
 }
 
 // GenerateAPIKey creates a new user API key.
-// Returns the raw token (shown once), its SHA-256 hash (stored in DB),
-// and the display prefix (first 12 chars of the raw token).
+// The raw token layout is "stx_p_<id>_<secret>" where <id> is 8 hex chars of
+// independent randomness used purely for display, and <secret> is 64 hex chars
+// (32 bytes) of key material. The stored prefix contains only "<id>" bits, so
+// a DB read leaks zero bits of the secret.
+// Returns the raw token (shown once), its SHA-256 hash (stored in DB), and
+// the display prefix (shown in UI lists).
 func GenerateAPIKey() (raw string, hash string, prefix string, err error) {
-	b := make([]byte, 32)
-	if _, err = rand.Read(b); err != nil {
-		return "", "", "", fmt.Errorf("generate api key: %w", err)
+	idBytes := make([]byte, 4)
+	if _, err = rand.Read(idBytes); err != nil {
+		return "", "", "", fmt.Errorf("generate api key id: %w", err)
 	}
-	raw = APIKeyPrefix + hex.EncodeToString(b)
+	secretBytes := make([]byte, 32)
+	if _, err = rand.Read(secretBytes); err != nil {
+		return "", "", "", fmt.Errorf("generate api key secret: %w", err)
+	}
+	id := hex.EncodeToString(idBytes)         // 8 hex chars
+	secret := hex.EncodeToString(secretBytes) // 64 hex chars
+	raw = APIKeyPrefix + id + "_" + secret
 	hash = db.HashAPIKey(raw)
-	prefix = raw[:12] // "stx_p_" (6) + first 6 hex chars
+	prefix = APIKeyPrefix + id
 	return raw, hash, prefix, nil
 }
 

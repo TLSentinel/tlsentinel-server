@@ -1,23 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, FolderOpen } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff, ChevronLeft, ChevronRight, FileSignature } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
-import TablePagination from '@/components/TablePagination'
+import BulkActionBar from '@/components/BulkActionBar'
+import BulkDeleteCertificatesDialog from './BulkDeleteCertificatesDialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -31,16 +32,15 @@ import { can } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
 import { ApiError } from '@/types/api'
 import { fmtDate, plural } from '@/lib/utils'
-import { ExpiryStatus } from '@/components/CertCard'
-import { useQuery, keepPreviousData } from "@tanstack/react-query"
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Filter / sort options
 // ---------------------------------------------------------------------------
 
-type CertStatus = 'expired' | 'critical' | 'warning' | 'ok'
+type CertStatus   = 'expired' | 'critical' | 'warning' | 'ok'
 type StatusFilter = '' | CertStatus
-type SortOption = '' | 'expiry_asc' | 'expiry_desc' | 'common_name'
+type SortOption   = '' | 'expiry_asc' | 'expiry_desc' | 'common_name'
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: '',         label: 'All' },
@@ -57,6 +57,251 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'common_name', label: 'Common name A→Z' },
 ]
 
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+
+type SignalColor = 'neutral' | 'green' | 'amber' | 'red'
+
+const SIGNAL_BORDER: Record<SignalColor, string> = {
+  neutral: 'border-l-foreground/20',
+  green:   'border-l-green-500',
+  amber:   'border-l-amber-500',
+  red:     'border-l-red-500',
+}
+
+const SIGNAL_VALUE: Record<SignalColor, string> = {
+  neutral: 'text-foreground',
+  green:   'text-green-600',
+  amber:   'text-amber-600',
+  red:     'text-red-600',
+}
+
+interface StatCardProps {
+  icon: React.ReactNode
+  label: string
+  value: number | string
+  signal?: SignalColor
+  active?: boolean
+  onClick?: () => void
+}
+
+function StatCard({ icon, label, value, signal = 'neutral', active, onClick }: StatCardProps) {
+  const base = 'w-full text-left rounded-lg border border-l-4 p-5 space-y-3 transition-colors'
+  const surface = active
+    ? 'bg-primary border-primary text-primary-foreground shadow-sm'
+    : `bg-card ${SIGNAL_BORDER[signal]} ${onClick ? 'cursor-pointer hover:bg-muted/40' : 'cursor-default'}`
+  const accent = active ? 'text-primary-foreground' : SIGNAL_VALUE[signal]
+  const labelColor = active ? 'text-primary-foreground/80' : 'text-muted-foreground'
+  return (
+    <button type="button" onClick={onClick} className={`${base} ${surface}`}>
+      <div className="flex items-center gap-2">
+        <span className={`shrink-0 ${accent}`}>{icon}</span>
+        <span className={`text-sm font-medium ${labelColor}`}>{label}</span>
+      </div>
+      <p className={`text-3xl font-bold tracking-tight ${accent}`}>{value}</p>
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Expiration status pill
+// ---------------------------------------------------------------------------
+
+type ExpiryState = 'valid' | 'expiring' | 'expired'
+
+function expiryState(notAfter: string): ExpiryState {
+  const days = Math.floor((new Date(notAfter).getTime() - Date.now()) / 86_400_000)
+  if (days < 0)  return 'expired'
+  if (days <= 30) return 'expiring'
+  return 'valid'
+}
+
+const EXPIRY_LABEL: Record<ExpiryState, string> = {
+  valid:    'Valid',
+  expiring: 'Expiring Soon',
+  expired:  'Expired',
+}
+
+const EXPIRY_DOT: Record<ExpiryState, string> = {
+  valid:    'bg-green-500',
+  expiring: 'bg-amber-500',
+  expired:  'bg-red-500',
+}
+
+const EXPIRY_BG: Record<ExpiryState, string> = {
+  valid:    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  expiring: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  expired:  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+}
+
+function ExpiryPill({ notAfter }: { notAfter: string }) {
+  const state = expiryState(notAfter)
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${EXPIRY_BG[state]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${EXPIRY_DOT[state]}`} />
+      {EXPIRY_LABEL[state]}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Row helpers
+// ---------------------------------------------------------------------------
+
+const ROW_GRID = 'grid-cols-[2.5rem_2fr_2.5fr_10rem_3rem]'
+
+// CertActionsMenu is the row's three-dot menu — extracted so the desktop row
+// and the mobile card render the same View/Delete entries (with admin gating)
+// without duplicating the JSX.
+function CertActionsMenu({ cert, admin, onDelete }: { cert: CertificateListItem; admin: boolean; onDelete: (cert: CertificateListItem) => void }) {
+  const navigate = useNavigate()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => navigate(`/certificates/${cert.fingerprint}`)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View Certificate
+        </DropdownMenuItem>
+        {admin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(cert)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+interface CertRowProps {
+  cert: CertificateListItem
+  admin: boolean
+  selected: boolean
+  onToggle: (cert: CertificateListItem) => void
+  onDelete: (cert: CertificateListItem) => void
+}
+
+function CertRow({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
+  const sansDisplay = cert.sans.length === 0
+    ? '—'
+    : cert.sans.slice(0, 3).join(', ') + (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')
+
+  return (
+    <div className={`grid ${ROW_GRID} items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30`}>
+
+      {/* Checkbox */}
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(cert)}
+          aria-label={`Select ${cert.commonName || cert.fingerprint}`}
+          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+        />
+      </div>
+
+      {/* Common Name + fingerprint (SHA-256, shortened; hover for full) */}
+      <div className="min-w-0">
+        <Link
+          to={`/certificates/${cert.fingerprint}`}
+          className="block truncate text-sm font-semibold hover:underline"
+        >
+          {cert.commonName || '—'}
+        </Link>
+        <div
+          className="mt-0.5 truncate font-mono text-xs text-muted-foreground"
+          title={cert.fingerprint}
+        >
+          {cert.fingerprint.slice(0, 16)}…
+        </div>
+      </div>
+
+      {/* SANs */}
+      <div className="min-w-0">
+        <span className="block truncate text-sm text-muted-foreground" title={cert.sans.join(', ')}>
+          {sansDisplay}
+        </span>
+      </div>
+
+      {/* Expiration: date + status pill */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm whitespace-nowrap">{fmtDate(cert.notAfter)}</span>
+        <ExpiryPill notAfter={cert.notAfter} />
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-end">
+        <CertActionsMenu cert={cert} admin={admin} onDelete={onDelete} />
+      </div>
+    </div>
+  )
+}
+
+// CertCard is the mobile-only stacked layout. SANs lists render as a wrapped
+// container instead of a single truncated line — phones have the vertical
+// space to spread them out and a 25-char line is unreadable on a 10-char
+// column.
+function CertCard({ cert, admin, selected, onToggle, onDelete }: CertRowProps) {
+  return (
+    <div className="rounded-md border border-border/60 bg-card p-3 space-y-2">
+      {/* Top row: checkbox + common name on the left; status pill + actions
+          on the right. */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggle(cert)}
+            aria-label={`Select ${cert.commonName || cert.fingerprint}`}
+            className="h-4 w-4 mt-1 shrink-0 rounded border-border accent-primary cursor-pointer"
+          />
+          <div className="min-w-0">
+            <Link
+              to={`/certificates/${cert.fingerprint}`}
+              className="text-sm font-semibold hover:underline break-all block"
+            >
+              {cert.commonName || '—'}
+            </Link>
+            <div className="mt-0.5 break-all font-mono text-xs text-muted-foreground" title={cert.fingerprint}>
+              {cert.fingerprint.slice(0, 16)}…
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <ExpiryPill notAfter={cert.notAfter} />
+          <CertActionsMenu cert={cert} admin={admin} onDelete={onDelete} />
+        </div>
+      </div>
+
+      {/* Labelled metadata. Expiration is the dominant fact for cert
+          inventory — keep the date prominent, with the SAN list below. */}
+      <dl className="space-y-0.5 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">Expires:</dt>
+          <dd>{fmtDate(cert.notAfter)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-muted-foreground shrink-0">SANs:</dt>
+          <dd className="min-w-0 break-words">
+            {cert.sans.length === 0 ? '—' : cert.sans.join(', ')}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Ingest Dialog
@@ -97,7 +342,6 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
     }
     reader.onerror = () => setError('Failed to read file.')
     reader.readAsText(file)
-    // reset so the same file can be re-selected if needed
     e.target.value = ''
   }
 
@@ -131,13 +375,21 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Ingest Certificate</DialogTitle>
+        <DialogHeader className="flex-row items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
+            <FileSignature className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <DialogTitle className="text-lg font-semibold">Ingest Certificate</DialogTitle>
+            <DialogDescription>Import a certificate into the inventory</DialogDescription>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="cert-pem">PEM or Base64 DER</Label>
+            <Label htmlFor="cert-pem" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              PEM or Base64 DER
+            </Label>
             <textarea
               id="cert-pem"
               className="min-h-[200px] w-full resize-y rounded-md border bg-transparent px-3 py-2 font-mono text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -155,12 +407,10 @@ function IngestDialog({ open, onClose, onIngested }: IngestDialogProps) {
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="gap-1.5"
               onClick={() => fileInputRef.current?.click()}
             >
-              <FolderOpen className="h-3.5 w-3.5" />
-              {fileName ?? 'Browse file…'}
+              <FolderOpen className="mr-1.5 h-4 w-4" />
+              {fileName ?? 'Choose File…'}
             </Button>
           </div>
 
@@ -238,7 +488,7 @@ function DeleteDialog({ cert, onClose, onDeleted }: DeleteDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Main Page
+// Page
 // ---------------------------------------------------------------------------
 
 const PAGE_SIZE = 20
@@ -246,21 +496,18 @@ const PAGE_SIZE = 20
 export default function CertificatesPage() {
   const admin = can('certs:edit')
   const navigate = useNavigate()
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [page, setPage]                       = useState(1)
+  const [search, setSearch]                   = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
-  const [sortOption, setSortOption] = useState<SortOption>('')
+  const [statusFilter, setStatusFilter]       = useState<StatusFilter>('')
+  const [sortOption, setSortOption]           = useState<SortOption>('')
+  const [deleteTarget, setDeleteTarget]       = useState<CertificateListItem | null>(null)
+  const [ingestOpen, setIngestOpen]           = useState(false)
+  const [selected, setSelected]               = useState<Map<string, CertificateListItem>>(new Map())
+  const [bulkDeleteOpen, setBulkDeleteOpen]   = useState(false)
 
-  const [deleteTarget, setDeleteTarget] = useState<CertificateListItem | null>(null)
-  const [ingestOpen, setIngestOpen] = useState(false)
-
-  // Debounce search — reset to page 1 when query changes.
   useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(search)
-      setPage(1)
-    }, 400)
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
     return () => clearTimeout(t)
   }, [search])
 
@@ -270,161 +517,259 @@ export default function CertificatesPage() {
     placeholderData: keepPreviousData,
   })
 
-  const certs = data?.items ?? []
+  const { data: totalData }    = useQuery({ queryKey: ['certs-count', 'all'],      queryFn: () => listCertificates(1, 1, '', '', '') })
+  const { data: expiredData }  = useQuery({ queryKey: ['certs-count', 'expired'],  queryFn: () => listCertificates(1, 1, '', 'expired',  '') })
+  const { data: criticalData } = useQuery({ queryKey: ['certs-count', 'critical'], queryFn: () => listCertificates(1, 1, '', 'critical', '') })
+  const { data: warningData }  = useQuery({ queryKey: ['certs-count', 'warning'],  queryFn: () => listCertificates(1, 1, '', 'warning',  '') })
+
+  const totalAll     = totalData?.totalCount    ?? null
+  const totalExpired = expiredData?.totalCount  ?? null
+  const totalCrit    = criticalData?.totalCount ?? null
+  const totalWarn    = warningData?.totalCount  ?? null
+
+  const certs      = data?.items ?? []
   const totalCount = data?.totalCount ?? 0
-
-  function handleStatusChange(value: StatusFilter) {
-    setStatusFilter(value)
-    setPage(1)
-  }
-
-  function handleSortChange(value: SortOption) {
-    setSortOption(value)
-    setPage(1)
-  }
-
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const activeStatusLabel = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? 'All'
-  const activeSortLabel = SORT_OPTIONS.find(o => o.value === sortOption)?.label ?? 'Newest first'
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
+
+  function handleStatusChange(value: StatusFilter) { setStatusFilter(value); setPage(1) }
+  function handleSortChange(value: SortOption)      { setSortOption(value);   setPage(1) }
+
+  const pageFingerprints = useMemo(() => certs.map(c => c.fingerprint), [certs])
+  const allPageSelected = pageFingerprints.length > 0 && pageFingerprints.every(fp => selected.has(fp))
+  const somePageSelected = !allPageSelected && pageFingerprints.some(fp => selected.has(fp))
+
+  // Refresh the stored copy for any selected cert that reappears on the current
+  // page — keeps the Map's value in sync with the latest list payload (e.g.
+  // after a refetch) even though the user's selection spans pages.
+  useEffect(() => {
+    if (selected.size === 0 || certs.length === 0) return
+    let changed = false
+    const next = new Map(selected)
+    for (const cert of certs) {
+      if (next.has(cert.fingerprint)) {
+        next.set(cert.fingerprint, cert)
+        changed = true
+      }
+    }
+    if (changed) setSelected(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [certs])
+
+  function toggleOne(cert: CertificateListItem) {
+    setSelected(prev => {
+      const next = new Map(prev)
+      if (next.has(cert.fingerprint)) next.delete(cert.fingerprint)
+      else next.set(cert.fingerprint, cert)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(prev => {
+      const next = new Map(prev)
+      if (allPageSelected) {
+        certs.forEach(c => next.delete(c.fingerprint))
+      } else {
+        certs.forEach(c => next.set(c.fingerprint, c))
+      }
+      return next
+    })
+  }
+
+  const selectedCerts = useMemo(() => [...selected.values()], [selected])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Certificates</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {totalCount} {plural(totalCount, 'certificate')} stored
+            Certificate store inventory.
           </p>
         </div>
         {admin && (
-          <Button onClick={() => setIngestOpen(true)}>
+          <Button onClick={() => setIngestOpen(true)} className="h-12 px-4 text-base font-semibold">
             <Plus className="mr-1.5 h-4 w-4" />
             Ingest
           </Button>
         )}
       </div>
 
-      {/* Search + filters */}
-      <div className="flex items-center gap-2">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard
+          icon={<Shield className="h-4 w-4" />}
+          label="Total"
+          value={totalAll ?? '—'}
+          signal="neutral"
+          active={statusFilter === ''}
+          onClick={() => handleStatusChange('')}
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="Expiring ≤30d"
+          value={totalWarn ?? '—'}
+          signal={totalWarn === null ? 'neutral' : totalWarn === 0 ? 'green' : 'amber'}
+          active={statusFilter === 'warning'}
+          onClick={() => handleStatusChange('warning')}
+        />
+        <StatCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Critical ≤7d"
+          value={totalCrit ?? '—'}
+          signal={totalCrit === null ? 'neutral' : totalCrit === 0 ? 'green' : 'red'}
+          active={statusFilter === 'critical'}
+          onClick={() => handleStatusChange('critical')}
+        />
+        <StatCard
+          icon={<ShieldOff className="h-4 w-4" />}
+          label="Expired"
+          value={totalExpired ?? '—'}
+          signal={totalExpired === null ? 'neutral' : totalExpired === 0 ? 'green' : 'red'}
+          active={statusFilter === 'expired'}
+          onClick={() => handleStatusChange('expired')}
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search common name…"
+          placeholder="Search common name or SAN…"
           className="max-w-sm flex-1"
         />
-
         <FilterDropdown
           label="Status"
           options={STATUS_OPTIONS}
           value={statusFilter}
-          onSelect={(value) => handleStatusChange(value as StatusFilter)}
+          onSelect={v => handleStatusChange(v as StatusFilter)}
         />
-
         <FilterDropdown
           label="Sort"
           options={SORT_OPTIONS}
           value={sortOption}
-          onSelect={(value) => handleSortChange(value as SortOption)}
+          onSelect={v => handleSortChange(v as SortOption)}
         />
+        {admin && (
+          <BulkActionBar
+            className="ml-auto"
+            count={selected.size}
+            onClear={() => setSelected(new Map())}
+            actions={[
+              {
+                label: 'Delete',
+                variant: 'destructive',
+                onClick: () => setBulkDeleteOpen(true),
+              },
+            ]}
+          />
+        )}
       </div>
 
-      {/* Active filter context line */}
-      <p className="text-sm text-muted-foreground">
-        Showing results for{' '}
-        <span className="font-semibold text-foreground">{activeStatusLabel.toLowerCase()}</span>
-        {debouncedSearch && (
-          <> matching <span className="font-semibold text-foreground">"{debouncedSearch}"</span></>
-        )}
-        {' · '}sorted by{' '}
-        <span className="font-semibold text-foreground">{activeSortLabel.toLowerCase()}</span>
-      </p>
-
-      {/* Error */}
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Common Name</TableHead>
-            <TableHead>SANs</TableHead>
-            <TableHead className="w-28">Status</TableHead>
-            <TableHead>Issued</TableHead>
-            <TableHead>Expires</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody className={`[&_tr]:border-b-0 transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
-          {isLoading && (
-            <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
-                Loading…
-              </TableCell>
-            </TableRow>
-          )}
+      <div className="rounded-lg border bg-card overflow-hidden">
 
-          {!isLoading && certs.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center">
-                {debouncedSearch || statusFilter
-                  ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
-                  : <StrixEmpty message="No certificates yet." />}
-              </TableCell>
-            </TableRow>
-          )}
+        {/* Column headers — hidden below md since the mobile card layout is
+            self-labelling. */}
+        <div className={`hidden md:grid ${ROW_GRID} items-center gap-4 px-5 py-2.5 border-b border-border/40 bg-muted/40`}>
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              ref={el => { if (el) el.indeterminate = somePageSelected }}
+              onChange={toggleAll}
+              disabled={certs.length === 0}
+              aria-label="Select all on page"
+              className="h-4 w-4 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Common Name</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">SANs</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expiration</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide text-right">Actions</span>
+        </div>
 
-          {!isLoading &&
-            certs.map((cert) => (
-              <TableRow
-                key={cert.fingerprint}
-                className="cursor-pointer"
-                onClick={() => navigate(`/certificates/${cert.fingerprint}`)}
-              >
-                <TableCell className="font-medium">{cert.commonName || '—'}</TableCell>
-                <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                  {cert.sans.length === 0
-                    ? '—'
-                    : cert.sans.slice(0, 3).join(', ') +
-                      (cert.sans.length > 3 ? ` +${cert.sans.length - 3}` : '')}
-                </TableCell>
-                <TableCell>
-                  <ExpiryStatus notAfter={cert.notAfter} />
-                </TableCell>
-                <TableCell>{fmtDate(cert.notBefore)}</TableCell>
-                <TableCell>{fmtDate(cert.notAfter)}</TableCell>
-                <TableCell>
-                  {admin && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTarget(cert)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete</span>
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-        </TableBody>
-      </Table>
+        {/* Rows */}
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : certs.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            {debouncedSearch || statusFilter
+              ? <span className="text-sm text-muted-foreground">No certificates match your filters.</span>
+              : <StrixEmpty message="No certificates yet." />}
+          </div>
+        ) : (
+          <div className={`transition-opacity ${isFetching && !isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-2 p-3 md:hidden">
+              {certs.map(cert => (
+                <CertCard
+                  key={cert.fingerprint}
+                  cert={cert}
+                  admin={admin}
+                  selected={selected.has(cert.fingerprint)}
+                  onToggle={toggleOne}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+            {/* Desktop: 5-column grid */}
+            <div className="hidden md:block">
+              {certs.map(cert => (
+                <CertRow
+                  key={cert.fingerprint}
+                  cert={cert}
+                  admin={admin}
+                  selected={selected.has(cert.fingerprint)}
+                  onToggle={toggleOne}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-      {/* Pagination */}
-      <TablePagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPrev={() => setPage(p => p - 1)}
-        onNext={() => setPage(p => p + 1)}
-        noun="certificate"
-      />
+        {/* Footer: count + pagination. Stacks below sm so neither half is
+            forced to wrap on narrow screens. */}
+        <div className="flex flex-col gap-3 border-t border-border/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {totalCount === 0
+              ? 'No certificates'
+              : <>Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {plural(totalCount, 'certificate')}</>}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
+            </Button>
+            <span className="px-2 text-sm tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
-      {/* Dialogs */}
       <IngestDialog
         open={ingestOpen}
         onClose={() => setIngestOpen(false)}
@@ -434,6 +779,15 @@ export default function CertificatesPage() {
         cert={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={refetch}
+      />
+      <BulkDeleteCertificatesDialog
+        open={bulkDeleteOpen}
+        certificates={selectedCerts}
+        onClose={() => setBulkDeleteOpen(false)}
+        onDone={() => {
+          setSelected(new Map())
+          refetch()
+        }}
       />
     </div>
   )

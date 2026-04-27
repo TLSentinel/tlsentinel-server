@@ -2,6 +2,7 @@ package tags
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -100,11 +101,16 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 // @Tags         tags
 // @Param        categoryID  path  string  true  "Category ID"
 // @Success      204
+// @Failure      404  {string}  string  "category not found"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /tags/categories/{categoryID} [delete]
 func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "categoryID")
 	if err := h.store.DeleteTagCategory(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "category not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "failed to delete category", http.StatusInternalServerError)
 		return
 	}
@@ -114,6 +120,22 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 // Tags
 // ---------------------------------------------------------------------------
+
+// @Summary      List tags
+// @Description  Returns all tags with their category embedded, flat-sorted
+// @Tags         tags
+// @Produce      json
+// @Success      200  {array}   models.TagWithCategory
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /tags [get]
+func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
+	tags, err := h.store.ListAllTags(r.Context())
+	if err != nil {
+		http.Error(w, "failed to list tags", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, tags)
+}
 
 // @Summary      Create tag
 // @Tags         tags
@@ -177,11 +199,16 @@ func (h *Handler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 // @Tags         tags
 // @Param        tagID  path  string  true  "Tag ID"
 // @Success      204
+// @Failure      404  {string}  string  "tag not found"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /tags/{tagID} [delete]
 func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "tagID")
 	if err := h.store.DeleteTag(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "tag not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "failed to delete tag", http.StatusInternalServerError)
 		return
 	}
@@ -210,14 +237,15 @@ func (h *Handler) GetEndpointTags(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Set endpoint tags
-// @Description  Replaces all tags on an endpoint
+// @Description  Replaces all tags on an endpoint. Returns the updated tag list.
 // @Tags         tags
 // @Accept       json
-// @Param        endpointID  path  string                       true  "Endpoint ID"
-// @Param        body        body  models.SetEndpointTagsRequest  true  "Tag IDs"
-// @Success      204
-// @Failure      400  {string}  string  "bad request"
-// @Failure      500  {string}  string  "internal server error"
+// @Produce      json
+// @Param        endpointID  path      string                         true  "Endpoint ID"
+// @Param        body        body      models.SetEndpointTagsRequest  true  "Tag IDs"
+// @Success      200         {array}   models.TagWithCategory
+// @Failure      400         {string}  string  "bad request"
+// @Failure      500         {string}  string  "internal server error"
 // @Router       /endpoints/{endpointID}/tags [put]
 func (h *Handler) SetEndpointTags(w http.ResponseWriter, r *http.Request) {
 	endpointID := chi.URLParam(r, "endpointID")
@@ -232,8 +260,18 @@ func (h *Handler) SetEndpointTags(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.SetEndpointTags(r.Context(), endpointID, req.TagIDs); err != nil {
+		if errors.Is(err, db.ErrInvalidInput) {
+			http.Error(w, "one or more tag ids are invalid", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "failed to set endpoint tags", http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+
+	tags, err := h.store.GetEndpointTags(r.Context(), endpointID)
+	if err != nil {
+		http.Error(w, "failed to load endpoint tags", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, tags)
 }

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -17,6 +16,7 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/auth"
 	"github.com/tlsentinel/tlsentinel-server/internal/db"
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
+	"github.com/tlsentinel/tlsentinel-server/pkg/pagination"
 	"github.com/tlsentinel/tlsentinel-server/pkg/response"
 )
 
@@ -26,30 +26,6 @@ type Handler struct {
 
 func NewHandler(store *db.Store) *Handler {
 	return &Handler{store: store}
-}
-
-func (h *Handler) logAudit(r *http.Request, action, resourceType, resourceID string) {
-	identity, _ := auth.GetIdentity(r.Context())
-	ip := audit.IPFromRequest(r)
-	resType := resourceType
-	resID := resourceID
-	if err := h.store.LogAuditEvent(r.Context(), db.AuditLog{
-		UserID:       ptrIfNonEmpty(identity.UserID),
-		Username:     identity.Username,
-		Action:       action,
-		ResourceType: &resType,
-		ResourceID:   &resID,
-		IPAddress:    &ip,
-	}); err != nil {
-		slog.Error("audit log failed", "err", err)
-	}
-}
-
-func ptrIfNonEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 // validateRange accepts CIDR notation or a hyphenated IPv4 range.
@@ -100,17 +76,7 @@ func validateRange(s string) string {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /discovery/networks [get]
 func (h *Handler) ListNetworks(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
+	page, pageSize := pagination.Parse(r, 20, 100)
 
 	result, err := h.store.ListDiscoveryNetworks(r.Context(), page, pageSize)
 	if err != nil {
@@ -189,7 +155,19 @@ func (h *Handler) CreateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryNetworkCreate, "discovery_network", net.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryNetworkCreate,
+		ResourceType: "discovery_network",
+		ResourceID:   net.ID,
+		Label:        net.Name,
+		Details: map[string]any{
+			"range":          net.Range,
+			"ports":          net.Ports,
+			"cronExpression": net.CronExpression,
+			"enabled":        net.Enabled,
+			"scannerId":      net.ScannerID,
+		},
+	})
 	response.JSON(w, http.StatusCreated, net)
 }
 
@@ -244,7 +222,19 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryNetworkUpdate, "discovery_network", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryNetworkUpdate,
+		ResourceType: "discovery_network",
+		ResourceID:   id,
+		Label:        net.Name,
+		Details: map[string]any{
+			"range":          net.Range,
+			"ports":          net.Ports,
+			"cronExpression": net.CronExpression,
+			"enabled":        net.Enabled,
+			"scannerId":      net.ScannerID,
+		},
+	})
 	response.JSON(w, http.StatusOK, net)
 }
 
@@ -259,6 +249,14 @@ func (h *Handler) UpdateNetwork(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "networkID")
 
+	// Snapshot the name + range pre-delete for audit readability.
+	var label string
+	var details map[string]any
+	if before, lookupErr := h.store.GetDiscoveryNetwork(r.Context(), id); lookupErr == nil {
+		label = before.Name
+		details = map[string]any{"range": before.Range}
+	}
+
 	if err := h.store.DeleteDiscoveryNetwork(r.Context(), id); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "discovery network not found", http.StatusNotFound)
@@ -268,7 +266,13 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryNetworkDelete, "discovery_network", id)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryNetworkDelete,
+		ResourceType: "discovery_network",
+		ResourceID:   id,
+		Label:        label,
+		Details:      details,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -287,14 +291,7 @@ func (h *Handler) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /discovery/inbox [get]
 func (h *Handler) ListInbox(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page < 1 {
-		page = 1
-	}
-	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
-	if pageSize < 1 || pageSize > 200 {
-		pageSize = 20
-	}
+	page, pageSize := pagination.Parse(r, 20, 200)
 
 	networkID := r.URL.Query().Get("network_id")
 	status := r.URL.Query().Get("status")
@@ -375,7 +372,17 @@ func (h *Handler) PromoteInboxItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logAudit(r, audit.DiscoveryInboxPromote, "endpoint", endpoint.ID)
+	auth.Log(r.Context(), h.store, r, audit.Entry{
+		Action:       audit.DiscoveryInboxPromote,
+		ResourceType: "endpoint",
+		ResourceID:   endpoint.ID,
+		Label:        endpoint.Name,
+		Details: map[string]any{
+			"dnsName":      endpoint.DNSName,
+			"port":         endpoint.Port,
+			"inboxItemId":  id,
+		},
+	})
 	response.JSON(w, http.StatusCreated, endpoint)
 }
 
