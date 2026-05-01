@@ -47,13 +47,16 @@ const CHART_COLORS = [
   'var(--chart-5)',
 ]
 
+// `slug` is the URL value the endpoint list expects (`?protocol=tls10`),
+// matching the boolean column name on endpoint_tls_profiles. Kept alongside
+// the display label so the click-through stays in lockstep with the bar.
 function protocolChartData(report: TLSPostureReport) {
   return [
-    { protocol: 'SSL 3.0', count: report.protocols.ssl30, fill: 'var(--color-ssl30)' },
-    { protocol: 'TLS 1.0', count: report.protocols.tls10, fill: 'var(--color-tls10)' },
-    { protocol: 'TLS 1.1', count: report.protocols.tls11, fill: 'var(--color-tls11)' },
-    { protocol: 'TLS 1.2', count: report.protocols.tls12, fill: 'var(--color-tls12)' },
-    { protocol: 'TLS 1.3', count: report.protocols.tls13, fill: 'var(--color-tls13)' },
+    { protocol: 'SSL 3.0', slug: 'ssl30', count: report.protocols.ssl30, fill: 'var(--color-ssl30)' },
+    { protocol: 'TLS 1.0', slug: 'tls10', count: report.protocols.tls10, fill: 'var(--color-tls10)' },
+    { protocol: 'TLS 1.1', slug: 'tls11', count: report.protocols.tls11, fill: 'var(--color-tls11)' },
+    { protocol: 'TLS 1.2', slug: 'tls12', count: report.protocols.tls12, fill: 'var(--color-tls12)' },
+    { protocol: 'TLS 1.3', slug: 'tls13', count: report.protocols.tls13, fill: 'var(--color-tls13)' },
   ]
 }
 
@@ -197,12 +200,12 @@ export default function TLSPosturePage() {
           {isLoading && <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>}
           {!isLoading && data && (
             <div className="space-y-4">
-              {protocolChartData(data).reverse().map(({ protocol, count }) => {
+              {protocolChartData(data).reverse().map(({ protocol, slug, count }) => {
                 const pct = data.scannedEndpoints > 0
                   ? Math.round(count / data.scannedEndpoints * 100)
                   : 0
-                return (
-                  <div key={protocol} className="space-y-1.5">
+                const body = (
+                  <>
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-mono">{protocol}</span>
                       <span className="text-muted-foreground">{count} <span className="text-xs">({pct}%)</span></span>
@@ -213,7 +216,23 @@ export default function TLSPosturePage() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                  </div>
+                  </>
+                )
+                // Disable the link when nothing matches — clicking would land
+                // on an empty filtered list, which is more confusing than not
+                // being clickable in the first place.
+                if (count === 0) {
+                  return <div key={protocol} className="space-y-1.5">{body}</div>
+                }
+                return (
+                  <Link
+                    key={protocol}
+                    to={`/endpoints/host?protocol=${slug}`}
+                    className="block space-y-1.5 rounded-md -mx-2 px-2 py-1 hover:bg-muted/40 transition-colors cursor-pointer"
+                    aria-label={`View ${count} endpoints supporting ${protocol}`}
+                  >
+                    {body}
+                  </Link>
                 )
               })}
             </div>
@@ -262,7 +281,19 @@ export default function TLSPosturePage() {
                 })
                 .map(c => (
                   <TableRow key={c.cipher}>
-                    <TableCell className="font-mono text-sm">{c.cipher}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {c.count > 0 ? (
+                        <Link
+                          to={`/endpoints/host?cipher=${encodeURIComponent(c.cipher)}`}
+                          className="hover:underline hover:text-primary"
+                          aria-label={`View ${c.count} ${plural(c.count, 'endpoint')} accepting ${c.cipher}`}
+                        >
+                          {c.cipher}
+                        </Link>
+                      ) : (
+                        c.cipher
+                      )}
+                    </TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground">{c.count}</TableCell>
                     <TableCell><SeverityIndicator severity={c.severity} /></TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.reason ?? <span className="italic">—</span>}</TableCell>

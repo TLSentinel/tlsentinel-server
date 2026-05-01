@@ -7,6 +7,14 @@ import type { Endpoint, EndpointList, EndpointTLSProfile, EndpointScanHistoryLis
  */
 export type EndpointTypeFilter = '' | 'host' | 'saml' | 'manual'
 
+/**
+ * Protocol filter for the TLS Posture report drill-down. Empty means no
+ * protocol filter; otherwise matches the boolean column on
+ * endpoint_tls_profiles. Implies host-type — only host endpoints have TLS
+ * profiles, so combining with type=saml/manual yields zero results.
+ */
+export type ProtocolFilter = '' | 'ssl30' | 'tls10' | 'tls11' | 'tls12' | 'tls13'
+
 export function listEndpoints(
   page = 1,
   pageSize = 20,
@@ -15,16 +23,20 @@ export function listEndpoints(
   sort = '',
   tagId = '',
   type: EndpointTypeFilter = '',
+  protocol: ProtocolFilter = '',
+  cipher = '',
 ): Promise<EndpointList> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
-  if (name)   params.set('name', name)
-  if (status) params.set('status', status)
-  if (sort)   params.set('sort', sort)
-  if (tagId)  params.set('tag_id', tagId)
-  if (type)   params.set('type', type)
+  if (name)     params.set('name', name)
+  if (status)   params.set('status', status)
+  if (sort)     params.set('sort', sort)
+  if (tagId)    params.set('tag_id', tagId)
+  if (type)     params.set('type', type)
+  if (protocol) params.set('protocol', protocol)
+  if (cipher)   params.set('cipher', cipher)
   return api.get<EndpointList>(`/endpoints?${params}`)
 }
 
