@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ShieldCheck, ShieldAlert, ShieldX, KeyRound, Building2 } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, ShieldX, KeyRound, Building2, Lock } from 'lucide-react'
 import { Pie, PieChart } from 'recharts'
 import {
   ChartContainer,
@@ -10,14 +10,6 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { getTLSPostureReport } from '@/api/reports'
 import type { TLSPostureReport, TLSIssuerCount } from '@/types/api'
 import { plural } from '@/lib/utils'
@@ -195,7 +187,10 @@ export default function TLSPosturePage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Protocol acceptance */}
         <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <p className="font-medium mb-1">Protocol Acceptance</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold">Protocol Acceptance</h2>
+          </div>
           <p className="text-xs text-muted-foreground mb-4">Versions accepted across all scanned endpoints</p>
           {isLoading && <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>}
           {!isLoading && data && (
@@ -207,7 +202,7 @@ export default function TLSPosturePage() {
                 const body = (
                   <>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-mono">{protocol}</span>
+                      <span className="font-medium">{protocol}</span>
                       <span className="text-muted-foreground">{count} <span className="text-xs">({pct}%)</span></span>
                     </div>
                     <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
@@ -241,7 +236,10 @@ export default function TLSPosturePage() {
 
         {/* CA breakdown */}
         <div className="rounded-lg border bg-card p-5 shadow-sm">
-          <p className="font-medium mb-1">Certificate Authorities</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold">Certificate Authorities</h2>
+          </div>
           <p className="text-xs text-muted-foreground mb-4">Issuer distribution across current certificates</p>
           {!isLoading && data && (
             <ChartContainer config={issuerConfig} className="mx-auto aspect-square max-h-64">
@@ -256,96 +254,150 @@ export default function TLSPosturePage() {
         </div>
       </div>
 
-      {/* Cipher suite table */}
-      {!isLoading && data && data.ciphers.length > 0 && (
-        <div className="rounded-lg border bg-card shadow-sm">
-          <div className="px-5 py-4 border-b">
-            <p className="font-medium">Cipher Suites</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Cipher suites accepted across all scanned endpoints</p>
+      {/* Cipher suite table — dashboard-style grid (no top border, columns
+          aligned with the section title at px-5). Mobile drops the grid for
+          stacked cards so long cipher names wrap rather than truncating. */}
+      {!isLoading && data && data.ciphers.length > 0 && (() => {
+        const sortedCiphers = [...data.ciphers].sort((a, b) => {
+          const order = { critical: 0, warning: 1, ok: 2 }
+          const diff = (order[a.severity] ?? 2) - (order[b.severity] ?? 2)
+          return diff !== 0 ? diff : b.count - a.count
+        })
+        return (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-muted-foreground" />
+                <h2 className="font-semibold">Cipher Suites</h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">Cipher suites accepted across all scanned endpoints</p>
+            </div>
+            {/* Mobile: stacked cards. Cipher names are long enough that the
+                desktop grid would truncate them on a 375-wide screen. */}
+            <div className="space-y-2 px-4 pb-4 md:hidden">
+              {sortedCiphers.map(c => (
+                <div key={c.cipher} className="rounded-md border border-border/60 bg-card p-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    {c.count > 0 ? (
+                      <Link
+                        to={`/endpoints/host?cipher=${encodeURIComponent(c.cipher)}`}
+                        className="font-mono text-sm break-all flex-1 min-w-0 hover:underline hover:text-primary"
+                        aria-label={`View ${c.count} ${plural(c.count, 'endpoint')} accepting ${c.cipher}`}
+                      >
+                        {c.cipher}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-sm break-all flex-1 min-w-0">{c.cipher}</span>
+                    )}
+                    <SeverityIndicator severity={c.severity} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {c.count} {plural(c.count, 'endpoint')}
+                    {c.reason ? ` — ${c.reason}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {/* Desktop: 4-column grid aligned with the section title. */}
+            <div className="hidden md:grid grid-cols-[minmax(0,2fr)_auto_auto_minmax(0,2fr)] items-center gap-x-6 px-5 pb-3">
+              <div className="col-span-4 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cipher Suite</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap text-right">Endpoints</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Severity</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes</span>
+              </div>
+              {sortedCiphers.map(c => (
+                <div key={c.cipher} className="col-span-4 grid grid-cols-subgrid items-center gap-x-6 py-2 border-b border-border/40 last:border-0">
+                  <div className="min-w-0">
+                    {c.count > 0 ? (
+                      <Link
+                        to={`/endpoints/host?cipher=${encodeURIComponent(c.cipher)}`}
+                        className="font-mono text-sm hover:underline hover:text-primary truncate block"
+                        aria-label={`View ${c.count} ${plural(c.count, 'endpoint')} accepting ${c.cipher}`}
+                      >
+                        {c.cipher}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-sm truncate block">{c.cipher}</span>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right text-sm text-muted-foreground tabular-nums">{c.count}</div>
+                  <div className="shrink-0"><SeverityIndicator severity={c.severity} /></div>
+                  <div className="min-w-0 text-sm text-muted-foreground truncate">
+                    {c.reason ?? <span className="italic">—</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cipher Suite</TableHead>
-                <TableHead className="w-28 text-right">Endpoints</TableHead>
-                <TableHead className="w-32">Severity</TableHead>
-                <TableHead>Notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="[&_tr]:border-b-0">
-              {[...data.ciphers]
-                .sort((a, b) => {
-                  const order = { critical: 0, warning: 1, ok: 2 }
-                  const diff = (order[a.severity] ?? 2) - (order[b.severity] ?? 2)
-                  return diff !== 0 ? diff : b.count - a.count
-                })
-                .map(c => (
-                  <TableRow key={c.cipher}>
-                    <TableCell className="font-mono text-sm">
-                      {c.count > 0 ? (
-                        <Link
-                          to={`/endpoints/host?cipher=${encodeURIComponent(c.cipher)}`}
-                          className="hover:underline hover:text-primary"
-                          aria-label={`View ${c.count} ${plural(c.count, 'endpoint')} accepting ${c.cipher}`}
-                        >
-                          {c.cipher}
-                        </Link>
-                      ) : (
-                        c.cipher
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">{c.count}</TableCell>
-                    <TableCell><SeverityIndicator severity={c.severity} /></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{c.reason ?? <span className="italic">—</span>}</TableCell>
-                  </TableRow>
-                ))
-              }
-            </TableBody>
-          </Table>
-        </div>
-      )}
+        )
+      })()}
 
-      {/* Endpoints needing attention */}
+      {/* Endpoints needing attention — dashboard-style grid, same conventions
+          as the cipher table above. */}
       {!isLoading && data && (
-        <div className="rounded-lg border bg-card shadow-sm">
-          <div className="flex items-center gap-2 px-5 py-4 border-b">
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4">
             <Building2 className="h-4 w-4 text-muted-foreground" />
-            <p className="font-medium">Endpoints Needing Attention</p>
+            <h2 className="font-semibold">Endpoints Needing Attention</h2>
             <span className="ml-auto text-xs text-muted-foreground">
               {data.attention.length} {plural(data.attention.length, 'endpoint')}
             </span>
           </div>
           {data.attention.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-muted-foreground">No issues found.</p>
+            <p className="px-5 pb-8 text-center text-sm text-muted-foreground">No issues found.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Endpoint</TableHead>
-                  <TableHead className="w-28">Severity</TableHead>
-                  <TableHead>Issues</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="[&_tr]:border-b-0">
+            <>
+              {/* Mobile: stacked cards so the issues list wraps rather than
+                  forcing horizontal scroll on a phone. */}
+              <div className="space-y-2 px-4 pb-4 md:hidden">
                 {data.attention.map(item => (
-                  <TableRow key={item.endpointId}>
-                    <TableCell>
-                      <Link to={`/endpoints/${item.endpointId}`} className="font-mono text-sm hover:underline">
+                  <div key={item.endpointId} className="rounded-md border border-border/60 bg-card p-3 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <Link
+                        to={`/endpoints/${item.endpointId}`}
+                        className="text-sm font-semibold hover:underline break-all flex-1 min-w-0"
+                      >
                         {item.endpointName}
                       </Link>
-                    </TableCell>
-                    <TableCell><SeverityIndicator severity={item.severity} /></TableCell>
-                    <TableCell>
+                      <SeverityIndicator severity={item.severity} />
+                    </div>
+                    <ul className="space-y-0.5">
+                      {item.issues.map(issue => (
+                        <li key={issue} className="text-sm text-muted-foreground">{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: 3-column grid aligned with the section title. */}
+              <div className="hidden md:grid grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)] items-start gap-x-6 px-5 pb-3">
+                <div className="col-span-3 grid grid-cols-subgrid gap-x-6 py-2.5 border-b border-border/40">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Endpoint</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Severity</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issues</span>
+                </div>
+                {data.attention.map(item => (
+                  <div key={item.endpointId} className="col-span-3 grid grid-cols-subgrid items-start gap-x-6 py-2 border-b border-border/40 last:border-0">
+                    <div className="min-w-0 pt-0.5">
+                      <Link to={`/endpoints/${item.endpointId}`} className="text-sm font-semibold hover:underline truncate block">
+                        {item.endpointName}
+                      </Link>
+                    </div>
+                    <div className="shrink-0 pt-0.5">
+                      <SeverityIndicator severity={item.severity} />
+                    </div>
+                    <div className="min-w-0">
                       <ul className="space-y-0.5">
                         {item.issues.map(issue => (
                           <li key={issue} className="text-sm">{issue}</li>
                         ))}
                       </ul>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </div>
       )}
