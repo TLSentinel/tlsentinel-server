@@ -264,12 +264,20 @@ interface TLSBarProps {
   total: number
   color: string
   labelColor?: string
+  /**
+   * Protocol slug for the TLS Posture drill-down link
+   * (`/endpoints/host?protocol=<slug>`). When provided and count > 0, the
+   * row renders as a link; when count === 0 it renders inert (clicking
+   * would land on an empty filtered list, more confusing than not being
+   * clickable).
+   */
+  protocolSlug?: 'ssl30' | 'tls10' | 'tls11' | 'tls12' | 'tls13'
 }
 
-function TLSBar({ label, count, total, color, labelColor }: TLSBarProps) {
+function TLSBar({ label, count, total, color, labelColor, protocolSlug }: TLSBarProps) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0
-  return (
-    <div className="space-y-1.5">
+  const body = (
+    <>
       <div className="flex items-center justify-between text-sm">
         <span className={`font-medium ${labelColor ?? 'text-foreground'}`}>{label}</span>
         <span className={`font-semibold ${labelColor ?? 'text-foreground'}`}>{pct}%</span>
@@ -280,7 +288,19 @@ function TLSBar({ label, count, total, color, labelColor }: TLSBarProps) {
           style={{ width: `${pct}%` }}
         />
       </div>
-    </div>
+    </>
+  )
+  if (!protocolSlug || count === 0) {
+    return <div className="space-y-1.5">{body}</div>
+  }
+  return (
+    <Link
+      to={`/endpoints/host?protocol=${protocolSlug}`}
+      className="block space-y-1.5 rounded-md -mx-2 px-2 py-1 hover:bg-muted/40 transition-colors"
+      aria-label={`View ${count} endpoints supporting ${label}`}
+    >
+      {body}
+    </Link>
   )
 }
 
@@ -401,14 +421,15 @@ export default function DashboardPage() {
             const ssl30Pct = total > 0 ? Math.round((tlsReport.protocols.ssl30 / total) * 100) : 0
             return (
               <div className="space-y-4">
-                <TLSBar label="TLS 1.3" count={tlsReport.protocols.tls13} total={total} color="bg-green-500" />
-                <TLSBar label="TLS 1.2" count={tlsReport.protocols.tls12} total={total} color="bg-blue-900" />
+                <TLSBar label="TLS 1.3" count={tlsReport.protocols.tls13} total={total} color="bg-green-500" protocolSlug="tls13" />
+                <TLSBar label="TLS 1.2" count={tlsReport.protocols.tls12} total={total} color="bg-blue-900" protocolSlug="tls12" />
                 <TLSBar
                   label="TLS 1.1"
                   count={tlsReport.protocols.tls11}
                   total={total}
                   color="bg-orange-500"
                   labelColor={tls11Pct > 0 ? 'text-orange-600' : undefined}
+                  protocolSlug="tls11"
                 />
                 <TLSBar
                   label="TLS 1.0"
@@ -416,6 +437,7 @@ export default function DashboardPage() {
                   total={total}
                   color="bg-red-500"
                   labelColor={tls10Pct > 0 ? 'text-red-600' : undefined}
+                  protocolSlug="tls10"
                 />
                 {tlsReport.protocols.ssl30 > 0 && (
                   <TLSBar
@@ -424,6 +446,7 @@ export default function DashboardPage() {
                     total={total}
                     color="bg-red-700"
                     labelColor={ssl30Pct > 0 ? 'text-red-700' : undefined}
+                    protocolSlug="ssl30"
                   />
                 )}
                 {legacyPct > 0 && (

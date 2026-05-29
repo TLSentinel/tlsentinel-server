@@ -119,6 +119,19 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 		) exp ON TRUE`)
 }
 
+// validProtocolFilters is the whitelist of protocol values accepted by
+// ListEndpoints. Each maps to the corresponding boolean column on
+// endpoint_tls_profiles. Values outside this set are silently dropped (the
+// filter is treated as unset) so a typo or an attacker-supplied value cannot
+// reach the SQL layer as a column name.
+var validProtocolFilters = map[string]string{
+	"ssl30": "ssl30",
+	"tls10": "tls10",
+	"tls11": "tls11",
+	"tls12": "tls12",
+	"tls13": "tls13",
+}
+
 // ListEndpoints returns a paginated list of endpoints.
 //
 // hasError: when true, only endpoints with a non-nil last_scan_error are returned.
@@ -126,7 +139,12 @@ func (s *Store) selectEndpointWithScanner() *bun.SelectQuery {
 // status: "" = all, "enabled" = enabled only, "disabled" = disabled only.
 // sort: "" or "newest" (default), "name", "dns_name", "last_scanned".
 // endpointType: "" = all, "host" | "saml" | "manual" = filter to that type.
-func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError bool, search, status, sort, tagID, endpointType string) (models.EndpointList, error) {
+// protocol: "" = no filter; otherwise one of ssl30/tls10/tls11/tls12/tls13 —
+//   restricts to host-type endpoints whose latest TLS profile shows that
+//   protocol as accepted. Powers the TLS Posture report drill-down.
+// cipher: "" = no filter; otherwise an exact cipher suite name — restricts
+//   to host-type endpoints whose accepted cipher_suites array contains it.
+func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError bool, search, status, sort, tagID, endpointType, protocol, cipher string) (models.EndpointList, error) {
 	var rows []endpointWithScanner
 
 	var orderExpr string
@@ -164,6 +182,23 @@ func (s *Store) ListEndpoints(ctx context.Context, page, pageSize int, hasError 
 	}
 	if tagID != "" {
 		q = q.Where("EXISTS (SELECT 1 FROM tlsentinel.endpoint_tags et WHERE et.endpoint_id = h.id AND et.tag_id = ?)", tagID)
+	}
+	// Protocol / cipher filters power the TLS Posture report drill-down.
+	// Both imply host-type — only host endpoints have TLS profiles — so the
+	// JOIN here naturally restricts the result; no separate type filter is
+	// needed (and combining with type=saml/manual will return zero rows,
+	// which is the correct answer to "saml endpoints with TLS 1.0 support").
+	protocolCol, protocolValid := validProtocolFilters[protocol]
+	if protocolValid || cipher != "" {
+		q = q.Join("JOIN tlsentinel.endpoint_tls_profiles ON endpoint_tls_profiles.endpoint_id = h.id AND endpoint_tls_profiles.scan_error IS NULL")
+		if protocolValid {
+			// protocolCol is whitelisted; safe to interpolate as an identifier.
+			q = q.Where("endpoint_tls_profiles." + protocolCol + " = TRUE")
+		}
+		if cipher != "" {
+			// Array containment uses GIN indexing if available and is parameter-safe.
+			q = q.Where("endpoint_tls_profiles.cipher_suites @> ARRAY[?]::text[]", cipher)
+		}
 	}
 	total, err := q.ScanAndCount(ctx, &rows)
 	if err != nil {

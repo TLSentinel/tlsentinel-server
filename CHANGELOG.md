@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **TLS Posture and Dashboard drill into the endpoint list.** Protocol
+  bars and cipher-suite rows on the TLS Posture report — and the protocol
+  bars on the dashboard's TLS Distribution panel — are now clickable.
+  Clicking a protocol (e.g. TLS 1.0) navigates to
+  `/endpoints/host?protocol=tls10` and shows every host whose latest TLS
+  profile accepts that protocol; clicking a cipher row deep-links to
+  `/endpoints/host?cipher=<iana-name>` with the same semantics for the
+  accepted-cipher array. Filters are URL-driven so the resulting view is
+  shareable and bookmarkable, render as dismissible chips alongside the
+  existing tag chip, and combine with search / status / tag / sort. Bars
+  and rows for protocols or ciphers with zero matching endpoints render
+  inert (no link) since clicking them would land on an empty filtered
+  list. The endpoints list API gains matching `protocol` and `cipher`
+  query params; both imply host-type (only host endpoints have TLS
+  profiles) so combining with `type=saml` or `type=manual` yields zero
+  results — the correct answer.
+
 ## [v2026.5]
 
 ### Added

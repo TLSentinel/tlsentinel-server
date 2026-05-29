@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Plus, Upload, Pencil, Trash2, Copy, MoreVertical, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Check, Tag, X, ExternalLink, Server, Wifi, WifiOff } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { Plus, Upload, Pencil, Trash2, Copy, MoreVertical, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Check, Tag, X, ExternalLink, Server, Wifi, WifiOff, ShieldAlert, KeyRound } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listEndpoints, listErrorEndpoints, deleteEndpoint } from '@/api/endpoints'
+import { listEndpoints, listErrorEndpoints, deleteEndpoint, type ProtocolFilter } from '@/api/endpoints'
 import { listTagCategories } from '@/api/tags'
 import { can } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
@@ -51,6 +51,17 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 type EndpointType = 'host' | 'saml' | 'manual'
 type HostStatus   = '' | 'enabled' | 'disabled'
 type SortOption   = '' | 'name' | 'dns_name' | 'last_scanned'
+
+// Display labels for protocol filter chips. Keys match the URL/API values
+// (lowercase, no separator) so `?protocol=tls10` is the source of truth and
+// the chip just looks them up here.
+const PROTOCOL_LABEL: Record<Exclude<ProtocolFilter, ''>, string> = {
+  ssl30: 'SSL 3.0',
+  tls10: 'TLS 1.0',
+  tls11: 'TLS 1.1',
+  tls12: 'TLS 1.2',
+  tls13: 'TLS 1.3',
+}
 
 interface TypeConfig {
   title:             string
@@ -557,6 +568,18 @@ export default function EndpointPage({ type }: EndpointPageProps) {
   const navigate = useNavigate()
   const [now] = useState(Date.now)
 
+  // Protocol / cipher filters live in the URL so the TLS Posture report can
+  // deep-link into a filtered list (`/endpoints/host?protocol=tls10`). Keeping
+  // them URL-driven also makes the filtered view shareable and bookmarkable.
+  // The other filters (search, status, tag, sort) stay as local state — they
+  // are operator-set on this page and don't need URL persistence.
+  const [searchParams, setSearchParams]       = useSearchParams()
+  const rawProtocol                            = searchParams.get('protocol') ?? ''
+  const protocolFilter: ProtocolFilter         = rawProtocol in PROTOCOL_LABEL
+    ? (rawProtocol as ProtocolFilter)
+    : ''
+  const cipherFilter                           = searchParams.get('cipher') ?? ''
+
   const [page, setPage]                       = useState(1)
   const [search, setSearch]                   = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -578,9 +601,20 @@ export default function EndpointPage({ type }: EndpointPageProps) {
     return () => clearTimeout(t)
   }, [search])
 
-  // Reset UI state when switching between typed nav items — otherwise
-  // filters/selection/page bleed across types.
+  // Reset UI state when the user *switches* between typed nav items —
+  // otherwise filters/selection/page bleed across types. We track the
+  // previous type explicitly (rather than using a hasMounted boolean)
+  // because Strict Mode invokes effects twice on mount: a boolean would
+  // flip to true on the first invocation and then run the reset on the
+  // second, silently clearing the protocol/cipher URL params the TLS
+  // Posture report deep-linked us with. The previous-value comparison
+  // is idempotent under Strict Mode — same type compared against itself
+  // is a no-op, only a real change triggers the reset.
+  const prevTypeRef = useRef<EndpointType | null>(null)
   useEffect(() => {
+    const prevType = prevTypeRef.current
+    prevTypeRef.current = type
+    if (prevType === null || prevType === type) return
     setPage(1)
     setSearch('')
     setDebouncedSearch('')
@@ -588,11 +622,21 @@ export default function EndpointPage({ type }: EndpointPageProps) {
     setSortOption('')
     setTagFilter('')
     setSelected(new Map())
+    // Protocol/cipher only apply to host endpoints; clear them when the
+    // user moves to the SAML or manual tab so the chip doesn't linger
+    // pointing at a filter that yields zero results by definition.
+    if (searchParams.has('protocol') || searchParams.has('cipher')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('protocol')
+      next.delete('cipher')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type])
 
   const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
-    queryKey: ['endpoints', type, page, debouncedSearch, statusFilter, sortOption, tagFilter],
-    queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter, type),
+    queryKey: ['endpoints', type, page, debouncedSearch, statusFilter, sortOption, tagFilter, protocolFilter, cipherFilter],
+    queryFn: () => listEndpoints(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, tagFilter, type, protocolFilter, cipherFilter),
     placeholderData: keepPreviousData,
   })
 
@@ -628,6 +672,13 @@ export default function EndpointPage({ type }: EndpointPageProps) {
   function handleStatusChange(value: HostStatus) { setStatusFilter(value); setPage(1) }
   function handleSortChange(value: SortOption)    { setSortOption(value);   setPage(1) }
   function handleTagChange(tagId: string)          { setTagFilter(tagId);    setPage(1) }
+
+  function clearUrlFilter(key: 'protocol' | 'cipher') {
+    const next = new URLSearchParams(searchParams)
+    next.delete(key)
+    setSearchParams(next, { replace: true })
+    setPage(1)
+  }
 
   const pageIds = useMemo(() => endpoints.map(e => e.id), [endpoints])
   const allPageSelected  = pageIds.length > 0 && pageIds.every(id => selected.has(id))
@@ -830,6 +881,42 @@ export default function EndpointPage({ type }: EndpointPageProps) {
         </div>
       )}
 
+      {/* Active protocol / cipher chips. URL-driven (set by the TLS Posture
+          report drill-down), cleared by the X. Both render even if both are
+          set so an operator can see and dismiss them independently. */}
+      {(protocolFilter || cipherFilter) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {protocolFilter && (
+            <span className="inline-flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+              <ShieldAlert className="h-3 w-3" />
+              <span className="text-primary/60">Supports:</span>
+              {PROTOCOL_LABEL[protocolFilter]}
+              <button
+                onClick={() => clearUrlFilter('protocol')}
+                className="ml-0.5 rounded hover:text-primary"
+                aria-label="Clear protocol filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+          {cipherFilter && (
+            <span className="inline-flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+              <KeyRound className="h-3 w-3" />
+              <span className="text-primary/60">Cipher:</span>
+              <span className="font-mono">{cipherFilter}</span>
+              <button
+                onClick={() => clearUrlFilter('cipher')}
+                className="ml-0.5 rounded hover:text-primary"
+                aria-label="Clear cipher filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 
       {/* Table */}
@@ -866,7 +953,7 @@ export default function EndpointPage({ type }: EndpointPageProps) {
           <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
         ) : endpoints.length === 0 ? (
           <div className="py-16 flex items-center justify-center">
-            {debouncedSearch || statusFilter || tagFilter
+            {debouncedSearch || statusFilter || tagFilter || protocolFilter || cipherFilter
               ? <span className="text-sm text-muted-foreground">No endpoints match your filters.</span>
               : <StrixEmpty message={cfg.emptyMessage} />}
           </div>
