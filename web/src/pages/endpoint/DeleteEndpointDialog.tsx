@@ -56,7 +56,11 @@ export default function DeleteEndpointDialog({ endpoint, onClose, onDeleted }: D
           <DialogTitle>Delete Endpoint</DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-muted-foreground">
+        {/* break-words on the paragraph so a long endpoint name or
+            unbroken dnsName wraps inside the dialog instead of pushing
+            the close button off-screen. Same hygiene we apply to every
+            identifier-bearing surface in the app. */}
+        <p className="text-sm text-muted-foreground break-words">
           Are you sure you want to delete{' '}
           <span className="font-medium text-foreground">{endpoint?.name}</span>
           {endpoint?.dnsName ? ` (${endpoint.dnsName})` : ''}? This action cannot be undone.

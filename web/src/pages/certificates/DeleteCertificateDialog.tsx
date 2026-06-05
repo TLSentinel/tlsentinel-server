@@ -58,8 +58,17 @@ export default function DeleteCertificateDialog({ cert, onClose, onDeleted }: De
 
         <p className="text-sm text-muted-foreground">
           Are you sure you want to delete{' '}
-          <span className="font-medium text-foreground">{cert?.commonName || cert?.fingerprint}</span>?
-          This action cannot be undone.
+          {/* Fingerprint fallback (when there's no CN) is a 64-char hex
+              string with no natural break points — without break-all it
+              overflows the dialog. Match the rest of the app's treatment
+              of fingerprints: font-mono + break-all. Prose CNs stay in
+              the default sans with regular wrapping. */}
+          {cert?.commonName ? (
+            <span className="font-medium text-foreground break-words">{cert.commonName}</span>
+          ) : (
+            <span className="font-mono text-foreground break-all">{cert?.fingerprint}</span>
+          )}
+          ? This action cannot be undone.
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
