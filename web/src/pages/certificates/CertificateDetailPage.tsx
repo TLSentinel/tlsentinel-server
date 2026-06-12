@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   AlertTriangle,
   BadgeCheck,
@@ -12,9 +12,12 @@ import {
   Server,
   Shield,
   ShieldCheck,
+  Trash2,
   XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCertificate, getCertificateHosts, getCertificateHostsHistorical } from '@/api/certificates'
+import { can } from '@/api/client'
+import DeleteCertificateDialog from './DeleteCertificateDialog'
 import { listRootStores } from '@/api/rootstores'
 import type { CertificateDetail, EndpointListItem, HistoricalEndpointItem } from '@/types/api'
 import { fmtDate } from '@/lib/utils'
@@ -684,6 +687,9 @@ function PEMActions({ pem, commonName }: { pem: string; commonName: string }) {
 
 export default function CertificateDetailPage() {
   const { fingerprint } = useParams<{ fingerprint: string }>()
+  const navigate = useNavigate()
+  const canEdit = can('certs:edit')
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const { data: cert, isLoading, error: fetchError } = useQuery({
     queryKey: ['certificate', fingerprint],
@@ -739,10 +745,27 @@ export default function CertificateDetailPage() {
             <p className="mt-2 text-sm text-muted-foreground">{subtitleBits.join(' • ')}</p>
           )}
         </div>
-        <div className="shrink-0 mt-2">
+        <div className="flex shrink-0 gap-2 mt-2">
           <PEMActions pem={cert.pem} commonName={cert.commonName} />
+          {canEdit && (
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteOpen(true)}
+              className="h-12 px-4 text-base font-semibold"
+              aria-label={`Delete certificate ${cert.commonName || fingerprint}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
+      <DeleteCertificateDialog
+        cert={deleteOpen ? { fingerprint: cert.fingerprint, commonName: cert.commonName } : null}
+        onClose={() => setDeleteOpen(false)}
+        // After delete this detail URL no longer exists — bounce back
+        // to the cert list so the operator lands somewhere sane.
+        onDeleted={() => navigate('/certificates')}
+      />
 
       {/* 2/3 + 1/3 body */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">

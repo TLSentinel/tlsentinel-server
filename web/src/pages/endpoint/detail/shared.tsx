@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileEdit, CheckCircle2, XCircle, Pencil, StickyNote } from 'lucide-react'
+import { FileEdit, CheckCircle2, XCircle, Pencil, StickyNote, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -15,6 +15,7 @@ import { fmtDateTime } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { ErrorAlert } from '@/components/ErrorAlert'
+import DeleteEndpointDialog from '../DeleteEndpointDialog'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -100,6 +101,7 @@ export function EndpointHeader({
   action?: React.ReactNode
 }) {
   const navigate = useNavigate()
+  const [deleteOpen, setDeleteOpen] = useState(false)
   // Header stacks below md so the long endpoint name doesn't fight the Edit
   // Endpoint button. Above md the action sits to the right; below md it goes
   // full-width underneath the title.
@@ -127,8 +129,23 @@ export function EndpointHeader({
           <Pencil className="mr-1.5 h-4 w-4" />
           Edit Endpoint
         </Button>
+        <Button
+          variant="destructive"
+          onClick={() => setDeleteOpen(true)}
+          className="h-11 px-4 text-base font-semibold md:h-12"
+          aria-label={`Delete endpoint ${endpoint.name}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
         {action}
       </div>
+      <DeleteEndpointDialog
+        endpoint={deleteOpen ? endpoint : null}
+        onClose={() => setDeleteOpen(false)}
+        // After delete the current detail page no longer exists — bounce
+        // back to the type-scoped list so the operator lands somewhere sane.
+        onDeleted={() => navigate(`/endpoints/${endpoint.type}`)}
+      />
     </div>
   )
 }

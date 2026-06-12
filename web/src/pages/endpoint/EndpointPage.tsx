@@ -6,30 +6,23 @@ import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listEndpoints, listErrorEndpoints, deleteEndpoint, type ProtocolFilter } from '@/api/endpoints'
+import { listEndpoints, listErrorEndpoints, type ProtocolFilter } from '@/api/endpoints'
 import { listTagCategories } from '@/api/tags'
 import { can } from '@/api/client'
 import type { EndpointListItem, CategoryWithTags } from '@/types/api'
-import { ApiError } from '@/types/api'
 import { plural } from '@/lib/utils'
 import { categoryColor } from '@/lib/tag-colors'
 import BulkImportDialog from '@/components/BulkImportDialog'
 import BulkActionBar from '@/components/BulkActionBar'
 import BulkDeleteEndpointsDialog from './BulkDeleteEndpointsDialog'
 import BulkTagEndpointsDialog from './BulkTagEndpointsDialog'
+import DeleteEndpointDialog from './DeleteEndpointDialog'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 // ---------------------------------------------------------------------------
@@ -487,63 +480,6 @@ function EndpointCard({ endpoint, cfg, type, now, admin, tagFilter, selected, on
         <TagChips tags={endpoint.tags} tagFilter={tagFilter} onTagClick={onTagClick} />
       )}
     </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Delete confirmation dialog
-// ---------------------------------------------------------------------------
-
-interface DeleteDialogProps {
-  endpoint: EndpointListItem | null
-  onClose: () => void
-  onDeleted: () => void
-}
-
-function DeleteDialog({ endpoint, onClose, onDeleted }: DeleteDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleDelete() {
-    if (!endpoint) return
-    setLoading(true)
-    setError(null)
-    try {
-      await deleteEndpoint(endpoint.id)
-      onDeleted()
-      onClose()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to delete endpoint.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Dialog open={endpoint !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete Endpoint</DialogTitle>
-        </DialogHeader>
-
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete{' '}
-          <span className="font-medium text-foreground">{endpoint?.name}</span>
-          {endpoint?.dnsName ? ` (${endpoint.dnsName})` : ''}? This action cannot be undone.
-        </p>
-
-        {error && <p className="text-sm text-destructive">{error}</p>}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={loading}>
-            {loading ? 'Deleting…' : 'Delete'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -1033,7 +969,7 @@ export default function EndpointPage({ type }: EndpointPageProps) {
         </div>
       </div>
 
-      <DeleteDialog
+      <DeleteEndpointDialog
         endpoint={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={refetch}
