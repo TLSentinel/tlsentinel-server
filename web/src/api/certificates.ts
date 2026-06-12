@@ -2,6 +2,7 @@ import { api } from './client'
 import type {
   CertificateDetail,
   CertificateList,
+  CertReferences,
   EndpointListItem,
   HistoricalEndpointItem,
   IngestCertificateRequest,
@@ -53,8 +54,16 @@ export function createCertificate(body: IngestCertificateRequest): Promise<Certi
   return api.post<CertificateDetail>('/certificates', body)
 }
 
-export function deleteCertificate(fingerprint: string): Promise<void> {
-  return api.delete<void>(`/certificates/${fingerprint}`)
+export function getCertificateReferences(fingerprint: string): Promise<CertReferences> {
+  return api.get<CertReferences>(`/certificates/${fingerprint}/references`)
+}
+
+// purge=true also removes the scan-history rows and endpoint attachments that
+// would otherwise block the delete. The server still hard-refuses (409) when
+// the cert is the issuer of other certs, regardless of purge.
+export function deleteCertificate(fingerprint: string, purge = false): Promise<void> {
+  const qs = purge ? '?purge=true' : ''
+  return api.delete<void>(`/certificates/${fingerprint}${qs}`)
 }
 
 export function getCertificateHosts(fingerprint: string): Promise<EndpointListItem[]> {
