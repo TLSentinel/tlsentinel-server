@@ -564,6 +564,83 @@ func (s *Store) DeleteCertificate(ctx context.Context, fingerprint string) error
 	return nil
 }
 
+// CountCertReferences is the exported accessor for per-table reference counts,
+// used by the delete dialog to show the operator what still points at a cert
+// before they confirm a purge. Thin wrapper over countCertReferences.
+func (s *Store) CountCertReferences(ctx context.Context, fingerprint string) (CertReferences, error) {
+	return s.countCertReferences(ctx, fingerprint)
+}
+
+// ErrCertIsIssuer is returned by PurgeCertificate when the target cert issued
+// other certificates still in the store. We never break an issuer chain — even
+// on an explicit purge — because the chain is reconstructed from observed certs
+// and would likely just rebuild on the next scan. The operator must delete the
+// child certs first. See project_cert_retention.
+type ErrCertIsIssuer struct {
+	Count int
+}
+
+func (e *ErrCertIsIssuer) Error() string {
+	return fmt.Sprintf("certificate is the issuer of %d other %s; delete those first",
+		e.Count, pluralize(e.Count, "certificate", "certificates"))
+}
+
+// PurgeCertificate deletes a cert together with the references that would
+// otherwise block it: every endpoint_scan_history row and endpoint_certs
+// attachment (current and historical) pointing at the fingerprint. This is the
+// operator-initiated equivalent of the nightly retention pipeline, run in the
+// same order (history → endpoint links → cert) inside one transaction so it is
+// all-or-nothing.
+//
+// It always hard-refuses when the cert is an issuer of other certs
+// (ErrCertIsIssuer) — issuer chains are never broken. The remaining NO ACTION
+// references (scan history, endpoint_certs) are cleared explicitly here; the
+// CASCADE references (certificate_expiry_alerts, root_store_anchors,
+// certificate_trust) fall away with the cert row itself.
+func (s *Store) PurgeCertificate(ctx context.Context, fingerprint string) error {
+	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Hard-refuse the issuer case up front, before touching anything.
+		var issuedCerts int
+		if err := tx.NewRaw(
+			`SELECT COUNT(*) FROM tlsentinel.certificates WHERE issuer_fingerprint = ?`,
+			fingerprint,
+		).Scan(ctx, &issuedCerts); err != nil {
+			return fmt.Errorf("purge cert: count issued: %w", err)
+		}
+		if issuedCerts > 0 {
+			return &ErrCertIsIssuer{Count: issuedCerts}
+		}
+
+		// Clear the NO ACTION references in retention-pipeline order.
+		if _, err := tx.NewDelete().
+			Model((*EndpointScanHistory)(nil)).
+			Where("fingerprint = ?", fingerprint).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("purge cert: delete scan history: %w", err)
+		}
+		if _, err := tx.NewDelete().
+			Model((*EndpointCert)(nil)).
+			Where("fingerprint = ?", fingerprint).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("purge cert: delete endpoint attachments: %w", err)
+		}
+
+		// Delete the cert. CASCADE handles expiry alerts, root-store anchors,
+		// and trust verdicts. A 0-row result means it was already gone.
+		res, err := tx.NewDelete().
+			Model((*Certificate)(nil)).
+			Where("fingerprint = ?", fingerprint).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("purge cert: delete certificate: %w", err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 // countCertReferences returns per-table reference counts for a fingerprint.
 // One round-trip, four subqueries. Kept separate from DeleteCertificate so the
 // fast path (no FK violation) doesn't pay for it.

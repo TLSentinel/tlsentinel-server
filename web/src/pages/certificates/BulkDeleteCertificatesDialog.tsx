@@ -17,10 +17,12 @@ import { plural } from '@/lib/utils'
 // Bulk delete for certificates. No dedicated bulk API — we loop single-item
 // DELETEs in parallel. Each delete still emits its own audit entry.
 //
-// Unlike endpoints, cert deletes can fail at the DB layer when a cert is
-// still referenced (endpoint_certs, hosts.active_fingerprint). The server
-// surfaces those as a generic 500 today, which shows up verbatim in the
-// per-row summary — good enough until we add structured FK conflict errors.
+// A cert delete is refused (409) when the cert is still referenced by
+// endpoint attachments or scan history, or when it is the issuer of other
+// certs. The optional "purge references" toggle sends ?purge=true on every
+// delete, which clears the referencing scan-history rows and endpoint
+// attachments first (safe no-op on certs that have none). Issuer certs are
+// never deletable and surface in the failure summary regardless.
 // ---------------------------------------------------------------------------
 
 const PREVIEW_LIMIT = 5
@@ -39,12 +41,14 @@ interface Props {
 export default function BulkDeleteCertificatesDialog({ open, certificates, onClose, onDone }: Props) {
   const [phase,   setPhase]   = useState<Phase>('confirm')
   const [results, setResults] = useState<Result[]>([])
+  const [purge,   setPurge]   = useState(false)
 
   function handleClose() {
     if (phase === 'running') return
     const wasDone = phase === 'summary'
     setPhase('confirm')
     setResults([])
+    setPurge(false)
     onClose()
     if (wasDone) onDone()
   }
@@ -53,7 +57,7 @@ export default function BulkDeleteCertificatesDialog({ open, certificates, onClo
     setPhase('running')
     const settled = await Promise.allSettled(
       certificates.map(async cert => {
-        await deleteCertificate(cert.fingerprint)
+        await deleteCertificate(cert.fingerprint, purge)
         return cert
       }),
     )
@@ -92,9 +96,6 @@ export default function BulkDeleteCertificatesDialog({ open, certificates, onClo
               You're about to delete <span className="font-medium text-foreground">{certificates.length}</span>{' '}
               {plural(certificates.length, 'certificate')}. This action cannot be undone.
             </p>
-            <p className="text-xs text-muted-foreground">
-              Certificates currently referenced by endpoints or hosts cannot be deleted and will be reported below.
-            </p>
             <ul className="mt-1 max-h-40 overflow-y-auto rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
               {certificates.slice(0, PREVIEW_LIMIT).map(cert => (
                 <li key={cert.fingerprint} className="truncate py-0.5">
@@ -108,6 +109,23 @@ export default function BulkDeleteCertificatesDialog({ open, certificates, onClo
                 </li>
               )}
             </ul>
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={purge}
+                onChange={(e) => setPurge(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-destructive cursor-pointer"
+              />
+              <span className="text-muted-foreground">
+                Also purge references (scan history and endpoint attachments) for any
+                referenced certificates.
+              </span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              {purge
+                ? 'Referenced certificates will have their references removed and be deleted. Issuer certificates are never deletable and will be reported below.'
+                : 'Certificates still referenced by endpoints or scan history are skipped and reported below — tick the box above to purge and delete them too.'}
+            </p>
           </>
         )}
 
@@ -156,7 +174,7 @@ export default function BulkDeleteCertificatesDialog({ open, certificates, onClo
             <>
               <Button variant="outline" onClick={handleClose}>Cancel</Button>
               <Button variant="destructive" onClick={handleConfirm}>
-                Delete {certificates.length}
+                {purge ? `Delete + purge ${certificates.length}` : `Delete ${certificates.length}`}
               </Button>
             </>
           )}

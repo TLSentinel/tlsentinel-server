@@ -261,6 +261,19 @@ export interface CertificateListItem {
   createdAt: string
 }
 
+/**
+ * Per-table counts of rows still referencing a certificate.
+ * Returned by GET /certificates/{fingerprint}/references and used by the
+ * delete dialog to gate the purge checkbox. issuedCerts > 0 is a hard block —
+ * an issuer chain is never broken.
+ */
+export interface CertReferences {
+  currentEndpoints: number
+  historicalEndpoints: number
+  scanHistory: number
+  issuedCerts: number
+}
+
 /** Returned by GET /certificates/{fingerprint} (full detail). */
 export interface CertificateDetail {
   fingerprint: string

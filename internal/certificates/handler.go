@@ -320,40 +320,90 @@ func (h *Handler) GetHistoricalEndpoints(w http.ResponseWriter, r *http.Request)
 	response.JSON(w, http.StatusOK, endpoints)
 }
 
-// @Summary      Delete a certificate
-// @Description  Deletes a certificate by its SHA-256 fingerprint
+// CertReferencesResponse is the JSON shape returned by GET
+// /certificates/{fingerprint}/references — per-table counts of what still
+// points at the cert, so the delete dialog can explain the situation and gate
+// the purge option before the operator commits.
+type CertReferencesResponse struct {
+	CurrentEndpoints    int `json:"currentEndpoints"`
+	HistoricalEndpoints int `json:"historicalEndpoints"`
+	ScanHistory         int `json:"scanHistory"`
+	IssuedCerts         int `json:"issuedCerts"`
+}
+
+// @Summary      Certificate reference counts
+// @Description  Per-table counts of rows still referencing a certificate.
 // @Tags         certificates
+// @Produce      json
 // @Param        fingerprint  path  string  true  "Certificate fingerprint"
+// @Success      200  {object}  CertReferencesResponse
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /certificates/{fingerprint}/references [get]
+func (h *Handler) GetReferences(w http.ResponseWriter, r *http.Request) {
+	fingerprint := chi.URLParam(r, "fingerprint")
+	refs, err := h.store.CountCertReferences(r.Context(), fingerprint)
+	if err != nil {
+		http.Error(w, "failed to count references", http.StatusInternalServerError)
+		return
+	}
+	response.JSON(w, http.StatusOK, CertReferencesResponse{
+		CurrentEndpoints:    refs.CurrentEndpoints,
+		HistoricalEndpoints: refs.HistoricalEndpoints,
+		ScanHistory:         refs.ScanHistory,
+		IssuedCerts:         refs.IssuedCerts,
+	})
+}
+
+// @Summary      Delete a certificate
+// @Description  Deletes a certificate by its SHA-256 fingerprint. With ?purge=true,
+// @Description  also removes the scan-history rows and endpoint attachments that
+// @Description  would otherwise block the delete. Always refuses when the cert is
+// @Description  the issuer of other certificates.
+// @Tags         certificates
+// @Param        fingerprint  path   string  true   "Certificate fingerprint"
+// @Param        purge        query  bool    false  "Also purge referencing scan history + endpoint attachments"
 // @Success      204
 // @Failure      404  {string}  string  "certificate not found"
-// @Failure      409  {string}  string  "certificate is still referenced — the message lists per-table reference counts"
+// @Failure      409  {string}  string  "certificate is still referenced, or is an issuer of other certificates"
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates/{fingerprint} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	fingerprint := chi.URLParam(r, "fingerprint")
+	purge := r.URL.Query().Get("purge") == "true"
 
 	// Capture subject CN + SANs pre-delete so "cert deleted" is readable
 	// without a fingerprint lookup. Soft-fail on lookup errors — the delete
 	// request itself is what matters.
 	var label string
-	var details map[string]any
+	details := map[string]any{}
 	if before, lookupErr := h.store.GetCertificate(r.Context(), fingerprint); lookupErr == nil {
 		label = before.CommonName
-		details = map[string]any{
-			"sans":     before.SANs,
-			"notAfter": before.NotAfter,
-		}
+		details["sans"] = before.SANs
+		details["notAfter"] = before.NotAfter
 	}
 
-	if err := h.store.DeleteCertificate(r.Context(), fingerprint); err != nil {
+	var err error
+	if purge {
+		details["purged"] = true
+		err = h.store.PurgeCertificate(r.Context(), fingerprint)
+	} else {
+		err = h.store.DeleteCertificate(r.Context(), fingerprint)
+	}
+	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "certificate not found", http.StatusNotFound)
 			return
 		}
-		// FK-blocked delete — surface which tables still reference the cert so
-		// the UI (and bulk delete) can explain why instead of showing a bare
-		// 500. See project_cert_retention for the rationale: these FKs are
-		// intentionally NO ACTION, so this 409 is the real failure mode.
+		// Issuer chains are never broken, even on purge — surface a clear 409.
+		var issuerErr *db.ErrCertIsIssuer
+		if errors.As(err, &issuerErr) {
+			http.Error(w, issuerErr.Error(), http.StatusConflict)
+			return
+		}
+		// FK-blocked plain delete — surface which tables still reference the cert
+		// so the UI can explain why instead of showing a bare 500. See
+		// project_cert_retention: these FKs are intentionally NO ACTION, so this
+		// 409 is the real failure mode.
 		var refsErr *db.ErrCertHasReferences
 		if errors.As(err, &refsErr) {
 			http.Error(w, refsErr.Error(), http.StatusConflict)
