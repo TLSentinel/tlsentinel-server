@@ -17,6 +17,8 @@
   <span> · </span>
   <a href="#environment-variables">Configuration</a>
   <span> · </span>
+  <a href="#database-schema">Schema</a>
+  <span> · </span>
   <a href="https://github.com/tlsentinel/tlsentinel-scanner">Scanner Agent</a>
 </h3>
 
@@ -253,6 +255,299 @@ internal/
 migrations/              # PostgreSQL migrations (auto-applied on startup)
 web/                     # React + Vite + TypeScript + shadcn/ui frontend
 ```
+
+## Database Schema
+
+PostgreSQL, all under the `tlsentinel` schema. Migrations in
+[`migrations/`](migrations) are the source of truth; the bun models in
+[`internal/db/schema.go`](internal/db/schema.go) mirror them for the query
+layer. The diagrams below show the core domains; the full 30-table ERD lives
+in [`internal/db/schema.svg`](internal/db/schema.svg) (D2 source:
+[`schema.d2`](internal/db/schema.d2), rebuild with `make schema-diagram`).
+
+Foreign-key delete behavior to keep in mind while reading:
+
+- Endpoint child tables **cascade** — deleting an endpoint takes its hosts,
+  SAML config, TLS profile, certs, and scan history with it.
+- The two `fingerprint` references into `certificates` (from `endpoint_certs`
+  and `endpoint_scan_history`) are **`NO ACTION` retention guards** — a
+  certificate can't be deleted while any scan history still observes it. The
+  nightly purge pipeline removes history first, then prunes the
+  now-unreferenced certs.
+
+### Endpoints & scan results
+
+```mermaid
+erDiagram
+    endpoints ||--o| endpoint_hosts : "host config"
+    endpoints ||--o| endpoint_saml : "saml config"
+    endpoints ||--o| endpoint_tls_profiles : "latest profile"
+    endpoints ||--o{ endpoint_certs : "current + historical"
+    endpoints ||--o{ endpoint_scan_history : "scan log"
+    endpoints ||--o{ saml_metadata_history : "metadata versions"
+    endpoints {
+        uuid id PK
+        text name
+        text type "host | saml | manual"
+        bool enabled
+        bool scan_exempt
+        uuid scanner_id FK "to scanners"
+        timestamptz last_scanned_at
+    }
+    endpoint_hosts {
+        uuid endpoint_id PK,FK
+        text dns_name
+        text ip_address
+        int port
+        text last_resolved_ip
+    }
+    endpoint_saml {
+        uuid endpoint_id PK,FK
+        text url
+        jsonb metadata
+        text metadata_xml_sha256
+    }
+    endpoint_certs {
+        uuid id PK
+        uuid endpoint_id FK
+        text fingerprint FK "to certificates"
+        text cert_use "tls | signing | encryption | manual"
+        bool is_current
+    }
+    endpoint_scan_history {
+        uuid id PK
+        uuid endpoint_id FK
+        text fingerprint FK "to certificates"
+        text resolved_ip
+        text tls_version
+    }
+    endpoint_tls_profiles {
+        uuid endpoint_id PK,FK
+        bool ssl30
+        bool tls10
+        bool tls11
+        bool tls12
+        bool tls13
+        text[] cipher_suites
+    }
+    saml_metadata_history {
+        uuid id PK
+        uuid endpoint_id FK
+        text sha256
+        jsonb metadata
+    }
+```
+
+Cross-domain: `endpoints.scanner_id → scanners` (SET NULL);
+`endpoint_certs.fingerprint` and `endpoint_scan_history.fingerprint →
+certificates` (NO ACTION, the retention guards above).
+
+### Certificates & trust
+
+```mermaid
+erDiagram
+    certificates ||--o{ certificates : "issuer chain (self)"
+    certificates ||--o{ root_store_anchors : "trusted by"
+    root_stores ||--o{ root_store_anchors : "anchors"
+    certificates ||--o{ certificate_trust : "per-program verdict"
+    root_stores ||--o{ certificate_trust : "per-program verdict"
+    certificates ||--o{ certificate_expiry_alerts : "alert dedup"
+    certificates {
+        text fingerprint PK
+        text common_name
+        text subject_org
+        text[] sans
+        timestamptz not_after
+        text subject_key_id
+        text authority_key_id
+        text issuer_fingerprint FK "self"
+        bool trust_anchor
+    }
+    root_stores {
+        text id PK "microsoft | apple | mozilla | chrome"
+        text name
+        text kind "builtin | custom"
+        bool enabled
+    }
+    root_store_anchors {
+        text root_store_id PK,FK
+        text fingerprint PK,FK
+    }
+    certificate_trust {
+        text fingerprint PK,FK
+        text root_store_id PK,FK
+        bool trusted
+        text reason
+    }
+    certificate_expiry_alerts {
+        uuid user_id PK,FK "to users"
+        text fingerprint PK,FK
+        int threshold_days PK
+    }
+```
+
+Cross-domain: incoming retention FKs from `endpoint_certs` and
+`endpoint_scan_history`; `certificate_expiry_alerts.user_id → users` (CASCADE).
+
+### Scanners & discovery
+
+```mermaid
+erDiagram
+    scanners ||--o{ discovery_networks : "assigned"
+    discovery_networks ||--o{ discovery_inbox : "discovered on"
+    scanners ||--o{ discovery_inbox : "found by"
+    scanners {
+        uuid id PK
+        text name
+        text token_hash UK
+        bool is_default
+        text scan_cron_expression
+        int scan_concurrency
+    }
+    discovery_networks {
+        uuid id PK
+        text name
+        text range "CIDR or range"
+        int[] ports
+        uuid scanner_id FK
+        text cron_expression
+    }
+    discovery_inbox {
+        uuid id PK
+        uuid network_id FK
+        uuid scanner_id FK
+        uuid endpoint_id FK "to endpoints once promoted"
+        inet ip
+        int port
+        text status
+        text common_name
+    }
+```
+
+Cross-domain: `endpoints.scanner_id → scanners` and
+`discovery_inbox.endpoint_id → endpoints` (both SET NULL) tie discovery back to
+the Endpoints domain.
+
+<details>
+<summary><b>Users, groups, tagging &amp; system tables</b></summary>
+
+#### Users & auth
+
+```mermaid
+erDiagram
+    users ||--o{ user_api_keys : "personal keys"
+    users ||--o{ user_totp_recovery_codes : "2FA recovery"
+    users {
+        uuid id PK
+        citext username UK
+        text password_hash "null for SSO"
+        text provider "local | oidc"
+        text role "admin | operator | viewer"
+        text email
+        bool totp_enabled
+    }
+    user_api_keys {
+        uuid id PK
+        uuid user_id FK
+        text key_hash UK
+        text prefix
+    }
+    user_totp_recovery_codes {
+        uuid id PK
+        uuid user_id FK
+        text code_hash
+        timestamptz used_at
+    }
+```
+
+#### Groups
+
+```mermaid
+erDiagram
+    groups ||--o{ host_groups : "endpoint membership"
+    groups ||--o{ user_groups : "user membership"
+    groups {
+        uuid id PK
+        text name UK
+    }
+    host_groups {
+        uuid host_id PK,FK "to endpoints"
+        uuid group_id PK,FK
+    }
+    user_groups {
+        uuid user_id PK,FK "to users"
+        uuid group_id PK,FK
+        text role "owner | member"
+    }
+```
+
+#### Tagging
+
+```mermaid
+erDiagram
+    tag_categories ||--o{ tags : "values"
+    tags ||--o{ endpoint_tags : "applied to endpoints"
+    tags ||--o{ user_tag_subscriptions : "subscribed by users"
+    tag_categories {
+        uuid id PK
+        text name UK
+    }
+    tags {
+        uuid id PK
+        uuid category_id FK
+        text name
+    }
+    endpoint_tags {
+        uuid endpoint_id PK,FK "to endpoints"
+        uuid tag_id PK,FK
+    }
+    user_tag_subscriptions {
+        uuid user_id PK,FK "to users"
+        uuid tag_id PK,FK
+    }
+```
+
+#### System & config
+
+These tables stand alone (no foreign keys). `audit_logs.user_id` is a
+deliberate **non-FK snapshot** — an audit entry must survive the deletion of
+the user it names, so it stores the id and username verbatim.
+
+```mermaid
+erDiagram
+    settings {
+        text key PK
+        jsonb value
+    }
+    mail_config {
+        int id PK "singleton (=1)"
+        bool enabled
+        text smtp_host
+        text from_address
+    }
+    notification_templates {
+        text event_type PK
+        text channel PK
+        text body
+        text format "html | text"
+    }
+    scheduled_jobs {
+        text name PK
+        text cron_expression
+        bool enabled
+        timestamptz last_run_at
+    }
+    audit_logs {
+        uuid id PK
+        uuid user_id "soft ref to users, no FK"
+        text username
+        text action
+        text resource_type
+        jsonb details
+    }
+```
+
+</details>
 
 ## License
 

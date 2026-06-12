@@ -1,0 +1,457 @@
+# =============================================================================
+# TLSentinel Server — Database Schema (PostgreSQL, schema: tlsentinel)
+#
+# Source of truth: migrations/ + internal/db/schema.go. Regenerate the rendered
+# image with `make schema-diagram` (see Makefile) after any schema change.
+#
+# Edge labels carry the ON DELETE behavior of each foreign key:
+#   CASCADE   — child rows are deleted with the parent
+#   SET NULL  — child FK is nulled, row survives
+#   NO ACTION — delete is blocked while the reference exists (retention guard)
+#
+# The two NO ACTION edges into certificates (from endpoint_certs and
+# endpoint_scan_history) are deliberate: scan history gates the certificate
+# lifecycle, so a cert can never be deleted out from under the history that
+# observed it. The nightly purge pipeline removes history first, then prunes
+# the certs that fall out of reference. See _notes / project_cert_retention.
+# =============================================================================
+
+direction: right
+
+title: |md
+  # TLSentinel Server — Database Schema
+| {
+  near: top-center
+  style.font-size: 28
+  style.bold: true
+}
+
+# ---------------------------------------------------------------------------
+# Users & Authentication
+# ---------------------------------------------------------------------------
+auth: Users & Auth {
+  style.fill: "#eef2ff"
+
+  users: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    username: CITEXT {constraint: unique}
+    password_hash: TEXT
+    provider: TEXT
+    role: TEXT
+    first_name: TEXT
+    last_name: TEXT
+    email: TEXT
+    enabled: BOOLEAN
+    notify: BOOLEAN
+    calendar_token: TEXT {constraint: unique}
+    totp_secret: TEXT
+    totp_enabled: BOOLEAN
+    totp_enrolled_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ
+    updated_at: TIMESTAMPTZ
+  }
+
+  user_api_keys: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    user_id: UUID {constraint: foreign_key}
+    name: TEXT
+    key_hash: TEXT {constraint: unique}
+    prefix: TEXT
+    last_used_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ
+  }
+
+  user_totp_recovery_codes: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    user_id: UUID {constraint: foreign_key}
+    code_hash: TEXT
+    used_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ
+  }
+}
+
+auth.user_api_keys.user_id -> auth.users.id: CASCADE
+auth.user_totp_recovery_codes.user_id -> auth.users.id: CASCADE
+
+# ---------------------------------------------------------------------------
+# Groups (RBAC)
+# ---------------------------------------------------------------------------
+rbac: Groups {
+  style.fill: "#eef2ff"
+
+  groups: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    name: TEXT {constraint: unique}
+    description: TEXT
+    created_at: TIMESTAMPTZ
+    updated_at: TIMESTAMPTZ
+  }
+
+  host_groups: {
+    shape: sql_table
+    host_id: UUID {constraint: [primary_key; foreign_key]}
+    group_id: UUID {constraint: [primary_key; foreign_key]}
+  }
+
+  user_groups: {
+    shape: sql_table
+    user_id: UUID {constraint: [primary_key; foreign_key]}
+    group_id: UUID {constraint: [primary_key; foreign_key]}
+    role: TEXT
+  }
+}
+
+rbac.host_groups.group_id -> rbac.groups.id: CASCADE
+rbac.user_groups.group_id -> rbac.groups.id: CASCADE
+rbac.user_groups.user_id -> auth.users.id: CASCADE
+
+# ---------------------------------------------------------------------------
+# Tagging
+# ---------------------------------------------------------------------------
+tagging: Tagging {
+  style.fill: "#ecfdf5"
+
+  tag_categories: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    name: TEXT {constraint: unique}
+    description: TEXT
+    created_at: TIMESTAMPTZ
+    updated_at: TIMESTAMPTZ
+  }
+
+  tags: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    category_id: UUID {constraint: foreign_key}
+    name: TEXT
+    description: TEXT
+    created_at: TIMESTAMPTZ
+  }
+
+  endpoint_tags: {
+    shape: sql_table
+    endpoint_id: UUID {constraint: [primary_key; foreign_key]}
+    tag_id: UUID {constraint: [primary_key; foreign_key]}
+  }
+
+  user_tag_subscriptions: {
+    shape: sql_table
+    user_id: UUID {constraint: [primary_key; foreign_key]}
+    tag_id: UUID {constraint: [primary_key; foreign_key]}
+  }
+}
+
+tagging.tags.category_id -> tagging.tag_categories.id: CASCADE
+tagging.endpoint_tags.tag_id -> tagging.tags.id: CASCADE
+tagging.user_tag_subscriptions.tag_id -> tagging.tags.id: CASCADE
+tagging.user_tag_subscriptions.user_id -> auth.users.id: CASCADE
+
+# ---------------------------------------------------------------------------
+# Endpoints & Scan Results
+# ---------------------------------------------------------------------------
+endpoints: Endpoints & Scan Results {
+  style.fill: "#fef3c7"
+
+  endpoints: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    name: TEXT
+    type: TEXT
+    enabled: BOOLEAN
+    scan_exempt: BOOLEAN
+    scanner_id: UUID {constraint: foreign_key}
+    last_scanned_at: TIMESTAMPTZ
+    last_scan_error: TEXT
+    error_since: TIMESTAMPTZ
+    notes: TEXT
+    created_at: TIMESTAMPTZ
+    updated_at: TIMESTAMPTZ
+  }
+
+  endpoint_hosts: {
+    shape: sql_table
+    endpoint_id: UUID {constraint: [primary_key; foreign_key]}
+    dns_name: TEXT
+    ip_address: TEXT
+    port: INT
+    last_resolved_ip: TEXT
+  }
+
+  endpoint_saml: {
+    shape: sql_table
+    endpoint_id: UUID {constraint: [primary_key; foreign_key]}
+    url: TEXT
+    metadata: JSONB
+    metadata_xml: TEXT
+    metadata_xml_sha256: TEXT
+    metadata_fetched_at: TIMESTAMPTZ
+  }
+
+  endpoint_certs: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    endpoint_id: UUID {constraint: foreign_key}
+    fingerprint: TEXT {constraint: foreign_key}
+    cert_use: TEXT
+    is_current: BOOLEAN
+    first_seen_at: TIMESTAMPTZ
+    last_seen_at: TIMESTAMPTZ
+  }
+
+  endpoint_scan_history: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    endpoint_id: UUID {constraint: foreign_key}
+    scanned_at: TIMESTAMPTZ
+    fingerprint: TEXT {constraint: foreign_key}
+    resolved_ip: TEXT
+    tls_version: TEXT
+    scan_error: TEXT
+  }
+
+  endpoint_tls_profiles: {
+    shape: sql_table
+    endpoint_id: UUID {constraint: [primary_key; foreign_key]}
+    scanned_at: TIMESTAMPTZ
+    ssl30: BOOLEAN
+    tls10: BOOLEAN
+    tls11: BOOLEAN
+    tls12: BOOLEAN
+    tls13: BOOLEAN
+    cipher_suites: "TEXT[]"
+    selected_cipher: TEXT
+    scan_error: TEXT
+  }
+
+  saml_metadata_history: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    endpoint_id: UUID {constraint: foreign_key}
+    sha256: TEXT
+    xml: TEXT
+    metadata: JSONB
+    captured_at: TIMESTAMPTZ
+  }
+}
+
+endpoints.endpoint_hosts.endpoint_id -> endpoints.endpoints.id: CASCADE
+endpoints.endpoint_saml.endpoint_id -> endpoints.endpoints.id: CASCADE
+endpoints.endpoint_certs.endpoint_id -> endpoints.endpoints.id: CASCADE
+endpoints.endpoint_scan_history.endpoint_id -> endpoints.endpoints.id: CASCADE
+endpoints.endpoint_tls_profiles.endpoint_id -> endpoints.endpoints.id: CASCADE
+endpoints.saml_metadata_history.endpoint_id -> endpoints.endpoints.id: CASCADE
+tagging.endpoint_tags.endpoint_id -> endpoints.endpoints.id: CASCADE
+rbac.host_groups.host_id -> endpoints.endpoints.id: CASCADE
+
+# ---------------------------------------------------------------------------
+# Certificates & Trust
+# ---------------------------------------------------------------------------
+certs: Certificates & Trust {
+  style.fill: "#fce7f3"
+
+  certificates: {
+    shape: sql_table
+    fingerprint: TEXT {constraint: primary_key}
+    pem: TEXT
+    common_name: TEXT
+    subject_org: TEXT
+    subject_ou: TEXT
+    sans: "TEXT[]"
+    not_before: TIMESTAMPTZ
+    not_after: TIMESTAMPTZ
+    serial_number: TEXT
+    subject_key_id: TEXT
+    authority_key_id: TEXT
+    subject_dn_hash: TEXT
+    issuer_dn_hash: TEXT
+    issuer_fingerprint: TEXT {constraint: foreign_key}
+    trust_anchor: BOOLEAN
+    created_at: TIMESTAMPTZ
+  }
+
+  root_stores: {
+    shape: sql_table
+    id: TEXT {constraint: primary_key}
+    name: TEXT
+    kind: TEXT
+    source_url: TEXT
+    enabled: BOOLEAN
+    updated_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ
+  }
+
+  root_store_anchors: {
+    shape: sql_table
+    root_store_id: TEXT {constraint: [primary_key; foreign_key]}
+    fingerprint: TEXT {constraint: [primary_key; foreign_key]}
+  }
+
+  certificate_trust: {
+    shape: sql_table
+    fingerprint: TEXT {constraint: [primary_key; foreign_key]}
+    root_store_id: TEXT {constraint: [primary_key; foreign_key]}
+    trusted: BOOLEAN
+    reason: TEXT
+    evaluated_at: TIMESTAMPTZ
+  }
+
+  certificate_expiry_alerts: {
+    shape: sql_table
+    user_id: UUID {constraint: [primary_key; foreign_key]}
+    fingerprint: TEXT {constraint: [primary_key; foreign_key]}
+    threshold_days: INT {constraint: primary_key}
+    alerted_at: TIMESTAMPTZ
+  }
+}
+
+# issuer chain — self-reference
+certs.certificates.issuer_fingerprint -> certs.certificates.fingerprint: "self · issuer chain"
+certs.root_store_anchors.root_store_id -> certs.root_stores.id: CASCADE
+certs.root_store_anchors.fingerprint -> certs.certificates.fingerprint: CASCADE
+certs.certificate_trust.root_store_id -> certs.root_stores.id: CASCADE
+certs.certificate_trust.fingerprint -> certs.certificates.fingerprint: CASCADE
+certs.certificate_expiry_alerts.fingerprint -> certs.certificates.fingerprint: CASCADE
+certs.certificate_expiry_alerts.user_id -> auth.users.id: CASCADE
+
+# Retention guards: cert lifecycle is gated by what still observes it.
+endpoints.endpoint_certs.fingerprint -> certs.certificates.fingerprint: NO ACTION {
+  style.stroke: "#be123c"
+  style.bold: true
+}
+endpoints.endpoint_scan_history.fingerprint -> certs.certificates.fingerprint: NO ACTION {
+  style.stroke: "#be123c"
+  style.bold: true
+}
+
+# ---------------------------------------------------------------------------
+# Scanners & Discovery
+# ---------------------------------------------------------------------------
+scanning: Scanners & Discovery {
+  style.fill: "#e0f2fe"
+
+  scanners: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    name: TEXT
+    token_hash: TEXT {constraint: unique}
+    is_default: BOOLEAN
+    scan_cron_expression: TEXT
+    scan_concurrency: INT
+    created_at: TIMESTAMPTZ
+    last_used_at: TIMESTAMPTZ
+  }
+
+  discovery_networks: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    name: TEXT
+    range: TEXT
+    ports: "INT[]"
+    scanner_id: UUID {constraint: foreign_key}
+    cron_expression: TEXT
+    enabled: BOOLEAN
+    created_at: TIMESTAMPTZ
+    updated_at: TIMESTAMPTZ
+  }
+
+  discovery_inbox: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    network_id: UUID {constraint: foreign_key}
+    scanner_id: UUID {constraint: foreign_key}
+    ip: INET
+    rdns: TEXT
+    port: INT
+    fingerprint: TEXT
+    common_name: TEXT
+    sans: "TEXT[]"
+    not_after: TIMESTAMPTZ
+    status: TEXT
+    endpoint_id: UUID {constraint: foreign_key}
+    first_seen_at: TIMESTAMPTZ
+    last_seen_at: TIMESTAMPTZ
+  }
+}
+
+endpoints.endpoints.scanner_id -> scanning.scanners.id: SET NULL
+scanning.discovery_networks.scanner_id -> scanning.scanners.id: SET NULL
+scanning.discovery_inbox.network_id -> scanning.discovery_networks.id: CASCADE
+scanning.discovery_inbox.scanner_id -> scanning.scanners.id: SET NULL
+scanning.discovery_inbox.endpoint_id -> endpoints.endpoints.id: SET NULL
+
+# ---------------------------------------------------------------------------
+# System & Configuration
+# ---------------------------------------------------------------------------
+system: System & Config {
+  style.fill: "#f1f5f9"
+
+  settings: {
+    shape: sql_table
+    key: TEXT {constraint: primary_key}
+    value: JSONB
+    updated_at: TIMESTAMPTZ
+  }
+
+  mail_config: {
+    shape: sql_table
+    id: INT {constraint: primary_key}
+    enabled: BOOLEAN
+    smtp_host: TEXT
+    smtp_port: INT
+    auth_type: TEXT
+    smtp_username: TEXT
+    smtp_password: TEXT
+    from_address: TEXT
+    from_name: TEXT
+    tls_mode: TEXT
+    updated_at: TIMESTAMPTZ
+  }
+
+  notification_templates: {
+    shape: sql_table
+    event_type: TEXT {constraint: primary_key}
+    channel: TEXT {constraint: primary_key}
+    subject: TEXT
+    body: TEXT
+    format: TEXT
+    updated_at: TIMESTAMPTZ
+  }
+
+  scheduled_jobs: {
+    shape: sql_table
+    name: TEXT {constraint: primary_key}
+    display_name: TEXT
+    cron_expression: TEXT
+    enabled: BOOLEAN
+    last_run_at: TIMESTAMPTZ
+    last_run_status: TEXT
+    updated_at: TIMESTAMPTZ
+  }
+
+  audit_logs: {
+    shape: sql_table
+    id: UUID {constraint: primary_key}
+    user_id: UUID
+    username: TEXT
+    action: TEXT
+    resource_type: TEXT
+    resource_id: TEXT
+    resource_label: TEXT
+    ip_address: TEXT
+    details: JSONB
+    created_at: TIMESTAMPTZ
+  }
+}
+
+# audit_logs.user_id is a deliberate non-FK snapshot — the log must survive
+# the user's deletion, so it stores the id + username verbatim rather than
+# constraining against users.
+system.audit_logs.user_id -> auth.users.id: "soft ref · no FK" {
+  style.stroke-dash: 4
+  style.stroke: "#94a3b8"
+}
