@@ -1,4 +1,4 @@
-.PHONY: run build clean docker swagger frontend syso dev-api dev-ui
+.PHONY: run build clean docker swagger frontend syso dev-api dev-ui schema-diagram
 # =============================================================================
 # Variables
 # =============================================================================
@@ -44,6 +44,18 @@ web/.build_stamp: $(WEB_SOURCES)
 swagger:  docs/docs.go
 
 frontend: web/.build_stamp
+
+# Re-render the database ERD whenever the D2 source changes. Requires d2
+# (https://d2lang.com) — `brew install d2`. Hand-maintained alongside
+# migrations/ + internal/db/schema.go; update schema.d2 when the schema
+# changes. SVG is the committed artifact; pass FORMAT=png for a raster copy.
+SCHEMA_DIAGRAM_FORMAT ?= svg
+internal/db/schema.$(SCHEMA_DIAGRAM_FORMAT): internal/db/schema.d2
+	@command -v d2 >/dev/null 2>&1 || { echo "d2 not installed — see https://d2lang.com (brew install d2)"; exit 1; }
+	@echo "Rendering DB schema diagram..."
+	d2 --layout elk $< $@
+
+schema-diagram: internal/db/schema.$(SCHEMA_DIAGRAM_FORMAT)
 
 # =============================================================================
 # Local Build (requires Go)
