@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [v2026.6.0]
 
 ### Added
 
@@ -20,6 +20,68 @@
   query params; both imply host-type (only host endpoints have TLS
   profiles) so combining with `type=saml` or `type=manual` yields zero
   results — the correct answer.
+- **Delete buttons on endpoint and certificate detail pages.** Both detail
+  pages now carry a destructive-styled trash button beside their primary
+  action (Edit Endpoint on the endpoint side, Copy PEM / Download on the
+  cert side). It opens the same confirmation dialog the list views use; on
+  confirm the record is deleted and the page returns to the relevant list
+  (`/endpoints/<type>` for endpoints, `/certificates` for certs). The cert
+  detail button is gated behind `certs:edit`. The shared dialog bodies were
+  extracted into reusable components so the list and detail paths stay in
+  lockstep.
+- **Purge-references option when deleting certificates.** A certificate still
+  referenced by current/historical endpoint attachments or scan history
+  previously bounced off a `409` with no recourse short of waiting for the
+  nightly retention job. The delete dialogs now fetch the reference counts up
+  front (`GET /certificates/{fingerprint}/references`) and offer a gated
+  "purge references" checkbox: ticking it sends `DELETE …?purge=true`, which
+  clears the referencing scan-history rows and endpoint attachments in one
+  transaction — same order as the nightly pipeline (history → attachments →
+  cert) — before deleting the certificate. CASCADE handles expiry alerts,
+  root-store anchors, and trust verdicts. Available from all three delete
+  entry points: the detail page, the single-row list delete, and multi-select
+  bulk delete (a single global toggle for the batch). Certificates that are
+  the **issuer** of other stored certs are never deletable — even with
+  `purge` — and are reported as such; issuer chains reconstruct from observed
+  certs and would simply rebuild.
+
+### Changed
+
+- **TLS Posture report restyled to match the dashboard.** Panel headers are
+  now real headings with leading icons instead of lighter-weight paragraph
+  text; protocol labels dropped their monospace treatment (they're prose, not
+  identifiers — cipher names stay monospace); and the cipher and "endpoints
+  needing attention" tables were rebuilt on the dashboard's grid pattern, so
+  columns line up flush with the section title under a single soft header
+  separator, with stacked cards on mobile.
+
+### Fixed
+
+- **Long fingerprints no longer overflow the delete-confirmation dialogs.**
+  When a certificate has no common name the dialog falls back to its 64-char
+  fingerprint; it now renders monospace with `break-all` (matching how
+  fingerprints render everywhere else) instead of pushing the dialog's close
+  button and right edge off-screen. The endpoint delete dialog got the same
+  defensive word-wrapping.
+
+### Security
+
+- **Cleared all open Dependabot alerts.** Bumped the transitive dependencies
+  pulled in through the `shadcn` CLI's MCP tooling (`qs`, `fast-uri`, `hono`,
+  `brace-expansion`, `ip-address`) to patched versions. These are build-side
+  tooling only — none ship in the browser bundle — but the alert list is now
+  clean and `npm audit` reports zero across all severities.
+
+### Documentation
+
+- **Database schema diagrams.** Added a full 30-table entity-relationship
+  diagram of the PostgreSQL schema as D2 source plus rendered SVG
+  (`internal/db/schema.d2` / `schema.svg`, rebuildable with
+  `make schema-diagram`), and per-domain Mermaid `erDiagram`s in the server
+  README that render inline on GitHub. Foreign-key `ON DELETE` semantics
+  (CASCADE / SET NULL / the `NO ACTION` retention guards into `certificates`)
+  are annotated throughout, alongside an `internal/db/README.md` explaining
+  how to read and regenerate them.
 
 ## [v2026.5]
 
