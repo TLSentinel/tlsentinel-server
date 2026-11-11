@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	github.com/arran4/golang-ical v0.3.5
 	github.com/caarlos0/env/v11 v11.4.0
-	github.com/coreos/go-oidc/v3 v3.18.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-chi/chi/v5 v5.4.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
@@ -26,7 +26,7 @@ require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.9 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/spec v0.20.6 // indirect
