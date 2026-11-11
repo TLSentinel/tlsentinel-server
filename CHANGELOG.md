@@ -1,5 +1,73 @@
 # Changelog
 
+## [v2026.11.0]
+
+### Security
+
+- **Cleared all 96 open Dependabot alerts (8 critical, 35 high).** The npm side
+  was not 78 separate problems but one: the `shadcn` scaffolding CLI sat in
+  `dependencies` purely to satisfy an `@import "shadcn/tailwind.css"` in
+  `src/index.css`, and through it the tree pulled `@modelcontextprotocol/sdk`
+  and with it express, hono, zod, ajv and friends — roughly 325 packages of
+  server-side code that never reached the browser bundle, and the source of
+  most of the backlog. npm offered no forward fix; its only suggestion was a
+  downgrade to `shadcn@1.0.0`. That stylesheet is 95 lines of dependency-free
+  static CSS (two keyframes, nine `@custom-variant` rules, one `@utility`), so
+  it is now vendored at `web/src/shadcn-tailwind.css` with a header noting how
+  to re-sync against a newer upstream release; component scaffolding still
+  works through `npx shadcn@latest add …`. The production dependency tree
+  drops from 638 packages to 313, `npm audit` reports zero across all
+  severities, and the remaining direct bumps are `vite` 7.3.8,
+  `react-router-dom` 7.18.5, `@tailwindcss/typography` 0.5.20 and
+  `typescript-eslint` 8.72.2.
+- **Patched a reachable denial-of-service path in OIDC token verification.**
+  `go-jose/v4` 4.1.4 → 4.1.9 and `coreos/go-oidc/v3` 3.18.0 → 3.21.0 close
+  three advisories: a DoS parsing JWKs that contain RSA keys
+  (GHSA-mgcc-cww5-fp2q, high — note this one is only fixed in 4.1.6, not
+  4.1.5), a panic during CBC-HMAC processing (GHSA-4w3g-jfj2-cw2q) and panics
+  in JSON parsing (GHSA-vvm8-gf78-28g4). Unlike the rest of this release these
+  were genuinely reachable: every OIDC callback calls `verifier.Verify()`,
+  which parses both the provider's JWKS and the ID token. Exploitation
+  requires a malicious or compromised identity provider, or the ability to
+  intercept the JWKS endpoint, so the practical risk was bounded — but a panic
+  on the authentication path is an availability bug and is now closed.
+- **Updated Go dependencies for 15 further advisories.** `golang.org/x/crypto`
+  0.50.0 → 0.52.0 (13 advisories, 5 critical), `golang.org/x/net` 0.52.0 →
+  0.55.0 (HTML-parser DoS) and `go-chi/chi/v5` 5.2.5 → 5.4.0 (client-IP
+  spoofing via `ClientIPFromXFF`). None of these were reachable here: the
+  x/crypto advisories are all in the SSH and agent packages while this server
+  only uses `bcrypt`, and `X-Forwarded-For` parsing is our own
+  (`internal/audit/ip.go`) rather than chi's helper. Updated regardless, since
+  staying current costs nothing and reachability analysis is not a guarantee
+  that it stays unreachable.
+
+### Fixed
+
+- **`npm run lint` no longer crashes on startup.** Linting had been failing
+  with `TypeError: expand is not a function` before examining a single file.
+  The cause was a global `brace-expansion` override pinning `^5.0.6`, which
+  forced `minimatch@3` — a transitive dependency of ESLint that requires
+  `^1.1.7` and relies on the older CommonJS export shape — onto v5. The
+  override was also unnecessary: the relevant advisories only cover `>=4.0.0`,
+  and `minimatch@11` already requires a patched `^5.0.12`. Removing it fixes
+  linting and leaves the alerts closed. The breakage went unnoticed because CI
+  runs the build and `go vet` but never invokes the linter; with lint working
+  again it reports 61 pre-existing `react-hooks` findings, which are left for
+  a separate change rather than folded into a security release.
+
+### Changed
+
+- **The frontend `overrides` block is now two narrow, documented entries
+  instead of six.** Most existing overrides (`hono`, `qs`, `fast-uri`,
+  `ip-address`, `router`/`path-to-regexp`) existed only to patch packages
+  reached through the `shadcn` CLI and became dead weight once it was removed.
+  What remains is `postcss-selector-parser` (`@tailwindcss/typography` pins
+  exactly 6.0.10 even on its latest release, while the advisory needs ≥6.1.5)
+  and `minimatch` scoped under `@typescript-eslint/typescript-estree` (the
+  advisory is only fixed in ≥11.0.1, above the `^10` that package declares).
+  Each carries a comment explaining why it exists, so the next person can tell
+  which are still load-bearing.
+
 ## [v2026.6.0]
 
 ### Added
