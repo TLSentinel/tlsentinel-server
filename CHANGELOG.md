@@ -1,6 +1,6 @@
 # Changelog
 
-## [v2026.12.0]
+## [v2026.11.1]
 
 ### Added
 
@@ -56,6 +56,9 @@
 - Recursive walks are bounded to a depth of 10. Self-signed roots keep a NULL
   `issuer_fingerprint` so they cannot loop, but cross-signed CAs can
   legitimately form a cycle where two certificates sign each other.
+- This shipped as a beta first, tagged `v2026.12.0-beta.1` before the decision
+  to release it into the 2026.11 line. The beta and this release are the same
+  code; the tag names differ only in that the beta predates the renumbering.
 
 ## [v2026.11.0]
 
