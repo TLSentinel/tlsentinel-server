@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff, ChevronLeft, ChevronRight, FileSignature } from 'lucide-react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { Plus, FolderOpen, MoreVertical, ExternalLink, Trash2, Shield, Clock, AlertTriangle, ShieldOff, ChevronLeft, ChevronRight, FileSignature, Landmark, X } from 'lucide-react'
 import StrixEmpty from '@/components/StrixEmpty'
 import SearchInput from '@/components/SearchInput'
 import FilterDropdown from '@/components/FilterDropdown'
@@ -27,6 +27,7 @@ import {
 import {
   listCertificates,
   createCertificate,
+  getCertificate,
 } from '@/api/certificates'
 import { can } from '@/api/client'
 import type { CertificateListItem } from '@/types/api'
@@ -444,6 +445,15 @@ const PAGE_SIZE = 20
 export default function CertificatesPage() {
   const admin = can('certs:edit')
   const navigate = useNavigate()
+  // Issuer filters live in the URL so the CA rollup page, the cert detail
+  // chain, and universal search can all deep-link into a filtered list.
+  //   ?issuer_fingerprint=<fp>  certs signed directly by that cert
+  //   ?ca_fingerprint=<fp>      the whole subtree beneath that CA
+  // Keeping them in the URL (rather than useState) makes the filtered view
+  // shareable, which is the point during an incident.
+  const [searchParams, setSearchParams]       = useSearchParams()
+  const issuerFilter                          = searchParams.get('issuer_fingerprint') ?? ''
+  const caFilter                              = searchParams.get('ca_fingerprint') ?? ''
   const [page, setPage]                       = useState(1)
   const [search, setSearch]                   = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -459,10 +469,34 @@ export default function CertificatesPage() {
     return () => clearTimeout(t)
   }, [search])
 
+  // A new issuer/CA filter is a different result set, so go back to page 1
+  // rather than landing on an out-of-range page. Done as a render-time
+  // adjustment rather than in an effect: this is the pattern React documents
+  // for resetting state when an input changes, and it avoids the extra
+  // render pass (and the cascading-render lint) that an effect incurs.
+  const issuerKey = `${issuerFilter}|${caFilter}`
+  const [prevIssuerKey, setPrevIssuerKey] = useState(issuerKey)
+  if (prevIssuerKey !== issuerKey) {
+    setPrevIssuerKey(issuerKey)
+    setPage(1)
+  }
+
   const { data, isLoading, isFetching, error: fetchError, refetch } = useQuery({
-    queryKey: ['certificates', page, debouncedSearch, statusFilter, sortOption],
-    queryFn: () => listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption),
+    queryKey: ['certificates', page, debouncedSearch, statusFilter, sortOption, issuerFilter, caFilter],
+    queryFn: () => listCertificates(page, PAGE_SIZE, debouncedSearch, statusFilter, sortOption, issuerFilter, caFilter),
     placeholderData: keepPreviousData,
+  })
+
+  // Resolve the filtering CA's name for the chip. The fingerprint alone is
+  // unreadable, and during an incident the operator needs to see *which* CA
+  // they are looking at. Falls back to a truncated fingerprint if the cert
+  // is not in the store (shouldn't happen via our own links, but a
+  // hand-edited URL can do it).
+  const activeIssuerFp = caFilter || issuerFilter
+  const { data: issuerCert } = useQuery({
+    queryKey: ['certificate', activeIssuerFp],
+    queryFn: () => getCertificate(activeIssuerFp),
+    enabled: !!activeIssuerFp,
   })
 
   const { data: totalData }    = useQuery({ queryKey: ['certs-count', 'all'],      queryFn: () => listCertificates(1, 1, '', '', '') })
@@ -480,6 +514,13 @@ export default function CertificatesPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, totalCount)
+
+  function clearIssuerFilter() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('issuer_fingerprint')
+    next.delete('ca_fingerprint')
+    setSearchParams(next, { replace: true })
+  }
 
   function handleStatusChange(value: StatusFilter) { setStatusFilter(value); setPage(1) }
   function handleSortChange(value: SortOption)      { setSortOption(value);   setPage(1) }
@@ -618,6 +659,34 @@ export default function CertificatesPage() {
           />
         )}
       </div>
+
+      {/* Active issuer / CA chip. URL-driven (set by the CA rollup page, the
+          cert detail chain, or universal search) and cleared by the X. The
+          label distinguishes the two filters because the difference matters:
+          "Issued by" is one signing cert, "CA subtree" is everything beneath
+          a CA including other intermediates. */}
+      {activeIssuerFp && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+            <Landmark className="h-3 w-3" />
+            <span className="text-primary/60">{caFilter ? 'CA subtree:' : 'Issued by:'}</span>
+            {issuerCert?.commonName || `${activeIssuerFp.slice(0, 16)}…`}
+            <button
+              onClick={clearIssuerFilter}
+              className="ml-0.5 rounded hover:text-primary"
+              aria-label="Clear issuer filter"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+          <Link
+            to={`/certificates/${activeIssuerFp}`}
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            View this CA
+          </Link>
+        </div>
+      )}
 
       {fetchError && <p className="text-sm text-destructive">{fetchError.message}</p>}
 

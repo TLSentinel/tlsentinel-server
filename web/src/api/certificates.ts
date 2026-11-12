@@ -6,6 +6,7 @@ import type {
   EndpointListItem,
   HistoricalEndpointItem,
   IngestCertificateRequest,
+  IssuerList,
   TagWithCategory,
 } from '@/types/api'
 
@@ -29,12 +30,17 @@ export interface ExpiringCertList {
   totalCount: number
 }
 
+// issuerFingerprint narrows to certs signed *directly* by that cert;
+// caFingerprint narrows to the whole subtree beneath it (recursive). The
+// latter is what a CA incident calls for — see IssuerSummary.
 export function listCertificates(
   page = 1,
   pageSize = 20,
   commonName = '',
   status = '',
   sort = '',
+  issuerFingerprint = '',
+  caFingerprint = '',
 ): Promise<CertificateList> {
   const params = new URLSearchParams({
     page: String(page),
@@ -43,7 +49,15 @@ export function listCertificates(
   if (commonName) params.set('common_name', commonName)
   if (status) params.set('status', status)
   if (sort) params.set('sort', sort)
+  if (issuerFingerprint) params.set('issuer_fingerprint', issuerFingerprint)
+  if (caFingerprint) params.set('ca_fingerprint', caFingerprint)
   return api.get<CertificateList>(`/certificates?${params}`)
+}
+
+// Every stored cert that has signed at least one other stored cert, with
+// subtree sizes and endpoint blast radius. Ordered by subtree size desc.
+export function listIssuers(): Promise<IssuerList> {
+  return api.get<IssuerList>('/certificates/issuers')
 }
 
 export function getCertificate(fingerprint: string): Promise<CertificateDetail> {

@@ -172,12 +172,60 @@ func (s *Store) ListExpiringCerts(ctx context.Context, daysRemaining int) ([]mod
 	return items, nil
 }
 
-// ListCertificates returns a paginated list of certificates with optional filters.
+// CertificateFilter carries the optional filters accepted by
+// GET /certificates. Zero values mean "no filter".
 //
-// status filters by expiry bucket: "expired", "critical" (≤7d), "warning" (≤30d), "ok" (>30d).
-// sort controls ordering: "" or "newest" (default), "expiry_asc", "expiry_desc", "common_name".
-func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, commonName string, expiringBefore *time.Time, status, sort string) (models.CertificateList, error) {
+// IssuerFingerprint and CAFingerprint are deliberately separate:
+//
+//   - IssuerFingerprint matches certificates signed *directly* by that cert.
+//     An exact equality on an indexed column, so it is cheap.
+//   - CAFingerprint matches the whole subtree beneath that cert — children,
+//     grandchildren, and so on. This is the one you want during a CA
+//     incident, because a CA brand operates many intermediates and the
+//     leaves hang off those rather than off the root. It costs a recursive
+//     walk, hence the separate knob.
+//
+// Setting both is allowed and simply intersects, though in practice a caller
+// wants one or the other.
+type CertificateFilter struct {
+	CommonName        string
+	Status            string
+	Sort              string
+	ExpiringBefore    *time.Time
+	IssuerFingerprint string
+	CAFingerprint     string
+}
+
+// issuerSubtreeSQL is a scalar subquery returning every descendant
+// fingerprint beneath a given certificate, excluding the certificate itself.
+//
+// The depth guard is not decoration: self-signed roots keep a NULL
+// issuer_fingerprint (the backfill trigger refuses to link a cert to
+// itself), but cross-signed CAs can legitimately form a cycle where A signs
+// B and B signs A. Without the bound that recurses until the stack dies.
+const issuerSubtreeSQL = `
+	SELECT fingerprint FROM (
+		WITH RECURSIVE subtree AS (
+			SELECT fingerprint, 1 AS depth
+			  FROM tlsentinel.certificates
+			 WHERE issuer_fingerprint = ?
+			UNION ALL
+			SELECT c.fingerprint, t.depth + 1
+			  FROM tlsentinel.certificates c
+			  JOIN subtree t ON c.issuer_fingerprint = t.fingerprint
+			 WHERE t.depth < 10
+		)
+		SELECT DISTINCT fingerprint FROM subtree
+	) AS sub`
+
+// ListCertificates returns a paginated list of certificates matching f.
+//
+// Status filters by expiry bucket: "expired", "critical" (≤7d), "warning"
+// (≤30d), "ok" (>30d). Sort controls ordering: "" or "newest" (default),
+// "expiry_asc", "expiry_desc", "common_name".
+func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, f CertificateFilter) (models.CertificateList, error) {
 	var rows []Certificate
+	commonName, status, sort, expiringBefore := f.CommonName, f.Status, f.Sort, f.ExpiringBefore
 
 	var orderExpr string
 	switch sort {
@@ -212,6 +260,12 @@ func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, common
 	case "ok":
 		q = q.Where("not_after >= NOW() + INTERVAL '30 days'")
 	}
+	if f.IssuerFingerprint != "" {
+		q = q.Where("issuer_fingerprint = ?", f.IssuerFingerprint)
+	}
+	if f.CAFingerprint != "" {
+		q = q.Where("fingerprint IN ("+issuerSubtreeSQL+")", f.CAFingerprint)
+	}
 	total, err := q.ScanAndCount(ctx)
 	if err != nil {
 		return models.CertificateList{}, fmt.Errorf("failed to list certificates: %w", err)
@@ -237,6 +291,116 @@ func (s *Store) ListCertificates(ctx context.Context, page, pageSize int, common
 	}, nil
 }
 
+// ListIssuers returns every stored certificate that has signed at least one
+// other stored certificate, with the size of the subtree beneath it.
+//
+// This is the CA-rollup that answers "a CA just had an incident — how much of
+// my estate hangs off it?". DirectIssued is the immediate children;
+// TotalIssued is the whole subtree, which is the number that actually matters
+// because a CA brand operates many intermediates. EndpointCount is how many
+// enabled endpoints currently serve a certificate from anywhere in the
+// subtree — the blast radius.
+//
+// One recursive pass expands every CA's descendants at once rather than
+// issuing a query per CA. The depth bound guards against cross-signing
+// cycles (see issuerSubtreeSQL); seeds start at depth 0 and are excluded
+// from the counts by the depth > 0 filter, so a CA never counts itself.
+//
+// Note this only sees issuers that are themselves in the store. Chains are
+// captured whole during scanning (the probe ingests every PEM the scanner
+// submits, not just the leaf), so in practice intermediates are present —
+// but a leaf whose intermediate was never observed has a NULL
+// issuer_fingerprint and is invisible here. ReconcileCertificateChains
+// repairs those once the issuer does arrive.
+func (s *Store) ListIssuers(ctx context.Context) (models.IssuerList, error) {
+	type issuerRow struct {
+		Fingerprint   string    `bun:"fingerprint"`
+		CommonName    string    `bun:"common_name"`
+		SubjectOrg    string    `bun:"subject_org"`
+		NotAfter      time.Time `bun:"not_after"`
+		TrustAnchor   bool      `bun:"trust_anchor"`
+		DirectIssued  int       `bun:"direct_issued"`
+		TotalIssued   int       `bun:"total_issued"`
+		EndpointCount int       `bun:"endpoint_count"`
+	}
+
+	var rows []issuerRow
+	err := s.db.NewRaw(`
+		WITH RECURSIVE tree AS (
+			SELECT DISTINCT issuer_fingerprint AS root,
+			                issuer_fingerprint AS fingerprint,
+			                0                  AS depth
+			  FROM tlsentinel.certificates
+			 WHERE issuer_fingerprint IS NOT NULL
+			UNION ALL
+			SELECT t.root, c.fingerprint, t.depth + 1
+			  FROM tlsentinel.certificates c
+			  JOIN tree t ON c.issuer_fingerprint = t.fingerprint
+			 WHERE t.depth < 10
+		)
+		SELECT
+			i.fingerprint,
+			i.common_name,
+			i.subject_org,
+			i.not_after,
+			i.trust_anchor,
+			(SELECT COUNT(*) FROM tlsentinel.certificates d
+			  WHERE d.issuer_fingerprint = i.fingerprint) AS direct_issued,
+			COUNT(DISTINCT t.fingerprint)                 AS total_issued,
+			COUNT(DISTINCT ec.endpoint_id)                AS endpoint_count
+		  FROM tree t
+		  JOIN tlsentinel.certificates i ON i.fingerprint = t.root
+		  LEFT JOIN tlsentinel.endpoint_certs ec
+		         ON ec.fingerprint = t.fingerprint AND ec.is_current = TRUE
+		 WHERE t.depth > 0
+		 GROUP BY i.fingerprint, i.common_name, i.subject_org, i.not_after, i.trust_anchor
+		 ORDER BY total_issued DESC, i.common_name ASC`).Scan(ctx, &rows)
+	if err != nil {
+		return models.IssuerList{}, fmt.Errorf("failed to list issuers: %w", err)
+	}
+
+	items := make([]models.IssuerSummary, len(rows))
+	for i, r := range rows {
+		items[i] = models.IssuerSummary{
+			Fingerprint:   r.Fingerprint,
+			CommonName:    r.CommonName,
+			SubjectOrg:    r.SubjectOrg,
+			NotAfter:      r.NotAfter,
+			IsTrustAnchor: r.TrustAnchor,
+			DirectIssued:  r.DirectIssued,
+			TotalIssued:   r.TotalIssued,
+			EndpointCount: r.EndpointCount,
+		}
+	}
+	return models.IssuerList{Items: items, TotalCount: len(items)}, nil
+}
+
+// countIssued returns (direct, total) descendant counts for one certificate.
+//
+// The recursive subtree walk is skipped entirely when the cert has no direct
+// children, which is the overwhelmingly common case — every leaf certificate
+// in the store takes the cheap indexed path and returns (0, 0).
+func (s *Store) countIssued(ctx context.Context, fingerprint string) (int, int, error) {
+	var direct int
+	if err := s.db.NewRaw(
+		`SELECT COUNT(*) FROM tlsentinel.certificates WHERE issuer_fingerprint = ?`,
+		fingerprint,
+	).Scan(ctx, &direct); err != nil {
+		return 0, 0, fmt.Errorf("failed to count issued certificates: %w", err)
+	}
+	if direct == 0 {
+		return 0, 0, nil
+	}
+
+	var total int
+	if err := s.db.NewRaw(
+		`SELECT COUNT(*) FROM (`+issuerSubtreeSQL+`) AS t`, fingerprint,
+	).Scan(ctx, &total); err != nil {
+		return 0, 0, fmt.Errorf("failed to count issued subtree: %w", err)
+	}
+	return direct, total, nil
+}
+
 func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.CertificateDetail, error) {
 	var c Certificate
 	err := s.db.NewSelect().Model(&c).Where("fingerprint = ?", fingerprint).Scan(ctx)
@@ -246,6 +410,14 @@ func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.
 		}
 		return models.CertificateDetail{}, fmt.Errorf("failed to get certificate: %w", err)
 	}
+	// Issued counts drive the "this CA signed N certificates" affordance on
+	// the detail page. Cheap for leaves: countIssued short-circuits before
+	// the recursive walk when there are no direct children.
+	direct, total, err := s.countIssued(ctx, fingerprint)
+	if err != nil {
+		return models.CertificateDetail{}, err
+	}
+
 	return models.CertificateDetail{
 		Fingerprint:       c.Fingerprint,
 		PEM:               c.PEM,
@@ -259,6 +431,8 @@ func (s *Store) GetCertificate(ctx context.Context, fingerprint string) (models.
 		IssuerFingerprint: c.IssuerFingerprint,
 		CreatedAt:         c.CreatedAt,
 		IsTrustAnchor:     c.TrustAnchor,
+		IssuedDirect:      direct,
+		IssuedTotal:       total,
 	}, nil
 }
 
@@ -424,7 +598,7 @@ func (s *Store) BackfillDNHashes(ctx context.Context) (int64, error) {
 // inserted before migration 000043. Parses the stored PEM for Subject O / OU.
 //
 // Not fully idempotent: rows whose certificates legitimately have neither O
-// nor OU (CN-only leaf certs are common) remain '' and get re-scanned on
+// nor OU (CN-only leaf certs are common) remain ” and get re-scanned on
 // every startup. Acceptable — the decode+skip is cheap, and certificate
 // volumes here are small enough that the O(n) scan isn't worth tracking a
 // visited sentinel.

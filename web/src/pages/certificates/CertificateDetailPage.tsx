@@ -412,12 +412,48 @@ function CertificateAttributesSection({ cert }: { cert: CertificateDetail }) {
       <SectionHeader title="Certificate Attributes" />
       <dl className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
         <Attr label="Subject DN">{formatSubjectDN(cert)}</Attr>
-        <Attr label="Issuer DN">{formatIssuerDN(cert)}</Attr>
+        <Attr label="Issuer DN">
+          {cert.issuerFingerprint ? (
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <span>{formatIssuerDN(cert)}</span>
+              {/* Siblings — everything else this same signing cert produced.
+                  issuer_fingerprint (not ca_fingerprint) because the operator
+                  is looking at one specific issuing cert here. */}
+              <Link
+                to={`/certificates?issuer_fingerprint=${cert.issuerFingerprint}`}
+                className="whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                siblings
+              </Link>
+            </span>
+          ) : (
+            formatIssuerDN(cert)
+          )}
+        </Attr>
         <Attr label="Serial Number">
           <span className="break-all font-mono text-sm">{cert.serialNumber}</span>
         </Attr>
         <Attr label="Signature Algorithm">{cert.signatureAlgorithm || '—'}</Attr>
         <Attr label="Public Key">{keyLabel(cert) || '—'}</Attr>
+        {cert.issuedDirect > 0 && (
+          <Attr label="Certificates Issued">
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <span>
+                {cert.issuedDirect} direct
+                {/* Only worth showing the subtree total when it differs —
+                    for a CA that signs only leaves the two are equal and a
+                    second number would just be noise. */}
+                {cert.issuedTotal > cert.issuedDirect && `, ${cert.issuedTotal} in subtree`}
+              </span>
+              <Link
+                to={`/certificates?ca_fingerprint=${cert.fingerprint}`}
+                className="whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                view all
+              </Link>
+            </span>
+          </Attr>
+        )}
         <Attr label="Key Usage">
           {cert.keyUsages.length > 0 ? cert.keyUsages.join(', ') : '—'}
         </Attr>

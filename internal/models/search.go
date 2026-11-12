@@ -7,6 +7,7 @@ import "time"
 type SearchResults struct {
 	Endpoints    []SearchEndpoint    `json:"endpoints"`
 	Certificates []SearchCertificate `json:"certificates"`
+	Issuers      []SearchIssuer      `json:"issuers"`
 	Scanners     []SearchScanner     `json:"scanners"`
 }
 
@@ -24,6 +25,18 @@ type SearchCertificate struct {
 	Fingerprint string    `json:"fingerprint"`
 	CommonName  string    `json:"commonName"`
 	NotAfter    time.Time `json:"notAfter"`
+}
+
+// SearchIssuer is a certificate authority match — a stored certificate that
+// has signed at least one other stored certificate and whose subject CN or O
+// matches the query. Surfaced as its own group so that typing a CA brand
+// ("DigiCert") yields the handful of CAs plus their issued counts, rather
+// than flooding the certificate group with every leaf they signed.
+type SearchIssuer struct {
+	Fingerprint string `json:"fingerprint"`
+	CommonName  string `json:"commonName"`
+	SubjectOrg  string `json:"subjectOrg"`
+	TotalIssued int    `json:"totalIssued"`
 }
 
 // SearchScanner is a single scanner match.

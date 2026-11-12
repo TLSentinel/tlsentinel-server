@@ -79,6 +79,13 @@ type CertificateDetail struct {
 	// root anchor. Lets the frontend stop walking the issuer chain at the
 	// effective root (including cross-signed copies of an anchor).
 	IsTrustAnchor bool `json:"isTrustAnchor"`
+
+	// IssuedDirect counts certificates whose issuer_fingerprint is this cert.
+	// IssuedTotal counts the whole subtree beneath it (direct children,
+	// their children, ...) and is only computed when IssuedDirect > 0, so a
+	// leaf certificate costs nothing extra. Both are zero for leaves.
+	IssuedDirect int `json:"issuedDirect"`
+	IssuedTotal  int `json:"issuedTotal"`
 }
 
 // RootStoreSummary is the shape returned by GET /root-stores — one row per
@@ -141,4 +148,33 @@ type ExpiringCertList struct {
 	Page       int                `json:"page,omitempty"`
 	PageSize   int                `json:"pageSize,omitempty"`
 	TotalCount int                `json:"totalCount,omitempty"`
+}
+
+// IssuerSummary is one certificate-authority row from GET /certificates/issuers
+// — every stored certificate that has signed at least one other stored
+// certificate, with the size of the subtree beneath it.
+//
+// DirectIssued counts immediate children (certificates whose
+// issuer_fingerprint is this cert). TotalIssued counts the entire subtree,
+// which is the number that matters during a CA incident: a brand like
+// DigiCert operates many intermediates, and the leaves you need to rotate
+// hang off them rather than off the root directly.
+//
+// EndpointCount is how many enabled endpoints currently serve a certificate
+// from anywhere in that subtree — i.e. the blast radius.
+type IssuerSummary struct {
+	Fingerprint   string    `json:"fingerprint"`
+	CommonName    string    `json:"commonName"`
+	SubjectOrg    string    `json:"subjectOrg"`
+	NotAfter      time.Time `json:"notAfter"`
+	IsTrustAnchor bool      `json:"isTrustAnchor"`
+	DirectIssued  int       `json:"directIssued"`
+	TotalIssued   int       `json:"totalIssued"`
+	EndpointCount int       `json:"endpointCount"`
+}
+
+// IssuerList is the response envelope for GET /certificates/issuers.
+type IssuerList struct {
+	Items      []IssuerSummary `json:"items"`
+	TotalCount int             `json:"totalCount"`
 }
