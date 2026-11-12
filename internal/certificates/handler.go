@@ -102,6 +102,8 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 // @Param        expiring_before query  string  false  "Filter by expiry date (RFC3339)"
 // @Param        status          query  string  false  "Filter by status: expired, critical, warning, ok"
 // @Param        sort            query  string  false  "Sort order: \"\" (newest first, default), expiry_asc, expiry_desc, common_name"
+// @Param        issuer_fingerprint query string false "Only certificates signed directly by this certificate"
+// @Param        ca_fingerprint     query string false "Only certificates anywhere in the subtree beneath this CA (recursive)"
 // @Success      200  {object}  models.CertificateList
 // @Failure      500  {string}  string  "internal server error"
 // @Router       /certificates [get]
@@ -122,12 +124,36 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		expiringBefore = &t
 	}
 
-	result, err := h.store.ListCertificates(r.Context(), page, pageSize, commonName, expiringBefore, status, sort)
+	result, err := h.store.ListCertificates(r.Context(), page, pageSize, db.CertificateFilter{
+		CommonName:        commonName,
+		Status:            status,
+		Sort:              sort,
+		ExpiringBefore:    expiringBefore,
+		IssuerFingerprint: r.URL.Query().Get("issuer_fingerprint"),
+		CAFingerprint:     r.URL.Query().Get("ca_fingerprint"),
+	})
 	if err != nil {
 		http.Error(w, "failed to list certificates", http.StatusInternalServerError)
 		return
 	}
 
+	response.JSON(w, http.StatusOK, result)
+}
+
+// @Summary      List certificate authorities
+// @Description  Returns every stored certificate that has signed at least one other stored certificate, with the number of certificates directly issued, the size of the whole subtree beneath it, and how many enabled endpoints currently serve a certificate from that subtree. Ordered by subtree size descending. Intended for answering "a CA had an incident — what of mine is affected?".
+// @Tags         certificates
+// @Produce      json
+// @Success      200  {object}  models.IssuerList
+// @Failure      500  {string}  string  "internal server error"
+// @Router       /certificates/issuers [get]
+func (h *Handler) Issuers(w http.ResponseWriter, r *http.Request) {
+	result, err := h.store.ListIssuers(r.Context())
+	if err != nil {
+		slog.Error("failed to list certificate issuers", "error", err)
+		http.Error(w, "failed to list issuers", http.StatusInternalServerError)
+		return
+	}
 	response.JSON(w, http.StatusOK, result)
 }
 
@@ -186,8 +212,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			ResourceID:   rec.Fingerprint,
 			Label:        stored.CommonName,
 			Details: map[string]any{
-				"sans":      stored.SANs,
-				"notAfter":  stored.NotAfter,
+				"sans":       stored.SANs,
+				"notAfter":   stored.NotAfter,
 				"subjectOrg": stored.SubjectOrg,
 			},
 		})
@@ -486,7 +512,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request) {
 		NotBefore:     cert.NotBefore,
 		NotAfter:      cert.NotAfter,
 		DaysRemaining: daysRemaining,
-		Valid:          time.Now().Before(cert.NotAfter) && time.Now().After(cert.NotBefore),
+		Valid:         time.Now().Before(cert.NotAfter) && time.Now().After(cert.NotBefore),
 	}
 
 	// Check if this domain is monitored — best-effort, non-fatal.

@@ -8,6 +8,7 @@ import EndpointPage from '@/pages/endpoint/EndpointPage'
 import EndpointFormPage from '@/pages/endpoint/EndpointFormPage'
 import CertificatesPage from '@/pages/certificates/CertificatesPage'
 import CertificateDetailPage from '@/pages/certificates/CertificateDetailPage'
+import IssuersPage from '@/pages/certificates/IssuersPage'
 import RootStoresPage from '@/pages/root-stores/RootStoresPage'
 import EndpointDetailPage from '@/pages/endpoint/EndpointDetailPage'
 import EndpointScanHistoryPage from '@/pages/endpoint/EndpointScanHistoryPage'
@@ -111,6 +112,7 @@ export default function App() {
           <Route path="toolbox/cert-chain" element={<CertChainPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="certificates/:fingerprint" element={<CertificateDetailPage />} />
+          <Route path="authorities" element={<IssuersPage />} />
           <Route path="root-stores" element={<RootStoresPage />} />
           <Route path="help" element={<HelpPage />} />
           {/* Everything under /help/<slug> is served from bundled markdown —

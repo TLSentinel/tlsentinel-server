@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Server, LayoutDashboard, Wrench, Package, ChevronRight, BarChart2,
   ScrollText, SquareActivity, Radar, Inbox, Network, Landmark, KeyRound, FileText,
+  Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { BuildInfo } from '@/types/api'
@@ -98,7 +99,7 @@ export function SidebarNav({ buildInfo }: SidebarNavProps) {
           icon={<Package className="h-4 w-4" />}
           label="Inventory"
           // /endpoints covers all three typed lists plus detail/new/edit.
-          childPaths={['/endpoints', '/certificates', '/root-stores']}
+          childPaths={['/endpoints', '/certificates', '/authorities', '/root-stores']}
         >
           {/* Labels are short so they fit the w-56 sidebar with uppercase
               tracking. Full names ("Host Endpoints" etc.) render in the
@@ -107,6 +108,7 @@ export function SidebarNav({ buildInfo }: SidebarNavProps) {
           <NavItem to="/endpoints/saml"    icon={<KeyRound className="h-4 w-4" />}   label="SAML" />
           <NavItem to="/endpoints/manual"  icon={<FileText className="h-4 w-4" />}   label="Manual" />
           <NavItem to="/certificates"      icon={<ScrollText className="h-4 w-4" />} label="Certificates" />
+          <NavItem to="/authorities"       icon={<Building2 className="h-4 w-4" />} label="Authorities" />
           <NavItem to="/root-stores"       icon={<Landmark className="h-4 w-4" />}   label="Root Stores" />
         </NavGroup>
         <NavGroup icon={<Radar className="h-4 w-4" />} label="Discovery" childPaths={['/discovery']}>

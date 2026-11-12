@@ -303,6 +303,10 @@ export interface CertificateDetail {
   trustedBy: string[]
   /** True when this cert is Subject+SKI-equivalent to a CCADB root anchor. */
   isTrustAnchor: boolean
+  /** Certificates signed directly by this one. Zero for leaves. */
+  issuedDirect: number
+  /** Whole subtree beneath this cert. Only computed when issuedDirect > 0. */
+  issuedTotal: number
 }
 
 /** One enabled root store, used by the trust matrix card on cert detail
@@ -355,9 +359,20 @@ export interface SearchScanner {
   name: string
 }
 
+/** A certificate authority match — a stored cert that has signed at least one
+ *  other stored cert. Its own search group so that a CA brand query returns
+ *  the authorities rather than every leaf beneath them. */
+export interface SearchIssuer {
+  fingerprint: string
+  commonName: string
+  subjectOrg: string
+  totalIssued: number
+}
+
 export interface SearchResults {
   endpoints: SearchEndpoint[]
   certificates: SearchCertificate[]
+  issuers: SearchIssuer[]
   scanners: SearchScanner[]
 }
 
@@ -368,6 +383,28 @@ export interface IngestCertificateRequest {
 }
 
 export type CertificateList = PaginatedList<CertificateListItem>
+
+/** One CA row from GET /certificates/issuers.
+ *
+ *  directIssued is immediate children; totalIssued is the whole subtree,
+ *  which is the number that matters during a CA incident since a CA brand
+ *  runs many intermediates. endpointCount is the blast radius — enabled
+ *  endpoints currently serving a cert from anywhere in that subtree. */
+export interface IssuerSummary {
+  fingerprint: string
+  commonName: string
+  subjectOrg: string
+  notAfter: string
+  isTrustAnchor: boolean
+  directIssued: number
+  totalIssued: number
+  endpointCount: number
+}
+
+export interface IssuerList {
+  items: IssuerSummary[]
+  totalCount: number
+}
 
 // ---------------------------------------------------------------------------
 // Scanners — scanner tokens

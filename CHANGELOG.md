@@ -1,5 +1,62 @@
 # Changelog
 
+## [v2026.12.0]
+
+### Added
+
+- **Look up every certificate a CA signed.** Three new ways into the issuer
+  relationship, which the schema has always recorded but nothing exposed. The
+  certificate list accepts `issuer_fingerprint` (certificates signed *directly*
+  by one cert) and `ca_fingerprint` (the entire subtree beneath a CA —
+  children, grandchildren, and so on), both URL-driven so a filtered view is
+  shareable and both rendering as a dismissible chip that names the CA rather
+  than its fingerprint. The distinction is the point: a CA brand operates many
+  intermediates and the leaves hang off those, so a flat "issued by" filter
+  would quietly under-report during exactly the incident you built it for.
+- **Certificate Authorities page (`/authorities`).** Every stored certificate
+  that has signed at least one other stored certificate, ordered by subtree
+  size, showing directly-issued and whole-subtree counts alongside the number
+  of enabled endpoints currently serving a certificate from that subtree — the
+  blast radius. Backed by `GET /certificates/issuers`, a single recursive pass
+  that expands every CA's descendants at once rather than one query per CA.
+- **Issuer drill-downs on certificate detail.** The Issuer DN attribute now
+  links to the issuing certificate's other children ("siblings"), and a
+  certificate that is itself a CA gains a "Certificates Issued" row showing
+  direct and subtree counts with a link to the filtered list. The subtree
+  total only renders when it differs from the direct count, so a CA that signs
+  only leaves shows one number instead of two identical ones.
+- **Certificate authorities in universal search.** Typing a CA name or
+  organization ("DigiCert") now surfaces a Certificate Authorities group
+  listing the matching CAs and what each has issued, linking straight to the
+  filtered certificate list. It is a separate group on purpose — folding CA
+  matches into the certificate group would bury the handful of authorities
+  under every leaf they ever signed. Certificate matching also now covers
+  `subject_org`, not just common name, fingerprint, and SANs.
+
+### Changed
+
+- **`ListCertificates` takes a filter struct.** The store function had reached
+  seven positional parameters and needed two more; `db.CertificateFilter`
+  replaces them so the next filter is a named field rather than another
+  argument to count.
+
+### Notes
+
+- No schema change was required: `issuer_fingerprint`, `issuer_dn_hash`, and
+  `authority_key_id` have been present and indexed since the initial
+  migration, and the insert trigger has been linking issuer to subject in both
+  directions all along. This release is a query and interface addition on top
+  of data that was already being captured.
+- Issuer links only exist where the issuing certificate is itself in the store.
+  Chains are captured whole during scanning — the probe ingests every PEM the
+  scanner submits, not just the leaf — so intermediates are normally present,
+  but a certificate whose issuer was never observed has a NULL
+  `issuer_fingerprint` and will not appear under any CA.
+  `ReconcileCertificateChains` links it retroactively once the issuer arrives.
+- Recursive walks are bounded to a depth of 10. Self-signed roots keep a NULL
+  `issuer_fingerprint` so they cannot loop, but cross-signed CAs can
+  legitimately form a cycle where two certificates sign each other.
+
 ## [v2026.11.0]
 
 ### Security

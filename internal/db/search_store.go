@@ -9,9 +9,10 @@ import (
 	"github.com/tlsentinel/tlsentinel-server/internal/models"
 )
 
-// UniversalSearch runs three bounded queries — endpoints, certificates,
-// scanners — and returns up to `limit` matches from each. Intended for the
-// header command-search dropdown; not a pagination surface.
+// UniversalSearch runs four bounded queries — endpoints, certificates,
+// certificate authorities, scanners — and returns up to `limit` matches from
+// each. Intended for the header command-search dropdown; not a pagination
+// surface.
 //
 // Endpoint matching branches on the input shape:
 //
@@ -25,9 +26,14 @@ import (
 //   - Text query → existing ILIKE substring on h.name, eh.dns_name, and
 //     es.url, which is the right behavior for hostnames and SAML URLs.
 //
-// Certificate and scanner matching are unaffected — both stay on text-style
-// substring matching regardless of input shape. Cert matches against an IP
-// literal in a SAN are vanishingly rare and not worth special-casing yet.
+// Certificate, CA, and scanner matching all stay on text-style substring
+// matching regardless of input shape. Cert matches against an IP literal in
+// a SAN are vanishingly rare and not worth special-casing yet.
+//
+// Certificates match on subject CN, subject O, fingerprint prefix, and SANs.
+// The CA group is narrower — subject CN or O, restricted to certificates that
+// have signed something in our store — so that a CA brand query returns the
+// authorities themselves rather than every leaf beneath them.
 func (s *Store) UniversalSearch(ctx context.Context, q string, limit int) (models.SearchResults, error) {
 	pattern := "%" + q + "%"
 	prefix := q + "%"
@@ -87,12 +93,33 @@ func (s *Store) UniversalSearch(ctx context.Context, q string, limit int) (model
 		ColumnExpr("fingerprint, common_name, not_after").
 		// Fingerprint uses prefix match (it's a long hex string; contains-match
 		// would produce useless substring hits).
-		Where("common_name ILIKE ? OR fingerprint ILIKE ? OR EXISTS (SELECT 1 FROM unnest(sans) s WHERE s ILIKE ?)", pattern, prefix, pattern).
+		Where("common_name ILIKE ? OR subject_org ILIKE ? OR fingerprint ILIKE ? OR EXISTS (SELECT 1 FROM unnest(sans) s WHERE s ILIKE ?)", pattern, pattern, prefix, pattern).
 		OrderExpr("common_name ASC").
 		Limit(limit).
 		Scan(ctx, &certificates)
 	if err != nil {
 		return models.SearchResults{}, fmt.Errorf("search certificates: %w", err)
+	}
+
+	// Certificate authorities matching by subject CN or O, restricted to certs
+	// that have actually signed something in our store. This is a separate
+	// group on purpose: typing a CA brand like "DigiCert" should surface the
+	// handful of CAs and let the operator drill into the subtree, rather than
+	// flooding the certificate group with every leaf that CA ever signed.
+	var issuers []models.SearchIssuer
+	err = s.db.NewRaw(`
+		SELECT i.fingerprint,
+		       i.common_name,
+		       i.subject_org,
+		       COUNT(DISTINCT c.fingerprint) AS total_issued
+		  FROM tlsentinel.certificates i
+		  JOIN tlsentinel.certificates c ON c.issuer_fingerprint = i.fingerprint
+		 WHERE i.common_name ILIKE ? OR i.subject_org ILIKE ?
+		 GROUP BY i.fingerprint, i.common_name, i.subject_org
+		 ORDER BY total_issued DESC, i.common_name ASC
+		 LIMIT ?`, pattern, pattern, limit).Scan(ctx, &issuers)
+	if err != nil {
+		return models.SearchResults{}, fmt.Errorf("search issuers: %w", err)
 	}
 
 	var scanners []models.SearchScanner
@@ -112,12 +139,16 @@ func (s *Store) UniversalSearch(ctx context.Context, q string, limit int) (model
 	if certificates == nil {
 		certificates = []models.SearchCertificate{}
 	}
+	if issuers == nil {
+		issuers = []models.SearchIssuer{}
+	}
 	if scanners == nil {
 		scanners = []models.SearchScanner{}
 	}
 	return models.SearchResults{
 		Endpoints:    endpoints,
 		Certificates: certificates,
+		Issuers:      issuers,
 		Scanners:     scanners,
 	}, nil
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Server, FileBadge, Radar } from 'lucide-react'
+import { Search, Server, FileBadge, Landmark, Radar } from 'lucide-react'
 import { universalSearch } from '@/api/search'
 import type { SearchResults } from '@/types/api'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ const DEBOUNCE_MS = 250
 type FlatItem =
   | { kind: 'endpoint'; id: string; title: string; subtitle: string; type: string; href: string }
   | { kind: 'certificate'; id: string; title: string; subtitle: string; href: string }
+  | { kind: 'issuer'; id: string; title: string; subtitle: string; href: string }
   | { kind: 'scanner'; id: string; title: string; subtitle: string; href: string }
 
 function flatten(results: SearchResults | undefined): FlatItem[] {
@@ -19,6 +20,7 @@ function flatten(results: SearchResults | undefined): FlatItem[] {
   // Defensive: an older server build could return null for an empty group.
   const endpoints = results.endpoints ?? []
   const certificates = results.certificates ?? []
+  const issuers = results.issuers ?? []
   const scanners = results.scanners ?? []
   return [
     ...endpoints.map<FlatItem>(e => ({
@@ -35,6 +37,17 @@ function flatten(results: SearchResults | undefined): FlatItem[] {
       title: c.commonName || c.fingerprint.slice(0, 16) + '…',
       subtitle: c.fingerprint,
       href: `/certificates/${c.fingerprint}`,
+    })),
+    // CAs land between certificates and scanners. The href goes to the
+    // filtered certificate list rather than the CA's own detail page —
+    // someone searching a CA brand wants to see what it signed, which is
+    // the whole point of surfacing this group.
+    ...issuers.map<FlatItem>(i => ({
+      kind: 'issuer',
+      id: i.fingerprint,
+      title: i.commonName || i.subjectOrg || i.fingerprint.slice(0, 16) + '…',
+      subtitle: `${i.totalIssued} ${i.totalIssued === 1 ? 'certificate' : 'certificates'} issued`,
+      href: `/certificates?ca_fingerprint=${i.fingerprint}`,
     })),
     ...scanners.map<FlatItem>(s => ({
       kind: 'scanner',
@@ -145,7 +158,7 @@ export function GlobalSearch() {
         onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIdx(0) }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder={`Search endpoints, certificates, or scanners…  (${SHORTCUT_LABEL})`}
+        placeholder={`Search endpoints, certificates, CAs, or scanners…  (${SHORTCUT_LABEL})`}
         className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-4 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
         aria-autocomplete="list"
         aria-expanded={showDropdown}
@@ -186,6 +199,7 @@ function SearchGroups({
   const grouped: Record<FlatItem['kind'], Array<{ item: FlatItem; idx: number }>> = {
     endpoint: [],
     certificate: [],
+    issuer: [],
     scanner: [],
   }
   items.forEach((item, idx) => grouped[item.kind].push({ item, idx }))
@@ -194,6 +208,7 @@ function SearchGroups({
     <div className="max-h-[60vh] overflow-y-auto py-1">
       <Group label="Endpoints" rows={grouped.endpoint} activeIdx={activeIdx} onPick={onPick} onHover={onHover} />
       <Group label="Certificates" rows={grouped.certificate} activeIdx={activeIdx} onPick={onPick} onHover={onHover} />
+      <Group label="Certificate Authorities" rows={grouped.issuer} activeIdx={activeIdx} onPick={onPick} onHover={onHover} />
       <Group label="Scanners" rows={grouped.scanner} activeIdx={activeIdx} onPick={onPick} onHover={onHover} />
     </div>
   )
@@ -256,5 +271,6 @@ function KindIcon({ kind }: { kind: FlatItem['kind'] }) {
   const className = 'h-4 w-4 shrink-0 text-muted-foreground'
   if (kind === 'endpoint') return <Server className={className} />
   if (kind === 'certificate') return <FileBadge className={className} />
+  if (kind === 'issuer') return <Landmark className={className} />
   return <Radar className={className} />
 }
